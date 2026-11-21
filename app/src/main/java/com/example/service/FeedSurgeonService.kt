@@ -43,11 +43,15 @@ class FeedSurgeonService : AccessibilityService() {
     private val consecutiveTabFallbackCounts = ConcurrentHashMap<String, Int>()
 
     @Volatile
+    private var allRulesByPackage: Map<String, TargetAppRuleEntity> = emptyMap()
+
+    @Volatile
     private var activeRulesByPackage: Map<String, TargetAppRuleEntity> = emptyMap()
 
     @Volatile
     private var currentPrefs: AppPreferences = AppPreferences()
 
+    private val foregroundMonitor = ForegroundPackageMonitor()
     private var overlayShield: AccessibilityOverlayShield? = null
 
     private val app: FeedSurgeonApp?
@@ -63,6 +67,7 @@ class FeedSurgeonService : AccessibilityService() {
 
         // Pre-seed immediately so zero accessibility events are missed before Room emits
         val defaults = FeedSurgeonDatabase.defaultBuiltInRules()
+        allRulesByPackage = defaults.associateBy { it.packageName }
         activeRulesByPackage = defaults
             .filter { it.enabled }
             .associateBy { it.packageName }
@@ -85,6 +90,7 @@ class FeedSurgeonService : AccessibilityService() {
             runCatching { hostApp.rulesetRepository.ensureLocalCacheSeeded() }
             runCatching { hostApp.rulesetRepository.autoSyncIfDue(force = false) }
             hostApp.interventionRepository.allRules.collectLatest { rules ->
+                allRulesByPackage = rules.associateBy { it.packageName }
                 val enabledMap = rules.filter { it.enabled }.associateBy { it.packageName }
                 activeRulesByPackage = enabledMap
                 updateServicePackageScope(rules.map { it.packageName })
@@ -152,12 +158,8 @@ class FeedSurgeonService : AccessibilityService() {
         ForegroundProtectionNotifier.startForegroundProtection(this, activeInstalledRuleCount)
     }
 
-    private fun updateServicePackageScope(packages: List<String>) {
+    private fun updateServicePackageScope(@Suppress("UNUSED_PARAMETER") packages: List<String>) {
         val currentInfo = serviceInfo ?: AccessibilityServiceInfo()
-        val scopedPackages = packages.distinct().ifEmpty {
-            FeedSurgeonDatabase.BUILT_IN_PACKAGE_NAMES.toList()
-        }.toTypedArray()
-
         currentInfo.apply {
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
                 AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED or
@@ -166,7 +168,10 @@ class FeedSurgeonService : AccessibilityService() {
             flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS or
                 AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
             notificationTimeout = 100L
-            packageNames = scopedPackages
+            // Keep packageNames unfiltered so TYPE_WINDOW_STATE_CHANGED monitors foreground
+            // transitions into any monitored app (including custom apps) and clean exits out
+            // of them; unmonitored apps are ignored immediately before any node inspection.
+            packageNames = null
         }
         try {
             serviceInfo = currentInfo
@@ -183,8 +188,67 @@ class FeedSurgeonService : AccessibilityService() {
         val captureLogs = prefs.eventCaptureEnabled
         val eventType = event.eventType
         val eventClassName = event.className?.toString()
+        val isWindowStateChanged = eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+
+        // Fast-path exit for high-frequency scroll/content events from unmonitored apps
+        if (!isWindowStateChanged && allRulesByPackage[pkg] == null) {
+            return
+        }
+
         val nowElapsed = SystemClock.elapsedRealtime()
         val nowMs = System.currentTimeMillis()
+
+        if (isWindowStateChanged) {
+            val rulesSnapshot = allRulesByPackage.ifEmpty {
+                FeedSurgeonDatabase.defaultBuiltInRules().associateBy { it.packageName }
+            }
+            when (
+                val transition = foregroundMonitor.onWindowStateChanged(
+                    packageName = pkg,
+                    className = eventClassName,
+                    rulesByPackage = rulesSnapshot,
+                    hostPackageName = packageName,
+                    isOverlayShowing = overlayShield?.isShowing() == true
+                )
+            ) {
+                is ForegroundPackageMonitor.Transition.ExitedMonitoredApp -> {
+                    overlayShield?.dismiss()
+                    inFlightVerifications.remove(transition.previousPackage)
+                    consecutiveTabFallbackCounts.remove(transition.previousPackage)
+                    DiagnosticsBridge.clearForegroundMonitoredApp(transition.previousPackage)
+                    return
+                }
+                is ForegroundPackageMonitor.Transition.EnteredMonitoredApp -> {
+                    transition.previousPackage?.let { prev ->
+                        if (prev != transition.packageName) {
+                            overlayShield?.dismiss()
+                            inFlightVerifications.remove(prev)
+                            consecutiveTabFallbackCounts.remove(prev)
+                        }
+                    }
+                    consecutiveTabFallbackCounts[pkg] = 0
+                    DiagnosticsBridge.setForegroundMonitoredApp(pkg, transition.rule.displayName)
+                    if (captureLogs) {
+                        logEventThrottled(
+                            pkg = pkg,
+                            eventType = eventType,
+                            eventClassName = eventClassName,
+                            rootNode = null,
+                            matchedSelector = null,
+                            outcome = "FOREGROUND_ENTER:${transition.rule.displayName}",
+                            nowElapsed = nowElapsed,
+                            force = true
+                        )
+                    }
+                }
+                is ForegroundPackageMonitor.Transition.StayedInMonitoredApp -> {
+                    DiagnosticsBridge.setForegroundMonitoredApp(pkg, transition.rule.displayName)
+                }
+                ForegroundPackageMonitor.Transition.IgnoredTransientWindow,
+                ForegroundPackageMonitor.Transition.UnmonitoredApp -> return
+            }
+        }
+
         if (prefs.isGloballyPaused(nowMs)) {
             if (captureLogs) {
                 logEventThrottled(pkg, eventType, eventClassName, null, null, "SKIPPED:global_paused", nowElapsed)
@@ -200,8 +264,8 @@ class FeedSurgeonService : AccessibilityService() {
 
         val rule = activeRulesByPackage[pkg]
         if (rule == null) {
-            if (captureLogs) {
-                logEventThrottled(pkg, eventType, eventClassName, null, null, "SKIPPED:no_active_rule", nowElapsed)
+            if (captureLogs && allRulesByPackage[pkg] != null) {
+                logEventThrottled(pkg, eventType, eventClassName, null, null, "SKIPPED:rule_disabled", nowElapsed)
             }
             return
         }
@@ -548,11 +612,14 @@ class FeedSurgeonService : AccessibilityService() {
     override fun onInterrupt() {
         overlayShield?.dismiss()
         inFlightVerifications.clear()
+        foregroundMonitor.reset()
+        DiagnosticsBridge.clearForegroundMonitoredApp()
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
         overlayShield?.dismiss()
         inFlightVerifications.clear()
+        foregroundMonitor.reset()
         ForegroundProtectionNotifier.stopForegroundProtection(this)
         DiagnosticsBridge.setServiceConnected(false)
         return super.onUnbind(intent)
@@ -562,6 +629,7 @@ class FeedSurgeonService : AccessibilityService() {
         super.onDestroy()
         overlayShield?.dismiss()
         inFlightVerifications.clear()
+        foregroundMonitor.reset()
         ForegroundProtectionNotifier.stopForegroundProtection(this)
         DiagnosticsBridge.setServiceConnected(false)
         serviceScope.cancel()

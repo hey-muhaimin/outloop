@@ -151,6 +151,8 @@ fun DiagnosticsScreen(
                 OutloopHairlineDivider()
                 DiagnosticRow("Protection", protectionLabel)
                 OutloopHairlineDivider()
+                DiagnosticRow("Foreground monitor", uiState.foregroundAppSummary)
+                OutloopHairlineDivider()
                 DiagnosticRow("Last detection", uiState.lastDetectionSummary)
                 OutloopHairlineDivider()
                 DiagnosticRow("Last intervention", uiState.lastInterventionOutcomeSummary)

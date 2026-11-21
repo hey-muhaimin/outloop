@@ -99,6 +99,7 @@ data class MainUiState(
     val thirtyDayByAppBreakdown: List<AppBreakdownStat> = emptyList(),
     val lastDetectionSummary: String = "None recorded yet",
     val lastInterventionOutcomeSummary: String = "None recorded yet",
+    val foregroundAppSummary: String = "Waiting for monitored app",
     val recentToast: InterventionToastState? = null,
     val isSyncingRules: Boolean = false,
     val syncStatusMessage: String? = null,
@@ -154,8 +155,43 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val toast: InterventionToastState?,
         val logPreview: String,
         val logSizeBytes: Long,
-        val nowMs: Long
+        val nowMs: Long,
+        val foregroundAppLabel: String?
     )
+
+    private data class Tuple8<A, B, C, D, E, F, G, H>(
+        val first: A,
+        val second: B,
+        val third: C,
+        val fourth: D,
+        val fifth: E,
+        val sixth: F,
+        val seventh: G,
+        val eighth: H
+    )
+
+    private val syncAndLogFlow = combine(
+        _isSyncingRules,
+        _syncMessage,
+        DiagnosticsBridge.recentToast,
+        _eventLogPreview,
+        _eventLogSizeBytes,
+        _launchableApps,
+        _nowMs,
+        DiagnosticsBridge.foregroundMonitoredAppLabel
+    ) { array ->
+        Tuple8(
+            array[0] as Boolean,
+            array[1] as String?,
+            array[2] as InterventionToastState?,
+            array[3] as String,
+            array[4] as Long,
+            @Suppress("UNCHECKED_CAST")
+            (array[5] as List<LaunchableAppInfo>),
+            array[6] as Long,
+            array[7] as String?
+        )
+    }
 
     private data class Tuple7<A, B, C, D, E, F, G>(
         val first: A,
@@ -166,27 +202,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val sixth: F,
         val seventh: G
     )
-
-    private val syncAndLogFlow = combine(
-        _isSyncingRules,
-        _syncMessage,
-        DiagnosticsBridge.recentToast,
-        _eventLogPreview,
-        _eventLogSizeBytes,
-        _launchableApps,
-        _nowMs
-    ) { array ->
-        Tuple7(
-            array[0] as Boolean,
-            array[1] as String?,
-            array[2] as InterventionToastState?,
-            array[3] as String,
-            array[4] as Long,
-            @Suppress("UNCHECKED_CAST")
-            (array[5] as List<LaunchableAppInfo>),
-            array[6] as Long
-        )
-    }
 
     private val environmentFlow = combine(
         _accessibilityEnabled,
@@ -227,7 +242,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             toast = extra.third,
             logPreview = extra.fourth,
             logSizeBytes = extra.fifth,
-            nowMs = extra.seventh
+            nowMs = extra.seventh,
+            foregroundAppLabel = extra.eighth
         )
     }
 
@@ -320,6 +336,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             thirtyDayByAppBreakdown = thirtyDayByApp,
             lastDetectionSummary = lastDetectionSummary,
             lastInterventionOutcomeSummary = lastOutcomeSummary,
+            foregroundAppSummary = transient.foregroundAppLabel?.let { "$it (foreground)" }
+                ?: "Waiting for monitored app",
             recentToast = transient.toast,
             isSyncingRules = transient.isSyncing,
             syncStatusMessage = transient.syncMessage,

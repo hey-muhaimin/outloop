@@ -8,14 +8,16 @@ import android.view.accessibility.AccessibilityNodeInfo
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
-import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.ListenableWorker
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.WorkManagerTestInitHelper
+import android.view.accessibility.AccessibilityEvent
+import com.example.data.repository.DiagnosticsBridge
 import com.example.service.FeedSurgeonService
+import com.example.service.ForegroundPackageMonitor
 import com.example.data.local.AppPreferences
 import com.example.data.local.AppearanceMode
 import com.example.data.local.FeedSurgeonDatabase
@@ -37,10 +39,20 @@ import com.example.service.ForegroundProtectionNotifier
 import com.example.service.InstalledAppDetector
 import com.example.service.ProtectionActionReceiver
 import com.example.service.SelectorMatcher
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
+import com.example.ui.MainUiState
 import com.example.ui.MainViewModel
 import com.example.worker.RulesetSyncWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import org.robolectric.shadows.ShadowLooper
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
@@ -58,7 +70,6 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import org.robolectric.shadows.ShadowLooper
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
@@ -762,14 +773,40 @@ class ExampleRobolectricTest {
     }
 
     @Test
-    fun `cold start MainViewModel initializes cleanly and resolves initial state`() = runTest {
+    fun `cold start MainViewModel initializes cleanly and resolves initial state`() {
         val app = ApplicationProvider.getApplicationContext<FeedSurgeonApp>()
-        app.interventionRepository.ensureDefaultRulesSeeded()
-        val viewModel = MainViewModel(app)
+        runBlocking(Dispatchers.IO) {
+            app.interventionRepository.ensureDefaultRulesSeeded()
+        }
+        val store = ViewModelStore()
+        val collectorScope = CoroutineScope(Dispatchers.Default)
+        try {
+            val viewModel = ViewModelProvider(
+                store,
+                ViewModelProvider.AndroidViewModelFactory.getInstance(app)
+            )[MainViewModel::class.java]
 
-        val loadedState = viewModel.uiState.first { !it.isInitialLoading }
-        assertFalse(loadedState.isInitialLoading)
-        assertTrue(loadedState.rules.size >= 5)
+            var loadedState: MainUiState? = null
+            val latch = CountDownLatch(1)
+            val job = collectorScope.launch {
+                loadedState = viewModel.uiState.first { !it.isInitialLoading }
+                latch.countDown()
+            }
+
+            val deadline = System.currentTimeMillis() + 5_000L
+            while (latch.count > 0 && System.currentTimeMillis() < deadline) {
+                ShadowLooper.idleMainLooper()
+                latch.await(20, TimeUnit.MILLISECONDS)
+            }
+            job.cancel()
+
+            val state = loadedState
+            assertNotNull("Expected MainViewModel to emit non-loading uiState", state)
+            assertFalse(state!!.isInitialLoading)
+            assertTrue(state.rules.size >= 5)
+        } finally {
+            store.clear()
+        }
     }
 
     @Test
@@ -777,13 +814,14 @@ class ExampleRobolectricTest {
         val app = ApplicationProvider.getApplicationContext<FeedSurgeonApp>()
         WorkManagerTestInitHelper.initializeTestWorkManager(app)
 
-        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            ShadowLooper.idleMainLooper()
-            scenario.onActivity { activity ->
-                assertFalse(activity.isFinishing)
-                assertNotNull(activity.window)
-            }
-        }
+        val controller = Robolectric.buildActivity(MainActivity::class.java)
+            .create()
+            .start()
+            .resume()
+        val activity = controller.get()
+        assertFalse(activity.isFinishing)
+        assertNotNull(activity.window)
+        controller.pause().stop().destroy()
     }
 
     @Test
@@ -791,6 +829,88 @@ class ExampleRobolectricTest {
         val controller = Robolectric.buildService(FeedSurgeonService::class.java)
         val service = controller.create().startCommand(0, 0).get()
         assertNotNull(service)
+        controller.unbind().destroy()
+    }
+
+    @Test
+    fun `foreground package monitor detects short-form app entry transient windows and exits`() {
+        val rulesByPkg = FeedSurgeonDatabase.defaultBuiltInRules().associateBy { it.packageName }
+        val monitor = ForegroundPackageMonitor()
+        val hostPkg = "com.suprbuild.outloop.kxmpzq"
+
+        val launcher = monitor.onWindowStateChanged(
+            packageName = "com.android.launcher3",
+            className = "Launcher",
+            rulesByPackage = rulesByPkg,
+            hostPackageName = hostPkg,
+            isOverlayShowing = false
+        )
+        assertTrue(launcher is ForegroundPackageMonitor.Transition.UnmonitoredApp)
+
+        val enteredYt = monitor.onWindowStateChanged(
+            packageName = "com.google.android.youtube",
+            className = "WatchWhileActivity",
+            rulesByPackage = rulesByPkg,
+            hostPackageName = hostPkg,
+            isOverlayShowing = false
+        )
+        assertTrue(enteredYt is ForegroundPackageMonitor.Transition.EnteredMonitoredApp)
+        assertEquals("YouTube", (enteredYt as ForegroundPackageMonitor.Transition.EnteredMonitoredApp).rule.displayName)
+        assertEquals("com.google.android.youtube", monitor.currentForegroundPackage)
+
+        // System UI notifications or overlay window must not clear active monitored app
+        val systemUi = monitor.onWindowStateChanged(
+            packageName = "com.android.systemui",
+            className = "VolumeDialog",
+            rulesByPackage = rulesByPkg,
+            hostPackageName = hostPkg,
+            isOverlayShowing = false
+        )
+        assertTrue(systemUi is ForegroundPackageMonitor.Transition.IgnoredTransientWindow)
+        assertEquals("com.google.android.youtube", monitor.currentForegroundPackage)
+
+        val ownOverlay = monitor.onWindowStateChanged(
+            packageName = hostPkg,
+            className = "FrameLayout",
+            rulesByPackage = rulesByPkg,
+            hostPackageName = hostPkg,
+            isOverlayShowing = true
+        )
+        assertTrue(ownOverlay is ForegroundPackageMonitor.Transition.IgnoredTransientWindow)
+
+        // Switching to an unmonitored app exits monitored state
+        val exited = monitor.onWindowStateChanged(
+            packageName = "com.android.chrome",
+            className = "ChromeTabbedActivity",
+            rulesByPackage = rulesByPkg,
+            hostPackageName = hostPkg,
+            isOverlayShowing = false
+        )
+        assertTrue(exited is ForegroundPackageMonitor.Transition.ExitedMonitoredApp)
+        assertEquals("com.google.android.youtube", (exited as ForegroundPackageMonitor.Transition.ExitedMonitoredApp).previousPackage)
+    }
+
+    @Suppress("DEPRECATION")
+    @Test
+    fun `FeedSurgeonService tracks foreground package changes via TYPE_WINDOW_STATE_CHANGED`() {
+        val controller = Robolectric.buildService(FeedSurgeonService::class.java)
+        val service = controller.create().get()
+        DiagnosticsBridge.clearForegroundMonitoredApp()
+
+        val enterEvent = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED).apply {
+            packageName = "com.instagram.android"
+            className = "com.instagram.mainactivity.InstagramMainActivity"
+        }
+        service.onAccessibilityEvent(enterEvent)
+        assertEquals("Instagram", DiagnosticsBridge.foregroundMonitoredAppLabel.value)
+
+        val exitEvent = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED).apply {
+            packageName = "com.android.launcher3"
+            className = "com.android.launcher3.Launcher"
+        }
+        service.onAccessibilityEvent(exitEvent)
+        assertNull(DiagnosticsBridge.foregroundMonitoredAppLabel.value)
+
         controller.unbind().destroy()
     }
 }
