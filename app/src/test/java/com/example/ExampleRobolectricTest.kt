@@ -8,12 +8,14 @@ import android.view.accessibility.AccessibilityNodeInfo
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
+import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.ListenableWorker
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.WorkManagerTestInitHelper
+import com.example.service.FeedSurgeonService
 import com.example.data.local.AppPreferences
 import com.example.data.local.AppearanceMode
 import com.example.data.local.FeedSurgeonDatabase
@@ -52,9 +54,11 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowLooper
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
@@ -755,5 +759,38 @@ class ExampleRobolectricTest {
             rule = ytRule
         )
         assertNull(noMatch)
+    }
+
+    @Test
+    fun `cold start MainViewModel initializes cleanly and resolves initial state`() = runTest {
+        val app = ApplicationProvider.getApplicationContext<FeedSurgeonApp>()
+        app.interventionRepository.ensureDefaultRulesSeeded()
+        val viewModel = MainViewModel(app)
+
+        val loadedState = viewModel.uiState.first { !it.isInitialLoading }
+        assertFalse(loadedState.isInitialLoading)
+        assertTrue(loadedState.rules.size >= 5)
+    }
+
+    @Test
+    fun `cold start MainActivity creates and resumes without crashing`() {
+        val app = ApplicationProvider.getApplicationContext<FeedSurgeonApp>()
+        WorkManagerTestInitHelper.initializeTestWorkManager(app)
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            ShadowLooper.idleMainLooper()
+            scenario.onActivity { activity ->
+                assertFalse(activity.isFinishing)
+                assertNotNull(activity.window)
+            }
+        }
+    }
+
+    @Test
+    fun `FeedSurgeonService lifecycle starts unbinds and destroys cleanly`() {
+        val controller = Robolectric.buildService(FeedSurgeonService::class.java)
+        val service = controller.create().startCommand(0, 0).get()
+        assertNotNull(service)
+        controller.unbind().destroy()
     }
 }

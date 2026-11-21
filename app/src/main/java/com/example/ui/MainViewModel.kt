@@ -25,6 +25,7 @@ import com.example.service.InstalledAppDetector
 import com.example.service.LaunchableAppInfo
 import com.example.service.ProtectionHealthHelper
 import com.example.worker.RulesetSyncWorker
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -113,7 +114,8 @@ data class MainUiState(
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
-    private val app = application as FeedSurgeonApp
+    private val app = (application as? FeedSurgeonApp)
+        ?: (application.applicationContext as FeedSurgeonApp)
     private val interventionRepo = app.interventionRepository
     private val rulesetRepo = app.rulesetRepository
     private val backupManager = app.localBackupManager
@@ -137,70 +139,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _eventLogPreview = MutableStateFlow("")
     private val _eventLogSizeBytes = MutableStateFlow(0L)
     private val _nowMs = MutableStateFlow(System.currentTimeMillis())
-
-    init {
-        refreshEventLog()
-        refreshInstalledApps(application)
-
-        viewModelScope.launch {
-            eventLogger.logVersion.collect {
-                _eventLogPreview.value = eventLogger.readTail(120)
-                _eventLogSizeBytes.value = eventLogger.getFileSizeBytes()
-            }
-        }
-
-        // Real-time Accessibility permission observer
-        viewModelScope.launch {
-            AccessibilityStatusHelper.observeServiceEnabled(application).collect { enabled ->
-                _accessibilityEnabled.value = enabled
-            }
-        }
-
-        // Real-time app install / uninstall / update observer
-        viewModelScope.launch {
-            InstalledAppDetector.observePackageChanges(application).collect {
-                refreshInstalledApps(application)
-            }
-        }
-
-        // Re-scan installed apps whenever tracked rule package names change (e.g. custom rules or sync)
-        viewModelScope.launch {
-            interventionRepo.allRules
-                .map { rules -> rules.map { it.packageName }.sorted() }
-                .distinctUntilChanged()
-                .collect { packages ->
-                    if (packages.isNotEmpty()) {
-                        val scanned = withContext(Dispatchers.IO) {
-                            InstalledAppDetector.getInstalledPackages(application, packages)
-                        }
-                        _installedPackages.value = scanned
-                        _hasScannedInstalledApps.value = true
-                    }
-                }
-        }
-
-        // Lightweight real-time clock for countdowns, quiet-hours transitions, and relative labels
-        viewModelScope.launch {
-            while (true) {
-                val now = System.currentTimeMillis()
-                _nowMs.value = now
-                val current = uiState.value
-                if (current.preferences.globalPauseUntilMs in 1L..now &&
-                    current.preferences.globalPauseUntilMs != Long.MAX_VALUE
-                ) {
-                    interventionRepo.resumeGlobalProtection()
-                }
-                current.rules.forEach { rule ->
-                    if (rule.snoozeUntilMs in 1L..now) {
-                        interventionRepo.clearSnooze(rule.packageName)
-                    }
-                }
-                val hasActiveCountdown = (current.isGloballyPaused && current.globalPauseUntilMs != Long.MAX_VALUE) ||
-                    current.rules.any { it.snoozeUntilMs > now }
-                delay(if (hasActiveCountdown) 1_000L else 15_000L)
-            }
-        }
-    }
 
     private data class TransientState(
         val accessibilityEnabled: Boolean,
@@ -401,6 +339,85 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         initialValue = MainUiState()
     )
 
+    init {
+        refreshEventLog()
+        refreshInstalledApps(app)
+
+        viewModelScope.launch {
+            runCatching {
+                eventLogger.logVersion.collect {
+                    _eventLogPreview.value = eventLogger.readTail(120)
+                    _eventLogSizeBytes.value = eventLogger.getFileSizeBytes()
+                }
+            }
+        }
+
+        // Real-time Accessibility permission observer
+        viewModelScope.launch {
+            runCatching {
+                AccessibilityStatusHelper.observeServiceEnabled(app).collect { enabled ->
+                    _accessibilityEnabled.value = enabled
+                }
+            }
+        }
+
+        // Real-time app install / uninstall / update observer
+        viewModelScope.launch {
+            runCatching {
+                InstalledAppDetector.observePackageChanges(app).collect {
+                    refreshInstalledApps(app)
+                }
+            }
+        }
+
+        // Re-scan installed apps whenever tracked rule package names change (e.g. custom rules or sync)
+        viewModelScope.launch {
+            runCatching {
+                interventionRepo.allRules
+                    .map { rules -> rules.map { it.packageName }.sorted() }
+                    .distinctUntilChanged()
+                    .collect { packages ->
+                        if (packages.isNotEmpty()) {
+                            val scanned = withContext(Dispatchers.IO) {
+                                InstalledAppDetector.getInstalledPackages(app, packages)
+                            }
+                            _installedPackages.value = scanned
+                            _hasScannedInstalledApps.value = true
+                        }
+                    }
+            }
+        }
+
+        // Lightweight real-time clock for countdowns, quiet-hours transitions, and relative labels
+        viewModelScope.launch {
+            while (true) {
+                var nextDelayMs = 15_000L
+                try {
+                    val now = System.currentTimeMillis()
+                    _nowMs.value = now
+                    val current = uiState.value
+                    if (current.preferences.globalPauseUntilMs in 1L..now &&
+                        current.preferences.globalPauseUntilMs != Long.MAX_VALUE
+                    ) {
+                        interventionRepo.resumeGlobalProtection()
+                    }
+                    current.rules.forEach { rule ->
+                        if (rule.snoozeUntilMs in 1L..now) {
+                            interventionRepo.clearSnooze(rule.packageName)
+                        }
+                    }
+                    val hasActiveCountdown = (current.isGloballyPaused && current.globalPauseUntilMs != Long.MAX_VALUE) ||
+                        current.rules.any { it.snoozeUntilMs > now }
+                    nextDelayMs = if (hasActiveCountdown) 1_000L else 15_000L
+                } catch (ce: CancellationException) {
+                    throw ce
+                } catch (_: Throwable) {
+                }
+                delay(nextDelayMs)
+            }
+        }
+    }
+
     fun refreshAccessibilityStatus(context: Context) {
         _accessibilityEnabled.value = AccessibilityStatusHelper.isServiceEnabled(context)
         refreshProtectionHealth(context)
@@ -414,32 +431,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun refreshInstalledApps(context: Context) {
-        val packages = uiState.value.rules.map { it.packageName }.ifEmpty {
-            com.example.data.local.FeedSurgeonDatabase.BUILT_IN_PACKAGE_NAMES.toList()
-        }
+        val appContext = context.applicationContext ?: context
         viewModelScope.launch {
-            val installed = withContext(Dispatchers.IO) {
-                InstalledAppDetector.getInstalledPackages(context, packages)
+            runCatching {
+                val packages = withContext(Dispatchers.IO) {
+                    val dbPackages = runCatching {
+                        app.database.feedSurgeonDao().getAllRulesSnapshot().map { it.packageName }
+                    }.getOrDefault(emptyList())
+                    (com.example.data.local.FeedSurgeonDatabase.BUILT_IN_PACKAGE_NAMES + dbPackages).distinct()
+                }
+                val installed = withContext(Dispatchers.IO) {
+                    InstalledAppDetector.getInstalledPackages(appContext, packages)
+                }
+                _installedPackages.value = installed
+                _hasScannedInstalledApps.value = true
+                val discovered = withContext(Dispatchers.IO) {
+                    InstalledAppDetector.getLaunchableApps(appContext)
+                }
+                _launchableApps.value = discovered
             }
-            _installedPackages.value = installed
-            _hasScannedInstalledApps.value = true
-            val discovered = withContext(Dispatchers.IO) {
-                InstalledAppDetector.getLaunchableApps(context)
-            }
-            _launchableApps.value = discovered
         }
     }
 
     fun triggerAutoSyncIfNeeded() {
         viewModelScope.launch {
-            rulesetRepo.ensureLocalCacheSeeded()
-            when (val result = rulesetRepo.autoSyncIfDue(force = false)) {
-                is RulesetSyncResult.Success -> {
-                    if (!result.fromLocalCache) {
-                        _syncMessage.value = "Updated focus rules for ${result.updatedApps} apps"
+            runCatching {
+                rulesetRepo.ensureLocalCacheSeeded()
+                when (val result = rulesetRepo.autoSyncIfDue(force = false)) {
+                    is RulesetSyncResult.Success -> {
+                        if (!result.fromLocalCache) {
+                            _syncMessage.value = "Updated focus rules for ${result.updatedApps} apps"
+                        }
                     }
+                    is RulesetSyncResult.Error -> Unit
                 }
-                is RulesetSyncResult.Error -> Unit
             }
         }
     }
@@ -465,8 +490,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refreshEventLog() {
         viewModelScope.launch {
-            _eventLogPreview.value = eventLogger.readTail(120)
-            _eventLogSizeBytes.value = eventLogger.getFileSizeBytes()
+            runCatching {
+                _eventLogPreview.value = eventLogger.readTail(120)
+                _eventLogSizeBytes.value = eventLogger.getFileSizeBytes()
+            }
         }
     }
 

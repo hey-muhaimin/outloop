@@ -52,6 +52,8 @@ class ProtectionActionReceiver : BroadcastReceiver() {
                         )
                     )
                 )
+            } catch (t: Throwable) {
+                android.util.Log.e("ProtectionActionReceiver", "Failed to process notification action", t)
             } finally {
                 pendingResult?.finish()
             }

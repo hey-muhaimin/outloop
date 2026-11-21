@@ -5,6 +5,7 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.SystemClock
+import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.example.FeedSurgeonApp
@@ -17,6 +18,7 @@ import com.example.data.model.InterventionOutcome
 import com.example.data.repository.DiagnosticsBridge
 import com.example.worker.RulesetSyncWorker
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,7 +30,11 @@ import java.util.concurrent.ConcurrentHashMap
 
 class FeedSurgeonService : AccessibilityService() {
 
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val serviceScope = CoroutineScope(
+        SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { _, throwable ->
+            Log.e("FeedSurgeonService", "Unhandled service coroutine error", throwable)
+        }
+    )
     private val lastBlockTimestamps = ConcurrentHashMap<String, Long>()
     private val lastRecordedInterventionElapsed = ConcurrentHashMap<String, Long>()
     private val inFlightVerifications = ConcurrentHashMap.newKeySet<String>()
@@ -44,8 +50,8 @@ class FeedSurgeonService : AccessibilityService() {
 
     private var overlayShield: AccessibilityOverlayShield? = null
 
-    private val app: FeedSurgeonApp
-        get() = applicationContext as FeedSurgeonApp
+    private val app: FeedSurgeonApp?
+        get() = (applicationContext as? FeedSurgeonApp) ?: (application as? FeedSurgeonApp)
 
     @Volatile
     private var activeInstalledRuleCount: Int = 0
@@ -70,13 +76,15 @@ class FeedSurgeonService : AccessibilityService() {
         ForegroundProtectionNotifier.startForegroundProtection(this, activeInstalledRuleCount)
 
         // Schedule WorkManager periodic Gist sync directly from FeedSurgeonService lifecycle
-        RulesetSyncWorker.schedulePeriodicSync(this)
+        runCatching { RulesetSyncWorker.schedulePeriodicSync(this) }
+
+        val hostApp = app ?: return
 
         serviceScope.launch {
-            app.interventionRepository.ensureDefaultRulesSeeded()
-            app.rulesetRepository.ensureLocalCacheSeeded()
-            app.rulesetRepository.autoSyncIfDue(force = false)
-            app.interventionRepository.allRules.collectLatest { rules ->
+            runCatching { hostApp.interventionRepository.ensureDefaultRulesSeeded() }
+            runCatching { hostApp.rulesetRepository.ensureLocalCacheSeeded() }
+            runCatching { hostApp.rulesetRepository.autoSyncIfDue(force = false) }
+            hostApp.interventionRepository.allRules.collectLatest { rules ->
                 val enabledMap = rules.filter { it.enabled }.associateBy { it.packageName }
                 activeRulesByPackage = enabledMap
                 updateServicePackageScope(rules.map { it.packageName })
@@ -91,13 +99,15 @@ class FeedSurgeonService : AccessibilityService() {
         }
 
         serviceScope.launch {
-            app.settingsDataStore.preferencesFlow.collectLatest { prefs ->
+            hostApp.settingsDataStore.preferencesFlow.collectLatest { prefs ->
                 currentPrefs = prefs
                 refreshForegroundNotification()
-                if (prefs.autoUpdateRules) {
-                    RulesetSyncWorker.schedulePeriodicSync(this@FeedSurgeonService)
-                } else {
-                    RulesetSyncWorker.cancelPeriodicSync(this@FeedSurgeonService)
+                runCatching {
+                    if (prefs.autoUpdateRules) {
+                        RulesetSyncWorker.schedulePeriodicSync(this@FeedSurgeonService)
+                    } else {
+                        RulesetSyncWorker.cancelPeriodicSync(this@FeedSurgeonService)
+                    }
                 }
             }
         }
@@ -288,15 +298,18 @@ class FeedSurgeonService : AccessibilityService() {
             consecutiveTabFallbackCounts[pkg] = missStreak
             val shouldMarkOutdated = missStreak >= 5
 
-            serviceScope.launch {
-                app.interventionRepository.updateSelectorHealth(
-                    packageName = rule.packageName,
-                    matchedCount = viewIdsMatchedCount,
-                    totalCount = rule.viewIds.size.coerceAtLeast(1),
-                    outdated = shouldMarkOutdated
-                )
-                if (shouldMarkOutdated) {
-                    app.rulesetRepository.autoSyncIfDue(force = false)
+            val hostApp = app
+            if (hostApp != null) {
+                serviceScope.launch {
+                    hostApp.interventionRepository.updateSelectorHealth(
+                        packageName = rule.packageName,
+                        matchedCount = viewIdsMatchedCount,
+                        totalCount = rule.viewIds.size.coerceAtLeast(1),
+                        outdated = shouldMarkOutdated
+                    )
+                    if (shouldMarkOutdated) {
+                        hostApp.rulesetRepository.autoSyncIfDue(force = false)
+                    }
                 }
             }
         }
@@ -314,12 +327,13 @@ class FeedSurgeonService : AccessibilityService() {
         nowElapsed: Long,
         force: Boolean = false
     ) {
+        val hostApp = app ?: return
         val lastLogged = lastLogTimestamps[pkg] ?: 0L
         if (!force && nowElapsed - lastLogged < 400L) return
         lastLogTimestamps[pkg] = nowElapsed
-        val snapshot = app.eventLogger.captureSnapshot(rootNode)
+        val snapshot = hostApp.eventLogger.captureSnapshot(rootNode)
         serviceScope.launch {
-            app.eventLogger.logCapturedSnapshot(
+            hostApp.eventLogger.logCapturedSnapshot(
                 packageName = pkg,
                 eventType = eventType,
                 eventClassName = eventClassName,
@@ -336,9 +350,10 @@ class FeedSurgeonService : AccessibilityService() {
         } catch (_: Exception) {
             emptyList()
         }
+        val activeRoot = runCatching { rootInActiveWindow }.getOrNull()
         return SelectorMatcher.selectTargetWindowRoot(
             targetPackage = pkg,
-            activeRoot = rootInActiveWindow,
+            activeRoot = activeRoot,
             windowRoots = windowRoots
         )
     }
@@ -366,9 +381,10 @@ class FeedSurgeonService : AccessibilityService() {
         eventId: Long?
     ) {
         delay(350L)
+        val hostApp = app
         if (!isStillOnMatchedFeed(rule)) {
-            if (eventId != null) {
-                app.interventionRepository.updateInterventionOutcome(
+            if (eventId != null && hostApp != null) {
+                hostApp.interventionRepository.updateInterventionOutcome(
                     eventId,
                     InterventionOutcome.CONFIRMED
                 )
@@ -380,14 +396,14 @@ class FeedSurgeonService : AccessibilityService() {
             performGlobalAction(GLOBAL_ACTION_BACK)
             delay(300L)
             val cleared = !isStillOnMatchedFeed(rule)
-            if (eventId != null) {
-                app.interventionRepository.updateInterventionOutcome(
+            if (eventId != null && hostApp != null) {
+                hostApp.interventionRepository.updateInterventionOutcome(
                     eventId,
                     if (cleared) InterventionOutcome.CONFIRMED else InterventionOutcome.FAILED
                 )
             }
-        } else if (eventId != null) {
-            app.interventionRepository.updateInterventionOutcome(
+        } else if (eventId != null && hostApp != null) {
+            hostApp.interventionRepository.updateInterventionOutcome(
                 eventId,
                 InterventionOutcome.FAILED
             )
@@ -407,12 +423,13 @@ class FeedSurgeonService : AccessibilityService() {
             lastRecordedInterventionElapsed[rule.packageName] = nowElapsed
         }
 
+        val hostApp = app
         val shield = overlayShield
         if (rule.interventionMode == InterventionMode.OVERLAY && shield != null) {
             val eventIdDeferred = CompletableDeferred<Long?>()
             serviceScope.launch {
-                val eventId = if (shouldRecord) {
-                    app.interventionRepository.recordIntervention(
+                val eventId = if (shouldRecord && hostApp != null) {
+                    hostApp.interventionRepository.recordIntervention(
                         rule = rule,
                         matchedSelector = matchedSelector,
                         actionTaken = InterventionMode.OVERLAY,
@@ -455,10 +472,12 @@ class FeedSurgeonService : AccessibilityService() {
                     serviceScope.launch {
                         try {
                             val eventId = eventIdDeferred.await()
-                            if (eventId != null) {
-                                app.interventionRepository.allowOnceForEvent(eventId, rule.packageName)
-                            } else {
-                                app.interventionRepository.allowOnceTemporary(rule.packageName)
+                            if (hostApp != null) {
+                                if (eventId != null) {
+                                    hostApp.interventionRepository.allowOnceForEvent(eventId, rule.packageName)
+                                } else {
+                                    hostApp.interventionRepository.allowOnceTemporary(rule.packageName)
+                                }
                             }
                         } finally {
                             inFlightVerifications.remove(rule.packageName)
@@ -469,13 +488,15 @@ class FeedSurgeonService : AccessibilityService() {
                     lastBlockTimestamps[rule.packageName] = SystemClock.elapsedRealtime()
                     serviceScope.launch {
                         try {
-                            app.interventionRepository.snoozeForMinutes(rule.packageName, 15)
-                            val eventId = eventIdDeferred.await()
-                            if (eventId != null) {
-                                app.interventionRepository.updateInterventionOutcome(
-                                    eventId,
-                                    InterventionOutcome.ALLOWED_ONCE
-                                )
+                            if (hostApp != null) {
+                                hostApp.interventionRepository.snoozeForMinutes(rule.packageName, 15)
+                                val eventId = eventIdDeferred.await()
+                                if (eventId != null) {
+                                    hostApp.interventionRepository.updateInterventionOutcome(
+                                        eventId,
+                                        InterventionOutcome.ALLOWED_ONCE
+                                    )
+                                }
                             }
                         } finally {
                             inFlightVerifications.remove(rule.packageName)
@@ -507,8 +528,8 @@ class FeedSurgeonService : AccessibilityService() {
 
         serviceScope.launch {
             try {
-                val eventId = if (shouldRecord) {
-                    app.interventionRepository.recordIntervention(
+                val eventId = if (shouldRecord && hostApp != null) {
+                    hostApp.interventionRepository.recordIntervention(
                         rule = rule,
                         matchedSelector = matchedSelector,
                         actionTaken = rule.interventionMode,

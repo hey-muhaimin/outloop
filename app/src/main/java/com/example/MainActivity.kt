@@ -180,9 +180,11 @@ fun FeedSurgeonRoot(
             onClearEventLog = viewModel::clearEventLog,
             onShareEventLog = {
                 viewModel.createShareLogIntent()?.let { shareIntent ->
-                    context.startActivity(
-                        Intent.createChooser(shareIntent, "Share diagnostic log")
-                    )
+                    runCatching {
+                        context.startActivity(
+                            Intent.createChooser(shareIntent, "Share diagnostic log")
+                        )
+                    }
                 }
             },
             onSetReclaimedSeconds = viewModel::setReclaimedSecondsPerCut,
@@ -290,9 +292,15 @@ fun OutloopNavigationHost(
             BottomTab.INSIGHTS -> Routes.INSIGHTS
             BottomTab.SETTINGS -> Routes.SETTINGS
         }
+        val hasHomeInBackStack = runCatching {
+            navController.getBackStackEntry(Routes.HOME)
+            true
+        }.getOrDefault(false)
         navController.navigate(route) {
-            popUpTo(navController.graph.findStartDestination().id) {
-                saveState = true
+            if (hasHomeInBackStack) {
+                popUpTo(Routes.HOME) { saveState = true }
+            } else {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
             }
             launchSingleTop = true
             restoreState = true

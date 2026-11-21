@@ -1,12 +1,14 @@
 package com.example
 
 import android.app.Application
+import android.util.Log
 import com.example.data.local.FeedSurgeonDatabase
 import com.example.data.local.SettingsDataStore
 import com.example.data.repository.InterventionRepository
 import com.example.data.repository.RulesetRepository
 import com.example.service.AccessibilityEventLogger
 import com.example.worker.RulesetSyncWorker
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -14,7 +16,11 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class FeedSurgeonApp : Application() {
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val appScope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler { _, throwable ->
+            Log.e(TAG, "Unhandled background startup error", throwable)
+        }
+    )
 
     val database: FeedSurgeonDatabase by lazy {
         FeedSurgeonDatabase.getInstance(this)
@@ -43,13 +49,21 @@ class FeedSurgeonApp : Application() {
     override fun onCreate() {
         super.onCreate()
         appScope.launch {
-            interventionRepository.ensureDefaultRulesSeeded()
-            rulesetRepository.ensureLocalCacheSeeded()
-            val prefs = settingsDataStore.preferencesFlow.first()
-            if (prefs.autoUpdateRules) {
-                RulesetSyncWorker.schedulePeriodicSync(this@FeedSurgeonApp)
-            }
-            rulesetRepository.autoSyncIfDue(force = false)
+            runCatching { interventionRepository.ensureDefaultRulesSeeded() }
+                .onFailure { Log.e(TAG, "Failed to seed default rules", it) }
+            runCatching { rulesetRepository.ensureLocalCacheSeeded() }
+                .onFailure { Log.e(TAG, "Failed to seed local ruleset cache", it) }
+            runCatching {
+                val prefs = settingsDataStore.preferencesFlow.first()
+                if (prefs.autoUpdateRules) {
+                    RulesetSyncWorker.schedulePeriodicSync(this@FeedSurgeonApp)
+                }
+                rulesetRepository.autoSyncIfDue(force = false)
+            }.onFailure { Log.e(TAG, "Failed to schedule or run initial ruleset sync", it) }
         }
+    }
+
+    private companion object {
+        const val TAG = "FeedSurgeonApp"
     }
 }

@@ -127,7 +127,7 @@ object InstalledAppDetector {
             val drawable = pm.getApplicationIcon(packageName)
             val bitmap = drawableToBitmap(drawable, sizePx = 128)
             bitmap.asImageBitmap().also { iconCache.put(packageName, it) }
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             null
         }
     }
@@ -135,8 +135,13 @@ object InstalledAppDetector {
     private fun drawableToBitmap(drawable: Drawable, sizePx: Int): Bitmap {
         if (drawable is BitmapDrawable && drawable.bitmap != null) {
             val src = drawable.bitmap
-            if (src.width <= sizePx && src.height <= sizePx) {
-                return src
+            if (src.width > 0 && src.height > 0 && src.width <= sizePx && src.height <= sizePx) {
+                val isHardware = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                    src.config == Bitmap.Config.HARDWARE
+                if (!isHardware) {
+                    return src
+                }
+                src.copy(Bitmap.Config.ARGB_8888, false)?.let { return it }
             }
         }
         val width = drawable.intrinsicWidth.takeIf { it > 0 }?.coerceAtMost(sizePx) ?: sizePx

@@ -158,7 +158,11 @@ abstract class FeedSurgeonDatabase : RoomDatabase() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)
                             CoroutineScope(Dispatchers.IO).launch {
-                                getInstance(appContext).feedSurgeonDao().upsertRules(defaultBuiltInRules())
+                                runCatching {
+                                    getInstance(appContext).feedSurgeonDao().upsertRules(defaultBuiltInRules())
+                                }.onFailure { err ->
+                                    android.util.Log.e("FeedSurgeonDatabase", "Failed to seed built-in rules", err)
+                                }
                             }
                         }
                     }
