@@ -1,0 +1,55 @@
+name: CI & Automated Ruleset Sync
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Validate ruleset schema & bundled assets
+        run: ./scripts/sync-ruleset.sh --validate-only
+
+      - name: Run JVM & Robolectric tests
+        run: ./gradlew :app:testDebugUnitTest :app:lintDebug
+
+      - name: Build Debug APK
+        run: ./scripts/package-release.sh --mode debug --skip-tests
+
+      - name: Upload bundled APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: outloop-debug-apk
+          path: bundled-apk/*
+
+  sync-remote-ruleset:
+    needs: validate-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Push validated ruleset to GitHub Gist
+        env:
+          GITHUB_PAT: ${{ secrets.GITHUB_PAT }}
+        run: |
+          if [[ -n "$GITHUB_PAT" ]]; then
+            ./scripts/sync-ruleset.sh --push
+          else
+            echo "GITHUB_PAT secret not configured; skipping remote Gist push."
+          fi

@@ -1,0 +1,6 @@
+{
+  "name": "Outloop",
+  "description": "Keep your apps. Reclaim your attention. Outloop gently pauses short-form video feeds on-device using Android Accessibility without reading messages or personal content.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

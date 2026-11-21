@@ -1,0 +1,62 @@
+{
+  "version": "v2026.11.18",
+  "updatedAt": "2026-11-18",
+  "apps": [
+    {
+      "packageName": "com.google.android.youtube",
+      "displayName": "YouTube",
+      "feedLabel": "Shorts",
+      "homeTabLabel": "Home",
+      "viewIds": [
+        "com.google.android.youtube:id/reel_recycler",
+        "com.google.android.youtube:id/reel_watch_fragment_root",
+        "com.google.android.youtube:id/shorts_player"
+      ],
+      "tabContentDescription": "Shorts"
+    },
+    {
+      "packageName": "com.instagram.android",
+      "displayName": "Instagram",
+      "feedLabel": "Reels",
+      "homeTabLabel": "Home",
+      "viewIds": [
+        "com.instagram.android:id/clips_viewer_view_pager",
+        "com.instagram.android:id/clips_video_container"
+      ],
+      "tabContentDescription": "Reels"
+    },
+    {
+      "packageName": "com.facebook.katana",
+      "displayName": "Facebook",
+      "feedLabel": "Reels",
+      "homeTabLabel": "Home",
+      "viewIds": [
+        "com.facebook.katana:id/reels_viewer_root",
+        "com.facebook.katana:id/fb_reels_container"
+      ],
+      "tabContentDescription": "Reels"
+    },
+    {
+      "packageName": "com.snapchat.android",
+      "displayName": "Snapchat",
+      "feedLabel": "Spotlight",
+      "homeTabLabel": "Chat",
+      "viewIds": [
+        "com.snapchat.android:id/spotlight_feed_container",
+        "com.snapchat.android:id/spotlight_opera_view"
+      ],
+      "tabContentDescription": "Spotlight"
+    },
+    {
+      "packageName": "com.reddit.frontpage",
+      "displayName": "Reddit",
+      "feedLabel": "Watch",
+      "homeTabLabel": "Home",
+      "viewIds": [
+        "com.reddit.frontpage:id/video_player_root",
+        "com.reddit.frontpage:id/watch_feed_recycler"
+      ],
+      "tabContentDescription": "Watch"
+    }
+  ]
+}
