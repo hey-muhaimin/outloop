@@ -1,7 +1,9 @@
 package com.example.service
 
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -11,6 +13,10 @@ import android.os.Build
 import android.util.LruCache
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 
 data class LaunchableAppInfo(
     val packageName: String,
@@ -22,24 +28,64 @@ object InstalledAppDetector {
 
     fun isPackageInstalled(context: Context, packageName: String): Boolean {
         val pm = context.packageManager ?: return false
-        return try {
+        val pkgInfo = try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0L))
             } else {
                 @Suppress("DEPRECATION")
                 pm.getPackageInfo(packageName, 0)
             }
-            true
         } catch (_: PackageManager.NameNotFoundException) {
-            false
+            null
         } catch (_: Exception) {
-            false
+            null
         }
+        if (pkgInfo != null) {
+            val appInfo = pkgInfo.applicationInfo
+            return appInfo == null || appInfo.enabled
+        }
+        return runCatching { pm.getLaunchIntentForPackage(packageName) != null }
+            .getOrDefault(false)
     }
 
     fun getInstalledPackages(context: Context, packageNames: Iterable<String>): Set<String> {
         return packageNames.filterTo(LinkedHashSet()) { pkg ->
             isPackageInstalled(context, pkg)
+        }
+    }
+
+    /**
+     * Emits whenever an app on the device is installed, updated, enabled/disabled, or uninstalled,
+     * allowing supported-app lists and service scope counts to refresh in real time.
+     */
+    fun observePackageChanges(context: Context): Flow<Unit> = callbackFlow {
+        val appContext = context.applicationContext ?: context
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_REMOVED)
+            addAction(Intent.ACTION_PACKAGE_CHANGED)
+            addAction(Intent.ACTION_PACKAGE_REPLACED)
+            addDataScheme("package")
+        }
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context?, intent: Intent?) {
+                val pkg = intent?.data?.schemeSpecificPart
+                if (!pkg.isNullOrBlank()) {
+                    iconCache.remove(pkg)
+                }
+                trySend(Unit)
+            }
+        }
+        runCatching {
+            ContextCompat.registerReceiver(
+                appContext,
+                receiver,
+                filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
+        }
+        awaitClose {
+            runCatching { appContext.unregisterReceiver(receiver) }
         }
     }
 

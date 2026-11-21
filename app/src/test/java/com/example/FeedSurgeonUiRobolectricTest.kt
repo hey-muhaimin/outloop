@@ -559,4 +559,65 @@ class FeedSurgeonUiRobolectricTest {
         composeRule.waitForIdle()
         assertEquals("com.new.feedapp", savedPkg)
     }
+
+    @Test
+    fun `empty installed packages shows not installed separately without faking installed apps`() {
+        val rules = FeedSurgeonDatabase.defaultBuiltInRules()
+        composeRule.setContent {
+            FeedSurgeonTheme {
+                OnboardingScreen(
+                    rules = rules,
+                    installedPackages = emptySet(),
+                    hasScannedInstalledApps = true,
+                    defaultMode = InterventionMode.OVERLAY,
+                    isAccessibilityEnabled = false,
+                    isServiceConnected = false,
+                    isBatteryOptimizationIgnored = false,
+                    isNotificationPermissionGranted = true,
+                    onRefreshProtectionHealth = {},
+                    onToggleApp = { _, _ -> },
+                    onSelectDefaultMode = {},
+                    onAcceptDisclosure = {},
+                    onDeclineDisclosure = {},
+                    onOpenPrivacyDetails = {},
+                    onCompleteOnboarding = {},
+                    onGoToSettings = {}
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("onboarding_get_started").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("onboarding_agree").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("On your phone").assertIsDisplayed()
+        composeRule.onNodeWithText("0 apps selected").assertIsDisplayed()
+        composeRule.onNodeWithText("Not installed").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Shorts \u00B7 not installed").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun `manage apps renders empty notice when no built-in apps installed`() {
+        val rules = FeedSurgeonDatabase.defaultBuiltInRules()
+        composeRule.setContent {
+            FeedSurgeonTheme {
+                ManageAppsScreen(
+                    rules = rules,
+                    installedPackages = emptySet(),
+                    hasScannedInstalledApps = true,
+                    onToggleApp = { _, _ -> },
+                    onBack = {}
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("On your phone").assertIsDisplayed()
+        composeRule.onNodeWithText("No supported short-form video apps detected on this phone yet. Add a custom app below.").assertIsDisplayed()
+        composeRule.onNodeWithText("Not installed").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Shorts \u00B7 not installed").performScrollTo().assertIsDisplayed()
+    }
 }
+

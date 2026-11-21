@@ -26,10 +26,13 @@ import com.example.service.LaunchableAppInfo
 import com.example.service.ProtectionHealthHelper
 import com.example.worker.RulesetSyncWorker
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -67,6 +70,7 @@ data class MainUiState(
     val preferences: AppPreferences = AppPreferences(),
     val rules: List<TargetAppRuleEntity> = emptyList(),
     val installedPackages: Set<String> = emptySet(),
+    val hasScannedInstalledApps: Boolean = true,
     val isAccessibilityEnabled: Boolean = false,
     val isServiceConnected: Boolean = false,
     val lastConnectedAtMs: Long = 0L,
@@ -104,7 +108,8 @@ data class MainUiState(
     val isInQuietHours: Boolean = false,
     val quietHoursEndLabel: String = "",
     val launchableApps: List<LaunchableAppInfo> = emptyList(),
-    val streakDays: Int = 0
+    val streakDays: Int = 0,
+    val currentTimeMs: Long = System.currentTimeMillis()
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -125,18 +130,74 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         ProtectionHealthHelper.isNotificationPermissionGranted(application)
     )
     private val _installedPackages = MutableStateFlow<Set<String>>(emptySet())
+    private val _hasScannedInstalledApps = MutableStateFlow(false)
     private val _launchableApps = MutableStateFlow<List<LaunchableAppInfo>>(emptyList())
     private val _isSyncingRules = MutableStateFlow(false)
     private val _syncMessage = MutableStateFlow<String?>(null)
     private val _eventLogPreview = MutableStateFlow("")
     private val _eventLogSizeBytes = MutableStateFlow(0L)
+    private val _nowMs = MutableStateFlow(System.currentTimeMillis())
 
     init {
         refreshEventLog()
+        refreshInstalledApps(application)
+
         viewModelScope.launch {
             eventLogger.logVersion.collect {
                 _eventLogPreview.value = eventLogger.readTail(120)
                 _eventLogSizeBytes.value = eventLogger.getFileSizeBytes()
+            }
+        }
+
+        // Real-time Accessibility permission observer
+        viewModelScope.launch {
+            AccessibilityStatusHelper.observeServiceEnabled(application).collect { enabled ->
+                _accessibilityEnabled.value = enabled
+            }
+        }
+
+        // Real-time app install / uninstall / update observer
+        viewModelScope.launch {
+            InstalledAppDetector.observePackageChanges(application).collect {
+                refreshInstalledApps(application)
+            }
+        }
+
+        // Re-scan installed apps whenever tracked rule package names change (e.g. custom rules or sync)
+        viewModelScope.launch {
+            interventionRepo.allRules
+                .map { rules -> rules.map { it.packageName }.sorted() }
+                .distinctUntilChanged()
+                .collect { packages ->
+                    if (packages.isNotEmpty()) {
+                        val scanned = withContext(Dispatchers.IO) {
+                            InstalledAppDetector.getInstalledPackages(application, packages)
+                        }
+                        _installedPackages.value = scanned
+                        _hasScannedInstalledApps.value = true
+                    }
+                }
+        }
+
+        // Lightweight real-time clock for countdowns, quiet-hours transitions, and relative labels
+        viewModelScope.launch {
+            while (true) {
+                val now = System.currentTimeMillis()
+                _nowMs.value = now
+                val current = uiState.value
+                if (current.preferences.globalPauseUntilMs in 1L..now &&
+                    current.preferences.globalPauseUntilMs != Long.MAX_VALUE
+                ) {
+                    interventionRepo.resumeGlobalProtection()
+                }
+                current.rules.forEach { rule ->
+                    if (rule.snoozeUntilMs in 1L..now) {
+                        interventionRepo.clearSnooze(rule.packageName)
+                    }
+                }
+                val hasActiveCountdown = (current.isGloballyPaused && current.globalPauseUntilMs != Long.MAX_VALUE) ||
+                    current.rules.any { it.snoozeUntilMs > now }
+                delay(if (hasActiveCountdown) 1_000L else 15_000L)
             }
         }
     }
@@ -148,21 +209,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val batteryOptimizationIgnored: Boolean,
         val notificationPermissionGranted: Boolean,
         val installedPackages: Set<String>,
+        val hasScannedInstalledApps: Boolean,
         val launchableApps: List<LaunchableAppInfo>,
         val isSyncing: Boolean,
         val syncMessage: String?,
         val toast: InterventionToastState?,
         val logPreview: String,
-        val logSizeBytes: Long
+        val logSizeBytes: Long,
+        val nowMs: Long
     )
 
-    private data class Tuple6<A, B, C, D, E, F>(
+    private data class Tuple7<A, B, C, D, E, F, G>(
         val first: A,
         val second: B,
         val third: C,
         val fourth: D,
         val fifth: E,
-        val sixth: F
+        val sixth: F,
+        val seventh: G
     )
 
     private val syncAndLogFlow = combine(
@@ -171,16 +235,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         DiagnosticsBridge.recentToast,
         _eventLogPreview,
         _eventLogSizeBytes,
-        _launchableApps
+        _launchableApps,
+        _nowMs
     ) { array ->
-        Tuple6(
+        Tuple7(
             array[0] as Boolean,
             array[1] as String?,
             array[2] as InterventionToastState?,
             array[3] as String,
             array[4] as Long,
             @Suppress("UNCHECKED_CAST")
-            (array[5] as List<LaunchableAppInfo>)
+            (array[5] as List<LaunchableAppInfo>),
+            array[6] as Long
         )
     }
 
@@ -190,16 +256,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         DiagnosticsBridge.lastConnectedTimestampMs,
         _batteryOptimizationIgnored,
         _notificationPermissionGranted,
-        _installedPackages
+        _installedPackages,
+        _hasScannedInstalledApps
     ) { array ->
-        Tuple6(
+        Tuple7(
             array[0] as Boolean,
             array[1] as Boolean,
             array[2] as Long,
             array[3] as Boolean,
             array[4] as Boolean,
             @Suppress("UNCHECKED_CAST")
-            (array[5] as Set<String>)
+            (array[5] as Set<String>),
+            array[6] as Boolean
         )
     }
 
@@ -214,12 +282,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             batteryOptimizationIgnored = env.fourth,
             notificationPermissionGranted = env.fifth,
             installedPackages = env.sixth,
+            hasScannedInstalledApps = env.seventh,
             launchableApps = extra.sixth,
             isSyncing = extra.first,
             syncMessage = extra.second,
             toast = extra.third,
             logPreview = extra.fourth,
-            logSizeBytes = extra.fifth
+            logSizeBytes = extra.fifth,
+            nowMs = extra.seventh
         )
     }
 
@@ -229,10 +299,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         interventionRepo.eventsLast30Days,
         transientFlow
     ) { prefs, rules, events, transient ->
-        val installed = transient.installedPackages.ifEmpty {
+        val installed = if (transient.hasScannedInstalledApps) {
+            transient.installedPackages
+        } else {
             InstalledAppDetector.getInstalledPackages(app, rules.map { it.packageName })
         }
-        val nowMs = System.currentTimeMillis()
+        val nowMs = transient.nowMs
         val countedEvents = filterCountedEvents(events)
 
         val todayStart = InterventionRepository.startOfTodayMs(nowMs)
@@ -282,6 +354,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             preferences = prefs,
             rules = rules,
             installedPackages = installed,
+            hasScannedInstalledApps = true,
             isAccessibilityEnabled = transient.accessibilityEnabled,
             isServiceConnected = transient.serviceConnected,
             lastConnectedAtMs = transient.lastConnectedAtMs,
@@ -319,7 +392,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             isInQuietHours = isInQuietHours,
             quietHoursEndLabel = AppPreferences.formatMinutesOfDay(prefs.quietEndMinutes),
             launchableApps = transient.launchableApps,
-            streakDays = computeStreakDays(countedEvents, nowMs)
+            streakDays = computeStreakDays(countedEvents, nowMs),
+            currentTimeMs = nowMs
         )
     }.stateIn(
         scope = viewModelScope,
@@ -343,8 +417,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val packages = uiState.value.rules.map { it.packageName }.ifEmpty {
             com.example.data.local.FeedSurgeonDatabase.BUILT_IN_PACKAGE_NAMES.toList()
         }
-        _installedPackages.value = InstalledAppDetector.getInstalledPackages(context, packages)
         viewModelScope.launch {
+            val installed = withContext(Dispatchers.IO) {
+                InstalledAppDetector.getInstalledPackages(context, packages)
+            }
+            _installedPackages.value = installed
+            _hasScannedInstalledApps.value = true
             val discovered = withContext(Dispatchers.IO) {
                 InstalledAppDetector.getLaunchableApps(context)
             }

@@ -16,6 +16,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.view.animation.DecelerateInterpolator
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -59,7 +60,7 @@ class AccessibilityOverlayShield(private val context: Context) {
 
             val root = FrameLayout(context).apply {
                 setBackgroundColor(Color.parseColor("#880A0E0B"))
-                setPadding(dp(24), dp(24), dp(24), dp(24))
+                setPadding(dp(20), dp(20), dp(20), dp(20))
                 isFocusable = true
                 isFocusableInTouchMode = true
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
@@ -87,10 +88,10 @@ class AccessibilityOverlayShield(private val context: Context) {
             val card = LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_HORIZONTAL
-                setPadding(dp(24), dp(26), dp(24), dp(20))
+                setPadding(dp(20), dp(20), dp(20), dp(16))
                 background = GradientDrawable().apply {
                     setColor(cardBg)
-                    cornerRadius = dp(32).toFloat()
+                    cornerRadius = dp(24).toFloat()
                     setStroke(dp(1), cardStroke)
                 }
             }
@@ -104,55 +105,55 @@ class AccessibilityOverlayShield(private val context: Context) {
 
                 override fun onDraw(canvas: Canvas) {
                     super.onDraw(canvas)
-                    val strokeW = dp(5).toFloat()
+                    val strokeW = dp(4).toFloat()
                     paint.strokeWidth = strokeW
-                    val inset = strokeW / 2f + dp(4)
+                    val inset = strokeW / 2f + dp(3)
                     val rect = RectF(inset, inset, width - inset, height - inset)
                     // Matching Outloop open-loop arc (-27 deg start sweeping -324 deg)
                     canvas.drawArc(rect, -27f, -324f, false, paint)
                 }
             }.apply {
-                layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
+                layoutParams = LinearLayout.LayoutParams(dp(40), dp(40))
                 contentDescription = null
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             }
 
             val contextLabel = TextView(context).apply {
                 text = "$appName \u00B7 $feedLabel"
-                textSize = 13f
+                textSize = 12f
                 setTypeface(Typeface.SANS_SERIF, Typeface.BOLD)
                 setTextColor(subtleTint)
                 gravity = Gravity.CENTER
-                setPadding(0, dp(10), 0, 0)
+                setPadding(0, dp(8), 0, 0)
             }
 
             val title = TextView(context).apply {
                 text = "Take a moment."
-                textSize = 26f
+                textSize = 22f
                 setTypeface(Typeface.DEFAULT_BOLD)
                 setTextColor(headlineColor)
                 gravity = Gravity.CENTER
-                setPadding(0, dp(6), 0, dp(4))
+                setPadding(0, dp(5), 0, dp(3))
                 isFocusable = true
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
             }
 
             val body = TextView(context).apply {
                 text = "Is this what you came here for?"
-                textSize = 16f
+                textSize = 14.5f
                 setTextColor(secondaryText)
                 gravity = Gravity.CENTER
-                setPadding(0, 0, 0, dp(20))
+                setPadding(0, 0, 0, dp(16))
             }
 
             val exitButton = Button(context).apply {
                 text = "Return to my intention"
                 contentDescription = "Return to my intention and leave $appName $feedLabel"
                 isAllCaps = false
-                textSize = 16f
+                textSize = 14.5f
                 setTypeface(Typeface.DEFAULT_BOLD)
                 setTextColor(primaryBtnText)
-                setPadding(dp(20), dp(14), dp(20), dp(14))
+                setPadding(dp(16), dp(11), dp(16), dp(11))
                 background = GradientDrawable().apply {
                     setColor(primaryBtnBg)
                     cornerRadius = dp(100).toFloat()
@@ -161,8 +162,8 @@ class AccessibilityOverlayShield(private val context: Context) {
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 )
-                minimumHeight = dp(54)
-                minHeight = dp(54)
+                minimumHeight = dp(48)
+                minHeight = dp(48)
                 setOnClickListener { view ->
                     if (hapticsEnabled) {
                         view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
@@ -176,10 +177,10 @@ class AccessibilityOverlayShield(private val context: Context) {
                 text = "Allow once"
                 contentDescription = "Allow $appName $feedLabel once for 5 minutes"
                 isAllCaps = false
-                textSize = 16f
+                textSize = 14.5f
                 setTypeface(Typeface.DEFAULT_BOLD)
                 setTextColor(headlineColor)
-                setPadding(dp(20), dp(14), dp(20), dp(14))
+                setPadding(dp(16), dp(11), dp(16), dp(11))
                 background = GradientDrawable().apply {
                     setColor(secondaryBtnBg)
                     cornerRadius = dp(100).toFloat()
@@ -189,8 +190,8 @@ class AccessibilityOverlayShield(private val context: Context) {
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 )
-                minimumHeight = dp(52)
-                minHeight = dp(52)
+                minimumHeight = dp(48)
+                minHeight = dp(48)
                 setOnClickListener { view ->
                     if (hapticsEnabled) {
                         view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
@@ -204,7 +205,7 @@ class AccessibilityOverlayShield(private val context: Context) {
                 text = "Snooze for 15 minutes"
                 contentDescription = "Snooze protection for $appName for 15 minutes"
                 isAllCaps = false
-                textSize = 15f
+                textSize = 14f
                 setTypeface(Typeface.DEFAULT_BOLD)
                 setTextColor(subtleTint)
                 background = null
@@ -224,10 +225,10 @@ class AccessibilityOverlayShield(private val context: Context) {
             }
 
             val spacer1 = View(context).apply {
-                layoutParams = LinearLayout.LayoutParams(1, dp(10))
+                layoutParams = LinearLayout.LayoutParams(1, dp(8))
             }
             val spacer2 = View(context).apply {
-                layoutParams = LinearLayout.LayoutParams(1, dp(4))
+                layoutParams = LinearLayout.LayoutParams(1, dp(2))
             }
 
             card.addView(markView)
@@ -266,8 +267,18 @@ class AccessibilityOverlayShield(private val context: Context) {
             }
 
             try {
+                card.alpha = 0f
+                card.scaleX = 0.94f
+                card.scaleY = 0.94f
                 windowManager.addView(root, layoutParams)
                 overlayView = root
+                card.animate()
+                    .alpha(1f)
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(220L)
+                    .setInterpolator(DecelerateInterpolator())
+                    .start()
                 root.requestFocus()
                 title.post {
                     title.sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_FOCUSED)

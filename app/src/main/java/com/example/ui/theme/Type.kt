@@ -21,92 +21,92 @@ val ManropeFontFamily = FontFamily(
 )
 
 val OutloopTypography = Typography(
-    // Large title ("Today", "Insights", "Settings")
+    // Primary tab title ("Today", "Insights", "Settings") - ~20% compact
     displayLarge = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 34.sp,
-        lineHeight = 41.sp,
-        letterSpacing = (-0.75).sp
+        fontSize = 28.sp,
+        lineHeight = 34.sp,
+        letterSpacing = (-0.6).sp
     ),
-    // Onboarding & Welcome display headlines
+    // Sub-screen, Onboarding & Welcome headlines - unified across all flows
     headlineLarge = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 32.sp,
-        lineHeight = 38.sp,
-        letterSpacing = (-0.64).sp
+        fontSize = 26.sp,
+        lineHeight = 32.sp,
+        letterSpacing = (-0.5).sp
     ),
     // Sheet & KPI metric headlines
     headlineMedium = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 24.sp,
-        lineHeight = 29.sp,
-        letterSpacing = (-0.48).sp
+        fontSize = 20.sp,
+        lineHeight = 25.sp,
+        letterSpacing = (-0.35).sp
     ),
     // Hero wordmark / modal headline
     titleLarge = TextStyle(
         fontFamily = ManropeFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 22.sp,
-        lineHeight = 28.sp,
-        letterSpacing = (-0.3).sp
+        fontSize = 19.sp,
+        lineHeight = 24.sp,
+        letterSpacing = (-0.25).sp
     ),
-    // Primary row / button title (17sp SemiBold)
+    // Primary row / button title
     titleMedium = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 17.sp,
-        lineHeight = 22.sp
+        fontSize = 15.sp,
+        lineHeight = 20.sp
     ),
-    // Secondary item title (16sp SemiBold / Normal)
+    // Secondary item title
     titleSmall = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 16.sp,
-        lineHeight = 22.sp
+        fontSize = 14.5.sp,
+        lineHeight = 19.sp
     ),
-    // Body paragraph (16sp Normal)
+    // Body paragraph
     bodyLarge = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 23.sp
+        fontSize = 14.5.sp,
+        lineHeight = 21.sp
     ),
-    // Card paragraph / row value (14sp Normal)
+    // Card paragraph / row value
     bodyMedium = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
-        lineHeight = 20.sp
+        fontSize = 13.sp,
+        lineHeight = 18.sp
     ),
-    // Footnote / secondary metadata (13sp Normal)
+    // Footnote / secondary metadata
     bodySmall = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 13.sp,
-        lineHeight = 18.sp
+        fontSize = 12.sp,
+        lineHeight = 16.sp
     ),
-    // Pill / segment / chip label (13sp SemiBold)
+    // Pill / segment / chip label
     labelLarge = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 13.sp,
-        lineHeight = 18.sp
+        fontSize = 12.sp,
+        lineHeight = 16.sp
     ),
     // Eyebrow / Section Header
     labelMedium = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 13.sp,
-        lineHeight = 18.sp
+        fontSize = 12.sp,
+        lineHeight = 16.sp
     ),
-    // Tab bar item label (11sp SemiBold)
+    // Tab bar item label
     labelSmall = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 11.sp,
-        lineHeight = 14.sp
+        fontSize = 10.5.sp,
+        lineHeight = 13.sp
     )
 )

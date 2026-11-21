@@ -146,16 +146,34 @@ class ExampleRobolectricTest {
     }
 
     @Test
-    fun `installed app detector finds installed packages accurately`() {
+    fun `installed app detector finds installed enabled packages accurately`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val shadowPm = shadowOf(context.packageManager)
-        shadowPm.installPackage(PackageInfo().apply { packageName = "com.google.android.youtube" })
+        shadowPm.installPackage(
+            PackageInfo().apply {
+                packageName = "com.google.android.youtube"
+                applicationInfo = android.content.pm.ApplicationInfo().apply {
+                    packageName = "com.google.android.youtube"
+                    enabled = true
+                }
+            }
+        )
+        shadowPm.installPackage(
+            PackageInfo().apply {
+                packageName = "com.facebook.katana"
+                applicationInfo = android.content.pm.ApplicationInfo().apply {
+                    packageName = "com.facebook.katana"
+                    enabled = false
+                }
+            }
+        )
 
         val installed = InstalledAppDetector.getInstalledPackages(
             context,
             FeedSurgeonDatabase.BUILT_IN_PACKAGE_NAMES
         )
         assertTrue("com.google.android.youtube" in installed)
+        assertFalse("com.facebook.katana" in installed)
         assertFalse("com.instagram.android" in installed)
     }
 

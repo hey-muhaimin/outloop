@@ -5,23 +5,17 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.Icon
@@ -46,15 +40,17 @@ import com.example.data.local.TargetAppRuleEntity
 import com.example.data.model.InterventionMode
 import com.example.service.LaunchableAppInfo
 import com.example.ui.components.OutloopAppMonogramBadge
-import com.example.ui.components.OutloopBackButton
 import com.example.ui.components.OutloopHairlineDivider
 import com.example.ui.components.OutloopModalSheet
 import com.example.ui.components.OutloopPrimaryButton
 import com.example.ui.components.OutloopSecondaryButton
 import com.example.ui.components.OutloopSectionHeader
 import com.example.ui.components.OutloopSegmentedControl
+import com.example.ui.components.OutloopStaggeredEntrance
+import com.example.ui.components.OutloopSubScreenScaffold
 import com.example.ui.components.OutloopSwitch
 import com.example.ui.components.OutloopTonalCard
+import com.example.ui.theme.OutloopMetrics
 import com.example.ui.theme.OutloopTheme
 
 @Composable
@@ -74,50 +70,32 @@ fun ManageAppsScreen(
         interventionMode: InterventionMode
     ) -> Unit = { _, _, _, _, _, _, _ -> },
     onDeleteCustomRule: (String) -> Unit = {},
-    onShowToast: (String) -> Unit = {}
+    onShowToast: (String) -> Unit = {},
+    hasScannedInstalledApps: Boolean = true
 ) {
     BackHandler(onBack = onBack)
     val colors = OutloopTheme.colors
     var showAddCustomSheet by rememberSaveable { mutableStateOf(false) }
 
-    val installedRules = if (installedPackages.isEmpty()) {
-        rules
-    } else {
+    val installedRules = if (hasScannedInstalledApps) {
         rules.filter { it.packageName in installedPackages || !it.isBuiltIn }
-    }
-    val notInstalledRules = if (installedPackages.isEmpty()) {
-        emptyList()
     } else {
+        emptyList()
+    }
+    val notInstalledRules = if (hasScannedInstalledApps) {
         rules.filter { it.packageName !in installedPackages && it.isBuiltIn }
+    } else {
+        rules
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .navigationBarsPadding(),
-        contentAlignment = Alignment.TopCenter
+    OutloopSubScreenScaffold(
+        onBack = onBack,
+        bottomBar = {
+            OutloopPrimaryButton(text = "Done", onClick = onBack)
+        }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .widthIn(max = 600.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 12.dp, end = 20.dp, top = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutloopBackButton(onClick = onBack)
-            }
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
+        OutloopStaggeredEntrance(index = 0) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = "Your apps",
                     style = MaterialTheme.typography.displayLarge,
@@ -128,19 +106,29 @@ fun ManageAppsScreen(
                     style = MaterialTheme.typography.bodyLarge,
                     color = colors.secondaryInk
                 )
+            }
+        }
 
+        OutloopStaggeredEntrance(index = 1) {
+            Column(verticalArrangement = Arrangement.spacedBy(OutloopMetrics.ItemSpacing)) {
+                OutloopSectionHeader(text = "On your phone")
                 if (installedRules.isNotEmpty()) {
-                    OutloopSectionHeader(text = "On your phone")
-                    OutloopTonalCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
+                    OutloopTonalCard(
+                        cornerRadius = OutloopMetrics.CardCornerRadius,
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
                         installedRules.forEachIndexed { idx, rule ->
                             if (idx > 0) OutloopHairlineDivider()
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .heightIn(min = 68.dp)
-                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                    .heightIn(min = OutloopMetrics.RowMinHeight)
+                                    .padding(
+                                        horizontal = OutloopMetrics.ListRowPaddingHorizontal,
+                                        vertical = OutloopMetrics.ListRowPaddingVertical
+                                    ),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 OutloopAppMonogramBadge(
                                     appName = rule.displayName,
@@ -186,18 +174,39 @@ fun ManageAppsScreen(
                             }
                         }
                     }
+                } else {
+                    OutloopTonalCard(
+                        cornerRadius = OutloopMetrics.SubCardCornerRadius,
+                        contentPadding = OutloopMetrics.CompactCardPadding
+                    ) {
+                        Text(
+                            text = if (hasScannedInstalledApps) {
+                                "No supported short-form video apps detected on this phone yet. Add a custom app below."
+                            } else {
+                                "Scanning installed apps\u2026"
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.secondaryInk
+                        )
+                    }
                 }
+            }
+        }
 
-                OutloopSecondaryButton(
-                    text = "Add custom app",
-                    onClick = { showAddCustomSheet = true },
-                    modifier = Modifier.testTag("manage_apps_add_custom")
-                )
+        OutloopStaggeredEntrance(index = 2) {
+            OutloopSecondaryButton(
+                text = "Add custom app",
+                onClick = { showAddCustomSheet = true },
+                modifier = Modifier.testTag("manage_apps_add_custom")
+            )
+        }
 
-                if (notInstalledRules.isNotEmpty()) {
+        if (notInstalledRules.isNotEmpty()) {
+            OutloopStaggeredEntrance(index = 3) {
+                Column(verticalArrangement = Arrangement.spacedBy(OutloopMetrics.ItemSpacing)) {
                     OutloopSectionHeader(text = "Not installed")
                     OutloopTonalCard(
-                        cornerRadius = 24.dp,
+                        cornerRadius = OutloopMetrics.CardCornerRadius,
                         contentPadding = PaddingValues(0.dp),
                         containerColor = colors.surfaceSubtle,
                         modifier = Modifier.alpha(0.75f)
@@ -207,10 +216,13 @@ fun ManageAppsScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .heightIn(min = 68.dp)
-                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                    .heightIn(min = OutloopMetrics.RowMinHeight)
+                                    .padding(
+                                        horizontal = OutloopMetrics.ListRowPaddingHorizontal,
+                                        vertical = OutloopMetrics.ListRowPaddingVertical
+                                    ),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 OutloopAppMonogramBadge(appName = rule.displayName)
                                 Column(modifier = Modifier.weight(1f)) {
@@ -235,14 +247,6 @@ fun ManageAppsScreen(
                         }
                     }
                 }
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 16.dp)
-            ) {
-                OutloopPrimaryButton(text = "Done", onClick = onBack)
             }
         }
     }
@@ -307,12 +311,12 @@ private fun AddCustomAppSheet(
                 candidateApps.take(15).forEach { candidate ->
                     val isPicked = packageName == candidate.packageName
                     Surface(
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(14.dp),
                         color = if (isPicked) colors.primaryTint else colors.surfaceElevated,
                         border = BorderStroke(1.dp, colors.hairlineBorder),
                         modifier = Modifier
-                            .heightIn(min = 44.dp)
-                            .clip(RoundedCornerShape(16.dp))
+                            .heightIn(min = 48.dp)
+                            .clip(RoundedCornerShape(14.dp))
                             .clickable {
                                 packageName = candidate.packageName
                                 displayName = candidate.displayName
@@ -322,13 +326,13 @@ private fun AddCustomAppSheet(
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)
                         ) {
                             OutloopAppMonogramBadge(
                                 appName = candidate.displayName,
                                 packageName = candidate.packageName,
-                                size = 24.dp,
-                                cornerRadius = 7.dp
+                                size = 22.dp,
+                                cornerRadius = 6.dp
                             )
                             Text(
                                 text = candidate.displayName,

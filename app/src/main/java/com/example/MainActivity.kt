@@ -320,7 +320,11 @@ fun OutloopNavigationHost(
             CompositionLocalProvider(LocalSharedTransitionScope provides this) {
                 BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                     val isWideScreen = maxWidth >= 600.dp
-                    val bottomContentPadding = if (!isWideScreen && selectedBottomTab != null) 116.dp else 36.dp
+                    val bottomContentPadding = if (!isWideScreen && selectedBottomTab != null) {
+                        com.example.ui.theme.OutloopMetrics.BottomNavContentPadding
+                    } else {
+                        28.dp
+                    }
 
                     Row(modifier = Modifier.fillMaxSize()) {
                         if (isWideScreen && selectedBottomTab != null) {
@@ -418,7 +422,8 @@ fun OutloopNavigationHost(
                                                 onCompleteOnboarding()
                                                 navigateToHomeClearingOnboarding()
                                                 navigateToTopLevel(BottomTab.SETTINGS)
-                                            }
+                                            },
+                                            hasScannedInstalledApps = uiState.hasScannedInstalledApps
                                         )
                                     }
                                 }
@@ -517,7 +522,8 @@ fun OutloopNavigationHost(
                                             launchableApps = uiState.launchableApps,
                                             onSaveCustomRule = onSaveCustomRule,
                                             onDeleteCustomRule = onDeleteCustomRule,
-                                            onShowToast = { msg -> uiToastMessage = msg }
+                                            onShowToast = { msg -> uiToastMessage = msg },
+                                            hasScannedInstalledApps = uiState.hasScannedInstalledApps
                                         )
                                     }
                                 }
@@ -560,7 +566,8 @@ fun OutloopNavigationHost(
                                             onAllowOnce = { onAllowOnceForApp(pkg) },
                                             onSnoozeMinutes = { minutes -> onSnoozeMinutes(pkg, minutes) },
                                             onResumeSnooze = { onAppSnoozeExpired(pkg) },
-                                            onShowToast = { msg -> uiToastMessage = msg }
+                                            onShowToast = { msg -> uiToastMessage = msg },
+                                            currentTimeMs = uiState.currentTimeMs
                                         )
                                     }
                                 }
@@ -571,9 +578,9 @@ fun OutloopNavigationHost(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
                                     .fillMaxWidth()
-                                    .widthIn(max = 560.dp)
+                                    .widthIn(max = com.example.ui.theme.OutloopMetrics.MaxContentWidth - 20.dp)
                                     .then(
-                                        if (isWideScreen) Modifier.padding(bottom = 16.dp) else Modifier
+                                        if (isWideScreen) Modifier.padding(bottom = 12.dp) else Modifier
                                     ),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {

@@ -1,5 +1,12 @@
 package com.example.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -12,17 +19,17 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,6 +39,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -42,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.ui.DayBarStat
+import com.example.ui.theme.OutloopMetrics
 import com.example.ui.theme.OutloopTheme
 
 data class ChartColumnData(
@@ -52,7 +61,7 @@ data class ChartColumnData(
 )
 
 /**
- * 104dp Outloop open-loop progress ring wrapping the tabular daily count.
+ * Compact 86dp Outloop open-loop progress ring wrapping the animated tabular daily count.
  */
 @Composable
 fun OutloopHeroCounterRing(
@@ -68,15 +77,20 @@ fun OutloopHeroCounterRing(
     }
     val animatedFraction by androidx.compose.animation.core.animateFloatAsState(
         targetValue = targetFraction,
-        animationSpec = androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessLow),
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
         label = "heroRingProgress"
     )
+    val animatedCount by animateIntAsState(
+        targetValue = count,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "heroCountValue"
+    )
     Box(
-        modifier = modifier.size(104.dp),
+        modifier = modifier.size(OutloopMetrics.HeroRingSize),
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val strokePx = 9.dp.toPx()
+            val strokePx = 7.5.dp.toPx()
             val inset = strokePx / 2f + 2.dp.toPx()
             val diameter = (size.minDimension - inset * 2f).coerceAtLeast(1f)
             if (dailyBudgetCuts > 0) {
@@ -113,10 +127,10 @@ fun OutloopHeroCounterRing(
             }
         }
         Text(
-            text = count.toString(),
-            fontSize = 38.sp,
+            text = animatedCount.toString(),
+            fontSize = 31.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.8).sp,
+            letterSpacing = (-0.7).sp,
             color = colors.ink,
             style = MaterialTheme.typography.displayLarge.copy(fontFeatureSettings = "tnum")
         )
@@ -124,7 +138,7 @@ fun OutloopHeroCounterRing(
 }
 
 /**
- * 7-day circular pill strip ("S M T W T F S" ending on today) matching the Outloop Today card.
+ * Compact 7-day circular pill strip ("S M T W T F S" ending on today).
  */
 @Composable
 fun OutloopDailyRhythmStrip(
@@ -145,7 +159,7 @@ fun OutloopDailyRhythmStrip(
             }
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
                 modifier = Modifier.semantics(mergeDescendants = true) {
                     contentDescription = accessibilityLabel
                 }
@@ -153,14 +167,14 @@ fun OutloopDailyRhythmStrip(
                 Text(
                     text = day.dayLetter,
                     style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         fontWeight = if (day.isToday) FontWeight.Bold else FontWeight.Medium
                     ),
                     color = if (day.isToday) colors.ink else colors.secondaryInk
                 )
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(OutloopMetrics.RhythmCircleSize)
                         .clip(CircleShape)
                         .background(if (day.isToday) colors.primaryTint else colors.subtleFill)
                         .then(
@@ -171,7 +185,7 @@ fun OutloopDailyRhythmStrip(
                 ) {
                     Text(
                         text = day.count.toString(),
-                        style = MaterialTheme.typography.bodyMedium.copy(
+                        style = MaterialTheme.typography.bodySmall.copy(
                             fontWeight = FontWeight.SemiBold,
                             fontFeatureSettings = "tnum"
                         ),
@@ -184,8 +198,7 @@ fun OutloopDailyRhythmStrip(
 }
 
 /**
- * Interactive capsule bar chart matching the Outloop Insights card:
- * 28% alpha on unselected bars, 100% alpha + numeric caption above selected bar.
+ * Compact interactive capsule bar chart with smooth spring bar height & selection color transitions.
  */
 @Composable
 fun OutloopInsightsBarChart(
@@ -202,22 +215,35 @@ fun OutloopInsightsBarChart(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(146.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                .height(122.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
             verticalAlignment = Alignment.Bottom
         ) {
             columns.forEachIndexed { idx, col ->
                 val isSelected = idx == safeSelected
-                val barHeight = if (col.count == 0) {
-                    6.dp
+                val targetHeight = if (col.count == 0) {
+                    5.dp
                 } else {
-                    (14f + 78f * col.fraction.coerceIn(0f, 1f)).dp
+                    (12f + 64f * col.fraction.coerceIn(0f, 1f)).dp
                 }
+                val barHeight by animateDpAsState(
+                    targetValue = targetHeight,
+                    animationSpec = spring(
+                        dampingRatio = 0.8f,
+                        stiffness = Spring.StiffnessMediumLow
+                    ),
+                    label = "insightBarHeight_$idx"
+                )
+                val barColor by animateColorAsState(
+                    targetValue = colors.primaryTint.copy(alpha = if (isSelected) 1f else 0.28f),
+                    animationSpec = tween(180),
+                    label = "insightBarColor_$idx"
+                )
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .height(146.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .height(122.dp)
+                        .clip(RoundedCornerShape(10.dp))
                         .clickable {
                             haptic()
                             onSelectIndex(idx)
@@ -229,7 +255,7 @@ fun OutloopInsightsBarChart(
                     verticalArrangement = Arrangement.Bottom
                 ) {
                     Box(
-                        modifier = Modifier.height(18.dp),
+                        modifier = Modifier.height(16.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         if (isSelected) {
@@ -243,21 +269,19 @@ fun OutloopInsightsBarChart(
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(0.76f)
+                            .fillMaxWidth(0.74f)
                             .height(barHeight)
-                            .clip(RoundedCornerShape(17.dp))
-                            .background(
-                                colors.primaryTint.copy(alpha = if (isSelected) 1f else 0.28f)
-                            )
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(barColor)
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = col.shortLabel,
                         style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         ),
                         color = if (isSelected) colors.ink else colors.secondaryInk,
@@ -269,7 +293,7 @@ fun OutloopInsightsBarChart(
 
         if (columns.isNotEmpty()) {
             val chosen = columns[safeSelected]
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "${chosen.detailLabel}: ${chosen.count}",
                 style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
@@ -292,6 +316,17 @@ fun OutloopSimulationOverlay(
     onDismiss: () -> Unit
 ) {
     val colors = OutloopTheme.colors
+    val cardEnter = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        cardEnter.animateTo(
+            targetValue = 1f,
+            animationSpec = spring(
+                dampingRatio = 0.82f,
+                stiffness = Spring.StiffnessMediumLow
+            )
+        )
+    }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -301,17 +336,17 @@ fun OutloopSimulationOverlay(
                 .fillMaxSize()
                 .background(Color(0xFF0D120E))
                 .clickable(onClick = onDismiss)
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = 20.dp),
             contentAlignment = Alignment.Center
         ) {
-            // Subtle simulated blurred video shapes behind the frosted pause card
+            // Subtle simulated video feed silhouettes behind the crisp tonal pause card
             Box(
                 modifier = Modifier
-                    .fillMaxWidth(0.76f)
-                    .height(280.dp)
+                    .fillMaxWidth(0.72f)
+                    .height(240.dp)
                     .align(Alignment.TopStart)
-                    .offset(x = 12.dp, y = 44.dp)
-                    .clip(RoundedCornerShape(24.dp))
+                    .offset(x = 10.dp, y = 40.dp)
+                    .clip(RoundedCornerShape(20.dp))
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(Color(0xFF27382D), Color(0xFF141C17))
@@ -321,13 +356,13 @@ fun OutloopSimulationOverlay(
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 12.dp, bottom = 140.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(end = 10.dp, bottom = 120.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 repeat(3) {
                     Box(
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(32.dp)
                             .clip(CircleShape)
                             .background(Color.White.copy(alpha = 0.14f))
                     )
@@ -338,11 +373,17 @@ fun OutloopSimulationOverlay(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(28.dp))
+                    .graphicsLayer {
+                        val v = cardEnter.value
+                        alpha = v.coerceIn(0.1f, 1f)
+                        scaleX = 0.94f + 0.06f * v
+                        scaleY = 0.94f + 0.06f * v
+                    }
+                    .clip(RoundedCornerShape(24.dp))
                     .background(colors.sheetSurface)
-                    .border(1.dp, colors.hairlineBorder, RoundedCornerShape(28.dp))
+                    .border(1.dp, colors.hairlineBorder, RoundedCornerShape(24.dp))
                     .clickable(enabled = false, onClick = {})
-                    .padding(24.dp)
+                    .padding(20.dp)
                     .testTag("simulation_pause_dialog"),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -350,12 +391,12 @@ fun OutloopSimulationOverlay(
                     text = "Simulation, not a real feed",
                     tone = PillTone.NEUTRAL
                 )
-                Spacer(modifier = Modifier.height(14.dp))
-                OutloopMark(size = 44.dp, color = colors.primaryTint)
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+                OutloopMark(size = 36.dp, color = colors.primaryTint)
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Take a moment.",
-                    style = MaterialTheme.typography.headlineMedium.copy(fontSize = 26.sp),
+                    style = MaterialTheme.typography.headlineMedium,
                     color = colors.ink,
                     textAlign = TextAlign.Center
                 )
@@ -372,7 +413,7 @@ fun OutloopSimulationOverlay(
                     style = MaterialTheme.typography.labelLarge,
                     color = colors.textAction
                 )
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(14.dp))
                 OutloopPrimaryButton(
                     text = "Return to my intention",
                     onClick = {
@@ -381,7 +422,7 @@ fun OutloopSimulationOverlay(
                     },
                     modifier = Modifier.testTag("sim_return_button")
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 OutloopSecondaryButton(
                     text = "Allow once",
                     onClick = {
@@ -390,7 +431,7 @@ fun OutloopSimulationOverlay(
                     },
                     modifier = Modifier.testTag("sim_allow_button")
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 OutloopTextButton(
                     text = "Snooze for 15 minutes",
                     onClick = {

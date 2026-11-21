@@ -101,6 +101,20 @@ class FeedSurgeonService : AccessibilityService() {
                 }
             }
         }
+
+        serviceScope.launch {
+            InstalledAppDetector.observePackageChanges(this@FeedSurgeonService).collectLatest {
+                val trackedPackages = activeRulesByPackage.keys.ifEmpty {
+                    FeedSurgeonDatabase.BUILT_IN_PACKAGE_NAMES
+                }
+                val installedNow = InstalledAppDetector.getInstalledPackages(
+                    this@FeedSurgeonService,
+                    trackedPackages
+                )
+                activeInstalledRuleCount = activeRulesByPackage.keys.count { it in installedNow }
+                refreshForegroundNotification()
+            }
+        }
     }
 
     private fun refreshForegroundNotification() {

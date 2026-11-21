@@ -12,11 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,20 +22,23 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.data.local.TargetAppRuleEntity
 import com.example.data.model.InterventionMode
 import com.example.ui.components.OutloopAppMonogramBadge
-import com.example.ui.components.OutloopBackButton
 import com.example.ui.components.OutloopHairlineDivider
 import com.example.ui.components.OutloopPrimaryButton
 import com.example.ui.components.OutloopRadioOptionCard
 import com.example.ui.components.OutloopSectionHeader
 import com.example.ui.components.OutloopSimulationOverlay
+import com.example.ui.components.OutloopStaggeredEntrance
+import com.example.ui.components.OutloopSubScreenScaffold
 import com.example.ui.components.OutloopSwitch
 import com.example.ui.components.OutloopTonalCard
+import com.example.ui.theme.OutloopMetrics
 import com.example.ui.theme.OutloopTheme
 
 @Composable
@@ -52,7 +51,8 @@ fun AppDetailScreen(
     onAllowOnce: () -> Unit,
     onSnoozeMinutes: (Int) -> Unit,
     onResumeSnooze: () -> Unit,
-    onShowToast: (String) -> Unit
+    onShowToast: (String) -> Unit,
+    currentTimeMs: Long = System.currentTimeMillis()
 ) {
     BackHandler(onBack = onBack)
     val colors = OutloopTheme.colors
@@ -62,7 +62,7 @@ fun AppDetailScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(20.dp),
+                .padding(OutloopMetrics.ScreenHorizontalPadding),
             contentAlignment = Alignment.Center
         ) {
             OutloopTonalCard {
@@ -71,128 +71,125 @@ fun AppDetailScreen(
                     style = MaterialTheme.typography.titleMedium,
                     color = colors.ink
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(OutloopMetrics.SectionSpacing))
                 OutloopPrimaryButton(text = "Back", onClick = onBack)
             }
         }
         return
     }
 
-    val isSnoozed = rule.snoozeUntilMs > System.currentTimeMillis()
+    val isSnoozed = rule.snoozeUntilMs > currentTimeMs
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .navigationBarsPadding(),
-        contentAlignment = Alignment.TopCenter
+    OutloopSubScreenScaffold(
+        onBack = onBack,
+        bottomBar = {
+            OutloopPrimaryButton(
+                text = "Preview pause screen",
+                onClick = { showPreviewOverlay = true },
+                modifier = Modifier.testTag("detail_preview_button")
+            )
+        }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .widthIn(max = 600.dp)
-        ) {
+        OutloopStaggeredEntrance(index = 0) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 12.dp, end = 20.dp, top = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                OutloopBackButton(onClick = onBack)
+                OutloopAppMonogramBadge(
+                    appName = rule.displayName,
+                    packageName = rule.packageName,
+                    size = OutloopMetrics.AppDetailBadgeSize,
+                    cornerRadius = OutloopMetrics.AppDetailBadgeCornerRadius
+                )
+                Column {
+                    Text(
+                        text = rule.displayName,
+                        style = MaterialTheme.typography.headlineLarge,
+                        color = colors.ink
+                    )
+                    Text(
+                        text = "${rule.feedLabel} \u00B7 ${if (rule.enabled) "Protected" else "Off"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.secondaryInk
+                    )
+                }
             }
+        }
 
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+        OutloopStaggeredEntrance(index = 1) {
+            OutloopTonalCard(
+                cornerRadius = OutloopMetrics.CardCornerRadius,
+                contentPadding = PaddingValues(0.dp)
             ) {
                 Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = OutloopMetrics.NavRowMinHeight)
+                        .padding(horizontal = OutloopMetrics.ListRowPaddingHorizontal, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    OutloopAppMonogramBadge(
-                        appName = rule.displayName,
-                        packageName = rule.packageName,
-                        size = 56.dp,
-                        cornerRadius = 17.dp
+                    Text(
+                        text = "Protect ${rule.displayName}",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Normal),
+                        color = colors.ink
                     )
-                    Column {
-                        Text(
-                            text = rule.displayName,
-                            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
-                            color = colors.ink
-                        )
-                        Text(
-                            text = "${rule.feedLabel} \u00B7 ${if (rule.enabled) "Protected" else "Off"}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.secondaryInk
-                        )
-                    }
+                    OutloopSwitch(
+                        checked = rule.enabled,
+                        onCheckedChange = onToggleEnabled,
+                        contentDescription = "Protect ${rule.displayName}",
+                        modifier = Modifier.testTag("detail_protect_switch")
+                    )
                 }
-
-                OutloopTonalCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 54.dp)
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Protect ${rule.displayName}",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Normal),
-                            color = colors.ink
-                        )
-                        OutloopSwitch(
-                            checked = rule.enabled,
-                            onCheckedChange = onToggleEnabled,
-                            contentDescription = "Protect ${rule.displayName}",
-                            modifier = Modifier.testTag("detail_protect_switch")
-                        )
-                    }
-                    OutloopHairlineDivider()
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 52.dp)
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Feed Outloop watches",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Normal),
-                            color = colors.ink
-                        )
-                        Text(
-                            text = rule.feedLabel,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = colors.secondaryInk
-                        )
-                    }
+                OutloopHairlineDivider()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = OutloopMetrics.NavRowMinHeight)
+                        .padding(horizontal = OutloopMetrics.ListRowPaddingHorizontal, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Feed Outloop watches",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Normal),
+                        color = colors.ink
+                    )
+                    Text(
+                        text = rule.feedLabel,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = colors.secondaryInk
+                    )
                 }
+            }
+        }
 
+        OutloopStaggeredEntrance(index = 2) {
+            Column(verticalArrangement = Arrangement.spacedBy(OutloopMetrics.ItemSpacing)) {
                 OutloopSectionHeader(text = "When a feed opens")
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(
-                        InterventionMode.OVERLAY,
-                        InterventionMode.BACK,
-                        InterventionMode.HOME_TAB
-                    ).forEach { mode ->
-                        OutloopRadioOptionCard(
-                            title = mode.shortLabel,
-                            subtitle = mode.explanation,
-                            selected = rule.interventionMode == mode,
-                            onClick = { onSelectMode(mode) },
-                            modifier = Modifier.testTag("detail_mode_${mode.name.lowercase()}")
-                        )
-                    }
+                listOf(
+                    InterventionMode.OVERLAY,
+                    InterventionMode.BACK,
+                    InterventionMode.HOME_TAB
+                ).forEach { mode ->
+                    OutloopRadioOptionCard(
+                        title = mode.shortLabel,
+                        subtitle = mode.explanation,
+                        selected = rule.interventionMode == mode,
+                        onClick = { onSelectMode(mode) },
+                        modifier = Modifier.testTag("detail_mode_${mode.name.lowercase()}")
+                    )
                 }
+            }
+        }
 
+        OutloopStaggeredEntrance(index = 3) {
+            Column(verticalArrangement = Arrangement.spacedBy(OutloopMetrics.ItemSpacing)) {
                 OutloopSectionHeader(text = "Just for now")
-                OutloopTonalCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
+                OutloopTonalCard(
+                    cornerRadius = OutloopMetrics.CardCornerRadius,
+                    contentPadding = PaddingValues(0.dp)
+                ) {
                     DetailActionRow(
                         title = "Allow once",
                         subtitle = "Lets the next feed open without a pause.",
@@ -243,18 +240,6 @@ fun AppDetailScreen(
                     )
                 }
             }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 16.dp)
-            ) {
-                OutloopPrimaryButton(
-                    text = "Preview pause screen",
-                    onClick = { showPreviewOverlay = true },
-                    modifier = Modifier.testTag("detail_preview_button")
-                )
-            }
         }
     }
 
@@ -273,14 +258,18 @@ private fun DetailActionRow(
     title: String,
     subtitle: String,
     onClick: () -> Unit,
-    titleColor: androidx.compose.ui.graphics.Color? = null
+    titleColor: Color? = null
 ) {
     val colors = OutloopTheme.colors
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = OutloopMetrics.RowMinHeight)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp)
+            .padding(
+                horizontal = OutloopMetrics.ListRowPaddingHorizontal,
+                vertical = OutloopMetrics.ListRowPaddingVertical
+            )
     ) {
         Text(
             text = title,
