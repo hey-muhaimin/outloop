@@ -768,27 +768,48 @@ private fun PrivacyConsentContent(onOpenPrivacyDetails: () -> Unit) {
                 InfoPointRow(
                     icon = Icons.Outlined.PhoneAndroid,
                     title = "Where it stays",
-                    body = "Detection runs on your phone. Troubleshooting logs are off unless you turn them on."
+                    body = "Detection runs strictly on your phone. Nothing is collected off-device or shared with third parties. Troubleshooting logs remain off unless you turn them on."
                 )
             }
         }
     }
     OutloopStaggeredEntrance(index = 2) {
+        val context = LocalContext.current
+        val policyUrl = androidx.compose.ui.res.stringResource(com.example.R.string.privacy_policy_url)
         OutloopStatusBannerCard(
             tone = StatusBannerTone.INFO,
             icon = Icons.Outlined.Info,
             title = "You\u2019re in control",
             body = "Turn this off any time in Android Settings.",
             action = {
-                Text(
-                    text = "Read the full privacy details",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = colors.infoText,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(onClick = onOpenPrivacyDetails)
-                        .padding(vertical = 4.dp)
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(
+                        text = "Read the full privacy details",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colors.infoText,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(onClick = onOpenPrivacyDetails)
+                            .padding(vertical = 4.dp)
+                    )
+                    Text(
+                        text = "Privacy policy",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colors.infoText,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse(policyUrl)).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                    )
+                                }
+                            }
+                            .padding(vertical = 4.dp)
+                    )
+                }
             }
         )
     }

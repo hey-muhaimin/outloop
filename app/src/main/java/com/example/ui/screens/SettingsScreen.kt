@@ -102,6 +102,7 @@ fun SettingsScreen(
         cb(null, null, "Backup unavailable")
     },
     onRestoreBackupJson: (String, (String) -> Unit) -> Unit = { _, cb -> cb("Backup restored.") },
+    onAcceptDisclosure: () -> Unit = {},
     bottomContentPadding: Dp = OutloopMetrics.BottomNavContentPadding
 ) {
     val context = LocalContext.current
@@ -113,6 +114,7 @@ fun SettingsScreen(
     var showQuietHoursSheet by rememberSaveable { mutableStateOf(false) }
     var showDailyBudgetSheet by rememberSaveable { mutableStateOf(false) }
     var showClearHistorySheet by rememberSaveable { mutableStateOf(false) }
+    var showAccessibilityDisclosureSheet by rememberSaveable { mutableStateOf(false) }
     var pendingBackupPreview by remember { mutableStateOf<OutloopBackupPreview?>(null) }
     var pendingBackupJson by remember { mutableStateOf<String?>(null) }
 
@@ -383,14 +385,19 @@ fun SettingsScreen(
                                     null
                                 },
                                 onClick = {
-                                    runCatching {
-                                        context.startActivity(
-                                            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                            }
-                                        )
+                                    if (uiState.preferences.disclosureAccepted || uiState.isAccessibilityEnabled) {
+                                        runCatching {
+                                            context.startActivity(
+                                                Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                }
+                                            )
+                                        }
+                                    } else {
+                                        showAccessibilityDisclosureSheet = true
                                     }
-                                }
+                                },
+                                modifier = Modifier.testTag("settings_accessibility_permission")
                             )
                             OutloopHairlineDivider()
                             OutloopListNavRow(
@@ -626,6 +633,79 @@ fun SettingsScreen(
             OutloopSecondaryButton(
                 text = "Cancel",
                 onClick = { showClearHistorySheet = false }
+            )
+        }
+    }
+
+    if (showAccessibilityDisclosureSheet) {
+        OutloopModalSheet(
+            title = "Accessibility disclosure",
+            onDismiss = { showAccessibilityDisclosureSheet = false }
+        ) {
+            Text(
+                text = "Outloop uses Android\u2019s Accessibility Service to recognise technical screen labels and view IDs in the apps you choose so it can step in when a Shorts, Reels, or Watch feed opens.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = colors.secondaryInk
+            )
+            Text(
+                text = "It never reads your messages, passwords, or videos. Detection runs strictly on your phone\u2014no personal or screen data is collected off-device or shared with third parties.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.secondaryInk
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(
+                    text = "How detection works",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = colors.textAction,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            showAccessibilityDisclosureSheet = false
+                            onOpenPrivacy()
+                        }
+                        .padding(vertical = 4.dp)
+                )
+                Text(
+                    text = "Privacy policy",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = colors.textAction,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            val opened = runCatching {
+                                context.startActivity(
+                                    Intent(Intent.ACTION_VIEW, Uri.parse(privacyPolicyUrl)).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                )
+                                true
+                            }.getOrDefault(false)
+                            if (!opened) {
+                                onShowToast("No browser available. See How detection works for our full local privacy guarantee.")
+                            }
+                        }
+                        .padding(vertical = 4.dp)
+                )
+            }
+            OutloopPrimaryButton(
+                text = "Agree and continue",
+                onClick = {
+                    onAcceptDisclosure()
+                    showAccessibilityDisclosureSheet = false
+                    runCatching {
+                        context.startActivity(
+                            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                        )
+                    }
+                },
+                modifier = Modifier.testTag("settings_disclosure_agree")
+            )
+            OutloopSecondaryButton(
+                text = "Not now",
+                onClick = { showAccessibilityDisclosureSheet = false },
+                modifier = Modifier.testTag("settings_disclosure_decline")
             )
         }
     }

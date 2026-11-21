@@ -515,6 +515,7 @@ fun OutloopNavigationHost(
                                             onExportBackupUri = onExportBackupUri,
                                             onInspectBackupUri = onInspectBackupUri,
                                             onRestoreBackupJson = onRestoreBackupJson,
+                                            onAcceptDisclosure = onAcceptDisclosure,
                                             bottomContentPadding = bottomContentPadding
                                         )
                                     }

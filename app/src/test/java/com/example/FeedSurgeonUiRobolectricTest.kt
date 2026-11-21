@@ -619,5 +619,57 @@ class FeedSurgeonUiRobolectricTest {
         composeRule.onNodeWithText("Not installed").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Shorts \u00B7 not installed").performScrollTo().assertIsDisplayed()
     }
-}
 
+    @Test
+    fun `settings screen gates accessibility permission behind prominent disclosure until accepted`() {
+        var accepted = false
+        composeRule.setContent {
+            FeedSurgeonTheme {
+                SettingsScreen(
+                    uiState = MainUiState(
+                        isInitialLoading = false,
+                        preferences = AppPreferences(
+                            disclosureAccepted = false,
+                            onboardingCompleted = true
+                        ),
+                        rules = FeedSurgeonDatabase.defaultBuiltInRules(),
+                        installedPackages = setOf("com.google.android.youtube"),
+                        isAccessibilityEnabled = false,
+                        isServiceConnected = false,
+                        protectionStatus = ProtectionStatus.PERMISSION_NEEDED,
+                        activeInstalledCount = 1,
+                        installedSupportedCount = 1
+                    ),
+                    onOpenManageApps = {},
+                    onOpenPrivacy = {},
+                    onOpenDiagnostics = {},
+                    onSelectDefaultMode = {},
+                    onSelectAppearanceMode = {},
+                    onSetReclaimedSeconds = {},
+                    onSetHapticFeedback = {},
+                    onSetShowBanner = {},
+                    onClearHistory = {},
+                    onShowToast = {},
+                    onAcceptDisclosure = { accepted = true }
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("settings_list")
+            .performScrollToNode(hasTestTag("settings_accessibility_permission"))
+        composeRule.onNodeWithTag("settings_accessibility_permission").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Accessibility disclosure").assertIsDisplayed()
+        composeRule.onNodeWithTag("settings_disclosure_decline").performClick()
+        composeRule.waitForIdle()
+        assertEquals(false, accepted)
+
+        composeRule.onNodeWithTag("settings_accessibility_permission").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_disclosure_agree").performClick()
+        composeRule.waitForIdle()
+        assertTrue(accepted)
+    }
+}
