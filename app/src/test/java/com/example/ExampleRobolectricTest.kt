@@ -836,7 +836,7 @@ class ExampleRobolectricTest {
     fun `foreground package monitor detects short-form app entry transient windows and exits`() {
         val rulesByPkg = FeedSurgeonDatabase.defaultBuiltInRules().associateBy { it.packageName }
         val monitor = ForegroundPackageMonitor()
-        val hostPkg = "com.suprbuild.outloop.kxmpzq"
+        val hostPkg = "com.suprbuild.outloop"
 
         val launcher = monitor.onWindowStateChanged(
             packageName = "com.android.launcher3",

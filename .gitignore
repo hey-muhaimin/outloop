@@ -14,5 +14,16 @@
 .externalNativeBuild
 .cxx
 local.properties
-.env
 debug.keystore
+
+# Android release signing
+*.jks
+*.keystore
+
+# Build output
+**/build/
+/build-output/
+/bundled-apk/
+
+# Local secrets
+.env
