@@ -33,7 +33,7 @@ fi
 
 (cd "$ROOT_DIR" && "$GRADLE" "${TASKS[@]}")
 
-BUNDLED_DIR="$ROOT_DIR/bundled-apk"
+BUNDLED_DIR="$ROOT_DIR/build-output"
 mkdir -p "$BUNDLED_DIR"
 
 APK_SRC="$ROOT_DIR/app/build/outputs/apk/release/app-release.apk"
@@ -41,8 +41,9 @@ if [[ -f "$APK_SRC" ]]; then
   APK_DST="$BUNDLED_DIR/outloop-v${VERSION_NAME}-${VERSION_CODE}-release.apk"
   cp "$APK_SRC" "$APK_DST"
   cp "$APK_SRC" "$BUNDLED_DIR/outloop-release-latest.apk"
+  cp "$APK_SRC" "$BUNDLED_DIR/app-release.apk"
   echo "$(compute_sha256 "$APK_DST")  $(basename "$APK_DST")" > "${APK_DST}.sha256"
-  echo "Release APK bundled: $APK_DST"
+  echo "Release APK copied to: $APK_DST"
 fi
 
 if [[ "$BUILD_AAB" == true ]]; then

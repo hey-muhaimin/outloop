@@ -33,13 +33,13 @@ import com.example.data.local.TargetAppRuleEntity
 import com.example.data.model.InterventionMode
 import com.example.ui.components.OutloopAppMonogramBadge
 import com.example.ui.components.OutloopBackButton
-import com.example.ui.components.OutloopGlassCard
 import com.example.ui.components.OutloopHairlineDivider
 import com.example.ui.components.OutloopPrimaryButton
 import com.example.ui.components.OutloopRadioOptionCard
 import com.example.ui.components.OutloopSectionHeader
 import com.example.ui.components.OutloopSimulationOverlay
 import com.example.ui.components.OutloopSwitch
+import com.example.ui.components.OutloopTonalCard
 import com.example.ui.theme.OutloopTheme
 
 @Composable
@@ -65,7 +65,7 @@ fun AppDetailScreen(
                 .padding(20.dp),
             contentAlignment = Alignment.Center
         ) {
-            OutloopGlassCard {
+            OutloopTonalCard {
                 Text(
                     text = "App rule not found.",
                     style = MaterialTheme.typography.titleMedium,
@@ -131,7 +131,7 @@ fun AppDetailScreen(
                     }
                 }
 
-                OutloopGlassCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
+                OutloopTonalCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -192,7 +192,7 @@ fun AppDetailScreen(
                 }
 
                 OutloopSectionHeader(text = "Just for now")
-                OutloopGlassCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
+                OutloopTonalCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
                     DetailActionRow(
                         title = "Allow once",
                         subtitle = "Lets the next feed open without a pause.",

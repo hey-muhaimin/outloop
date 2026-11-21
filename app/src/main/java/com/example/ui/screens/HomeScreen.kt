@@ -54,16 +54,16 @@ import com.example.data.model.ProtectionStatus
 import com.example.ui.MainUiState
 import com.example.ui.components.OutloopAppMonogramBadge
 import com.example.ui.components.OutloopDailyRhythmStrip
-import com.example.ui.components.OutloopGlassCard
 import com.example.ui.components.OutloopHairlineDivider
 import com.example.ui.components.OutloopHeroCounterRing
 import com.example.ui.components.OutloopMark
 import com.example.ui.components.OutloopPrimaryButton
-import com.example.ui.components.OutloopSecondaryGlassButton
+import com.example.ui.components.OutloopSecondaryButton
 import com.example.ui.components.OutloopSectionHeader
 import com.example.ui.components.OutloopStatusBannerCard
 import com.example.ui.components.OutloopStatusPill
 import com.example.ui.components.OutloopSwitch
+import com.example.ui.components.OutloopTonalCard
 import com.example.ui.components.PillTone
 import com.example.ui.components.StatusBannerTone
 import com.example.ui.components.rememberOutloopHaptic
@@ -200,7 +200,7 @@ fun HomeScreen(
 
             // Hero ring + daily rhythm strip
             item {
-                OutloopGlassCard(contentPadding = PaddingValues(18.dp)) {
+                OutloopTonalCard(contentPadding = PaddingValues(18.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(18.dp),
@@ -322,7 +322,7 @@ fun HomeScreen(
                             title = "Quiet hours active",
                             body = "Outloop is stepped back until ${uiState.quietHoursEndLabel}.",
                             action = {
-                                OutloopSecondaryGlassButton(
+                                OutloopSecondaryButton(
                                     text = "Resume early",
                                     onClick = onResumeQuietHoursEarly,
                                     modifier = Modifier.testTag("home_resume_quiet_hours_button")
@@ -340,7 +340,7 @@ fun HomeScreen(
                             ""
                         }
 
-                        OutloopGlassCard(
+                        OutloopTonalCard(
                             cornerRadius = 22.dp,
                             contentPadding = PaddingValues(16.dp)
                         ) {
@@ -353,8 +353,8 @@ fun HomeScreen(
                                     modifier = Modifier
                                         .size(44.dp)
                                         .clip(RoundedCornerShape(14.dp))
-                                        .background(colors.subtleFill)
-                                        .border(1.dp, colors.glassBorder, RoundedCornerShape(14.dp)),
+                                        .background(colors.surfaceSubtle)
+                                        .border(1.dp, colors.hairlineBorder, RoundedCornerShape(14.dp)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     OutloopMark(size = 24.dp, color = colors.primaryTint)
@@ -393,7 +393,7 @@ fun HomeScreen(
 
                             if (isPaused && !isIndefiniteOff) {
                                 Spacer(modifier = Modifier.height(12.dp))
-                                OutloopSecondaryGlassButton(
+                                OutloopSecondaryButton(
                                     text = "Resume now",
                                     onClick = onGlobalBreakExpired,
                                     modifier = Modifier.testTag("home_resume_now_button")
@@ -438,7 +438,7 @@ fun HomeScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Box(modifier = Modifier.weight(1f)) {
-                                    OutloopSecondaryGlassButton(
+                                    OutloopSecondaryButton(
                                         text = "Allow notifications",
                                         onClick = {
                                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -498,7 +498,7 @@ fun HomeScreen(
                         title = "Feed selectors may need a refresh",
                         body = "${uiState.staleRulesCount} app rule reported changed layout IDs.",
                         action = {
-                            OutloopSecondaryGlassButton(
+                            OutloopSecondaryButton(
                                 text = if (uiState.isSyncingRules) "Refreshing\u2026" else "Refresh rules now",
                                 onClick = onRefreshBlockersClick,
                                 enabled = !uiState.isSyncingRules
@@ -508,7 +508,7 @@ fun HomeScreen(
                 }
             }
 
-            // "Your apps" section header + grouped glass list
+            // "Your apps" section header + grouped tonal list
             item {
                 OutloopSectionHeader(
                     text = "Your apps",
@@ -523,7 +523,7 @@ fun HomeScreen(
             }
 
             item {
-                OutloopGlassCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
+                OutloopTonalCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
                     displayedRules.forEachIndexed { idx, rule ->
                         if (idx > 0) OutloopHairlineDivider()
                         val snoozed = rule.snoozeUntilMs > nowMs
@@ -584,8 +584,8 @@ private fun PauseDurationPill(
         modifier = modifier
             .heightIn(min = 48.dp)
             .clip(CircleShape)
-            .background(colors.glassElevated)
-            .border(1.dp, colors.glassBorder, CircleShape)
+            .background(colors.surfaceSubtle)
+            .border(1.dp, colors.hairlineBorder, CircleShape)
             .clickable {
                 haptic()
                 onClick()

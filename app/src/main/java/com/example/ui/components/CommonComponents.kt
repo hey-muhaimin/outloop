@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -53,12 +52,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
@@ -98,10 +94,10 @@ fun rememberOutloopHaptic(): () -> Unit {
 }
 
 /**
- * Full-bleed Outloop Liquid canvas with 3 atmospheric radial mesh glows.
+ * Calm, uniform Outloop canvas without radial gradients or blur overlays.
  */
 @Composable
-fun AtmosphericBackground(
+fun OutloopCanvas(
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit
 ) {
@@ -109,50 +105,14 @@ fun AtmosphericBackground(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.canvas)
-            .drawBehind {
-                val w = size.width
-                val h = size.height
-                val topLeftRadius = w * 0.78f
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(colors.blobTopLeft, Color.Transparent),
-                        center = Offset(w * 0.06f, h * 0.03f),
-                        radius = topLeftRadius
-                    ),
-                    radius = topLeftRadius,
-                    center = Offset(w * 0.06f, h * 0.03f)
-                )
-
-                val midRightRadius = w * 0.72f
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(colors.blobMidRight, Color.Transparent),
-                        center = Offset(w * 1.02f, h * 0.33f),
-                        radius = midRightRadius
-                    ),
-                    radius = midRightRadius,
-                    center = Offset(w * 1.02f, h * 0.33f)
-                )
-
-                val bottomLeftRadius = w * 0.92f
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(colors.blobBottomLeft, Color.Transparent),
-                        center = Offset(w * 0.15f, h * 1.02f),
-                        radius = bottomLeftRadius
-                    ),
-                    radius = bottomLeftRadius,
-                    center = Offset(w * 0.15f, h * 1.02f)
-                )
-            },
+            .background(colors.canvas),
         content = content
     )
 }
 
 /**
- * Exact Outloop "One open loop" vector geometry matching viewBox 0..108, R=25.5,
- * sweeping counter-clockwise / open 36-degree gap at the upper right (-27 deg to -63 deg).
+ * Exact Outloop "One open loop" vector geometry sweeping counter-clockwise
+ * with an open 36-degree gap at the upper right (-27 deg to -63 deg).
  */
 @Composable
 fun OutloopMark(
@@ -185,31 +145,31 @@ fun OutloopWelcomeArtwork(
     val colors = OutloopTheme.colors
     Canvas(modifier = modifier) {
         val cx = size.width / 2f
-        val cy = size.height * 0.56f
-        val scale = (size.minDimension / 260f).coerceIn(1.1f, 2.3f)
+        val cy = size.height * 0.52f
+        val maxRadius = (minOf(size.width, size.height) * 0.42f).coerceAtLeast(36f)
 
-        val outerR1 = 50f * scale * 2.2f
-        val outerR2 = 38f * scale * 2.2f
-        val mainR = 25.5f * scale * 2.2f
+        val outerR1 = maxRadius
+        val outerR2 = maxRadius * 0.76f
+        val mainR = maxRadius * 0.51f
+        val mainStrokePx = (mainR * 0.25f).coerceIn(10.dp.toPx(), 18.dp.toPx())
 
-        // Concentric faint sage rings around the central open loop
         drawArc(
-            color = colors.welcomeOuterRing.copy(alpha = 0.14f),
+            color = colors.welcomeOuterRing.copy(alpha = 0.16f),
             startAngle = -27f,
             sweepAngle = -324f,
             useCenter = false,
             topLeft = Offset(cx - outerR1, cy - outerR1),
             size = Size(outerR1 * 2f, outerR1 * 2f),
-            style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round)
+            style = Stroke(width = 1.5.dp.toPx(), cap = StrokeCap.Round)
         )
         drawArc(
-            color = colors.welcomeOuterRing.copy(alpha = 0.24f),
+            color = colors.welcomeOuterRing.copy(alpha = 0.28f),
             startAngle = -27f,
             sweepAngle = -324f,
             useCenter = false,
             topLeft = Offset(cx - outerR2, cy - outerR2),
             size = Size(outerR2 * 2f, outerR2 * 2f),
-            style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round)
+            style = Stroke(width = 1.5.dp.toPx(), cap = StrokeCap.Round)
         )
         drawArc(
             color = Color(0xFFFAF9F5),
@@ -218,49 +178,32 @@ fun OutloopWelcomeArtwork(
             useCenter = false,
             topLeft = Offset(cx - mainR, cy - mainR),
             size = Size(mainR * 2f, mainR * 2f),
-            style = Stroke(width = (7f * scale * 2.0f).dp.value.coerceAtLeast(12f), cap = StrokeCap.Round)
+            style = Stroke(width = mainStrokePx, cap = StrokeCap.Round)
         )
     }
 }
 
 /**
- * Outloop Liquid frosted glass container with translucent fill, 1dp border, and subtle top sheen.
+ * Crisp tonal card surface with a 1dp hairline border and zero glass/blur effects.
  */
 @Composable
-fun OutloopGlassCard(
+fun OutloopTonalCard(
     modifier: Modifier = Modifier,
-    cornerRadius: Dp = 28.dp,
+    cornerRadius: Dp = 24.dp,
     elevated: Boolean = false,
     contentPadding: PaddingValues = PaddingValues(20.dp),
-    alphaMultiplier: Float = 1f,
+    containerColor: Color? = null,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val colors = OutloopTheme.colors
     val shape = RoundedCornerShape(cornerRadius)
-    val fill = (if (elevated) colors.glassElevated else colors.glass)
-        .let { it.copy(alpha = (it.alpha * alphaMultiplier).coerceIn(0.02f, 0.95f)) }
+    val fill = containerColor ?: if (elevated) colors.surfaceElevated else colors.surfaceCard
 
     val cardModifier = modifier
-        .shadow(
-            elevation = if (colors.isDark) 12.dp else 10.dp,
-            shape = shape,
-            ambientColor = colors.glassShadow,
-            spotColor = colors.glassShadow,
-            clip = false
-        )
         .clip(shape)
         .background(fill)
-        .border(1.dp, colors.glassBorder, shape)
-        .drawBehind {
-            // Subtle top specular highlight rim
-            drawRoundRect(
-                color = colors.glassTopHighlight.copy(alpha = 0.45f),
-                topLeft = Offset(1.dp.toPx(), 0.5.dp.toPx()),
-                size = Size(size.width - 2.dp.toPx(), 1.2.dp.toPx()),
-                cornerRadius = CornerRadius(cornerRadius.toPx(), cornerRadius.toPx())
-            )
-        }
+        .border(1.dp, colors.hairlineBorder, shape)
         .then(
             if (onClick != null) {
                 Modifier.clickable(onClick = onClick)
@@ -302,6 +245,7 @@ fun OutloopStatusBannerCard(
             .fillMaxWidth()
             .clip(shape)
             .background(bg)
+            .border(1.dp, fg.copy(alpha = 0.14f), shape)
             .padding(16.dp)
     ) {
         Row(
@@ -375,7 +319,7 @@ fun OutloopPrimaryButton(
 }
 
 @Composable
-fun OutloopSecondaryGlassButton(
+fun OutloopSecondaryButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -390,9 +334,9 @@ fun OutloopSecondaryGlassButton(
         },
         enabled = enabled,
         shape = CircleShape,
-        border = BorderStroke(1.dp, colors.glassBorder),
+        border = BorderStroke(1.dp, colors.hairlineBorder),
         colors = ButtonDefaults.buttonColors(
-            containerColor = colors.glassElevated,
+            containerColor = colors.surfaceElevated,
             contentColor = colors.ink
         ),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
@@ -444,8 +388,8 @@ fun OutloopBackButton(
         modifier = modifier
             .size(48.dp)
             .clip(CircleShape)
-            .background(colors.glassElevated)
-            .border(1.dp, colors.glassBorder, CircleShape)
+            .background(colors.surfaceCard)
+            .border(1.dp, colors.hairlineBorder, CircleShape)
             .clickable {
                 haptic()
                 onClick()
@@ -510,7 +454,7 @@ fun OutloopSwitch(
                 modifier = Modifier
                     .offset(x = thumbOffset, y = 2.dp)
                     .size(27.dp)
-                    .shadow(2.dp, CircleShape)
+                    .shadow(1.dp, CircleShape)
                     .clip(CircleShape)
                     .background(Color.White)
             )
@@ -531,8 +475,8 @@ fun <T> OutloopSegmentedControl(
         modifier = modifier
             .fillMaxWidth()
             .clip(CircleShape)
-            .background(colors.glass)
-            .border(1.dp, colors.glassBorder, CircleShape)
+            .background(colors.surfaceSubtle)
+            .border(1.dp, colors.hairlineBorder, CircleShape)
             .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
@@ -545,14 +489,9 @@ fun <T> OutloopSegmentedControl(
                     .then(
                         if (isSelected) {
                             Modifier
-                                .shadow(
-                                    elevation = 3.dp,
-                                    shape = CircleShape,
-                                    ambientColor = colors.glassShadow,
-                                    spotColor = colors.glassShadow
-                                )
                                 .clip(CircleShape)
                                 .background(colors.segmentThumb)
+                                .border(1.dp, colors.hairlineBorder, CircleShape)
                         } else {
                             Modifier.clip(CircleShape)
                         }
@@ -595,7 +534,7 @@ fun OutloopStatusPill(
 ) {
     val colors = OutloopTheme.colors
     val (bg, fg) = when (tone) {
-        PillTone.NEUTRAL, PillTone.ACTIVE_DOT -> colors.glassElevated to colors.ink
+        PillTone.NEUTRAL, PillTone.ACTIVE_DOT -> colors.surfaceCard to colors.ink
         PillTone.SUCCESS -> colors.okBg to colors.okText
         PillTone.WARNING -> colors.warnBg to colors.warnText
     }
@@ -606,9 +545,9 @@ fun OutloopStatusPill(
             .background(bg)
             .then(
                 if (tone == PillTone.NEUTRAL || tone == PillTone.ACTIVE_DOT) {
-                    Modifier.border(1.dp, colors.glassBorder, CircleShape)
+                    Modifier.border(1.dp, colors.hairlineBorder, CircleShape)
                 } else {
-                    Modifier
+                    Modifier.border(1.dp, fg.copy(alpha = 0.14f), CircleShape)
                 }
             )
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
@@ -686,8 +625,8 @@ fun OutloopIconBadge(
         modifier = modifier
             .size(size)
             .clip(RoundedCornerShape(cornerRadius))
-            .background(colors.subtleFill)
-            .border(1.dp, colors.glassBorder, RoundedCornerShape(cornerRadius)),
+            .background(colors.surfaceSubtle)
+            .border(1.dp, colors.hairlineBorder, RoundedCornerShape(cornerRadius)),
         contentAlignment = Alignment.Center
     ) {
         Icon(
@@ -725,8 +664,8 @@ fun OutloopAppMonogramBadge(
         modifier = modifier
             .size(size)
             .clip(shape)
-            .background(colors.subtleFill)
-            .border(1.dp, colors.glassBorder, shape),
+            .background(colors.surfaceSubtle)
+            .border(1.dp, colors.hairlineBorder, shape),
         contentAlignment = Alignment.Center
     ) {
         if (appIcon != null) {
@@ -761,14 +700,14 @@ fun OutloopStepCircleBadge(
         StatusBannerTone.SUCCESS -> colors.okBg to colors.okText
         StatusBannerTone.WARNING -> colors.warnBg to colors.warnText
         StatusBannerTone.INFO -> colors.infoBg to colors.infoText
-        null -> colors.subtleFill to colors.primaryTint
+        null -> colors.surfaceSubtle to colors.primaryTint
     }
     Box(
         modifier = modifier
             .size(28.dp)
             .clip(CircleShape)
             .background(bg)
-            .then(if (tone == null) Modifier.border(1.dp, colors.glassBorder, CircleShape) else Modifier),
+            .then(if (tone == null) Modifier.border(1.dp, colors.hairlineBorder, CircleShape) else Modifier),
         contentAlignment = Alignment.Center
     ) {
         if (icon != null) {
@@ -804,10 +743,10 @@ fun OutloopRadioOptionCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(if (selected) colors.glassElevated else colors.glass)
+            .background(if (selected) colors.surfaceElevated else colors.surfaceCard)
             .border(
                 width = if (selected) 2.dp else 1.dp,
-                color = if (selected) colors.primaryTint else colors.glassBorder,
+                color = if (selected) colors.primaryTint else colors.hairlineBorder,
                 shape = shape
             )
             .clickable(role = Role.RadioButton) {
@@ -818,7 +757,6 @@ fun OutloopRadioOptionCard(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Custom 22dp radio ring with inner dot
         Box(
             modifier = Modifier
                 .size(22.dp)
@@ -926,9 +864,9 @@ fun OutloopToastPill(
     val colors = OutloopTheme.colors
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = colors.sheetSurface,
-        border = BorderStroke(1.dp, colors.glassBorder),
-        shadowElevation = 10.dp,
+        color = colors.surfaceElevated,
+        border = BorderStroke(1.dp, colors.hairlineBorder),
+        shadowElevation = 4.dp,
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
@@ -953,9 +891,9 @@ fun InterventionBanner(
     val colors = OutloopTheme.colors
     Surface(
         shape = RoundedCornerShape(22.dp),
-        color = colors.sheetSurface,
-        border = BorderStroke(1.dp, colors.glassBorder),
-        shadowElevation = 12.dp,
+        color = colors.surfaceElevated,
+        border = BorderStroke(1.dp, colors.hairlineBorder),
+        shadowElevation = 4.dp,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 8.dp)
@@ -1015,7 +953,7 @@ fun OutloopModalSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        shape = RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp),
+        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
         containerColor = colors.sheetSurface,
         contentColor = colors.ink,
         dragHandle = {

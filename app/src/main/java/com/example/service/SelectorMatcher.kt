@@ -30,7 +30,7 @@ object SelectorMatcher {
         rule: TargetAppRuleEntity
     ): String? {
         for (viewId in rule.viewIds) {
-            val matches = root.findAccessibilityNodeInfosByViewId(viewId)
+            val matches = safeFindByViewId(root, viewId)
             if (matches.any { it.isVisibleToUser }) {
                 return viewId
             }
@@ -43,17 +43,50 @@ object SelectorMatcher {
         return null
     }
 
+    /**
+     * Evaluates a TYPE_VIEW_SCROLLED source subtree first (for immediate swipe/scroll interception
+     * inside short-form feeds), then falls back to the target window root selectors.
+     */
+    fun findMatchingScrollSelector(
+        sourceNode: AccessibilityNodeInfo?,
+        root: AccessibilityNodeInfo,
+        rule: TargetAppRuleEntity
+    ): String? {
+        if (sourceNode != null && matchesTargetPackage(sourceNode, rule.packageName)) {
+            val targetIds = rule.viewIds.toSet()
+            if (targetIds.isNotEmpty()) {
+                var current: AccessibilityNodeInfo? = sourceNode
+                var hops = 0
+                while (current != null && hops <= 4) {
+                    val viewId = current.viewIdResourceName
+                    if (viewId != null && viewId in targetIds && current.isVisibleToUser) {
+                        return viewId
+                    }
+                    current = current.parent
+                    hops++
+                }
+                for (viewId in rule.viewIds) {
+                    val matches = safeFindByViewId(sourceNode, viewId)
+                    if (matches.any { it.isVisibleToUser }) {
+                        return viewId
+                    }
+                }
+            }
+        }
+        return findMatchingSelector(root, rule)
+    }
+
     fun countVisibleViewIdMatches(
         root: AccessibilityNodeInfo,
         rule: TargetAppRuleEntity
     ): Int {
         return rule.viewIds.count { id ->
-            root.findAccessibilityNodeInfosByViewId(id).any { it.isVisibleToUser }
+            safeFindByViewId(root, id).any { it.isVisibleToUser }
         }
     }
 
     fun isTabSelected(root: AccessibilityNodeInfo, label: String): Boolean {
-        val matches = root.findAccessibilityNodeInfosByText(label)
+        val matches = safeFindByText(root, label)
         if (matches.any { node ->
                 node.isVisibleToUser &&
                     isNodeOrParentSelected(node) &&
@@ -109,7 +142,7 @@ object SelectorMatcher {
 
     fun findHomeTabNode(root: AccessibilityNodeInfo, homeTabLabel: String): AccessibilityNodeInfo? {
         val label = homeTabLabel.ifBlank { "Home" }
-        val candidates = root.findAccessibilityNodeInfosByText(label)
+        val candidates = safeFindByText(root, label)
         for (candidate in candidates) {
             if (!candidate.isVisibleToUser) continue
             if (matchesTabLabel(candidate, label)) {
@@ -217,5 +250,23 @@ object SelectorMatcher {
             if (matchedTab) return "tab:\"${rule.tabFallbackLabel}\""
         }
         return null
+    }
+
+    private fun safeFindByViewId(
+        node: AccessibilityNodeInfo,
+        viewId: String
+    ): List<AccessibilityNodeInfo> {
+        return runCatching {
+            node.findAccessibilityNodeInfosByViewId(viewId)
+        }.getOrDefault(emptyList())
+    }
+
+    private fun safeFindByText(
+        node: AccessibilityNodeInfo,
+        text: String
+    ): List<AccessibilityNodeInfo> {
+        return runCatching {
+            node.findAccessibilityNodeInfosByText(text)
+        }.getOrDefault(emptyList())
     }
 }

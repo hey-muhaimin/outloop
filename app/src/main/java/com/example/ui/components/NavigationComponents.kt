@@ -119,23 +119,23 @@ fun FloatingPillNavBar(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(68.dp)
+                .height(66.dp)
                 .shadow(
-                    elevation = 14.dp,
-                    shape = RoundedCornerShape(34.dp),
-                    ambientColor = colors.glassShadow,
-                    spotColor = colors.glassShadow
+                    elevation = 4.dp,
+                    shape = RoundedCornerShape(33.dp),
+                    ambientColor = colors.dockShadow,
+                    spotColor = colors.dockShadow
                 )
-                .clip(RoundedCornerShape(34.dp))
-                .background(colors.glassElevated)
-                .border(1.dp, colors.glassBorder, RoundedCornerShape(34.dp))
-                .padding(6.dp)
+                .clip(RoundedCornerShape(33.dp))
+                .background(colors.surfaceCard)
+                .border(1.dp, colors.hairlineBorder, RoundedCornerShape(33.dp))
+                .padding(5.dp)
         ) {
             val pillWidth = maxWidth / tabs.size
             val pillOffset by animateDpAsState(
                 targetValue = pillWidth * selectedIndex,
                 animationSpec = spring(
-                    dampingRatio = 0.84f,
+                    dampingRatio = 0.86f,
                     stiffness = Spring.StiffnessMediumLow
                 ),
                 label = "outloopDockPillOffset"
@@ -146,14 +146,9 @@ fun FloatingPillNavBar(
                     .offset(x = pillOffset)
                     .width(pillWidth)
                     .fillMaxHeight()
-                    .shadow(
-                        elevation = 4.dp,
-                        shape = RoundedCornerShape(28.dp),
-                        ambientColor = colors.glassShadow,
-                        spotColor = colors.glassShadow
-                    )
                     .clip(RoundedCornerShape(28.dp))
-                    .background(colors.segmentThumb)
+                    .background(colors.surfaceSubtle)
+                    .border(1.dp, colors.hairlineBorder, RoundedCornerShape(28.dp))
             )
 
             Row(modifier = Modifier.fillMaxSize()) {
@@ -230,7 +225,7 @@ fun FloatingPillNavBar(
 }
 
 @Composable
-fun ObsidianSideRail(
+fun OutloopSideRail(
     selectedTab: BottomTab,
     onTabSelected: (BottomTab) -> Unit,
     modifier: Modifier = Modifier,
@@ -249,14 +244,14 @@ fun ObsidianSideRail(
             modifier = Modifier
                 .width(96.dp)
                 .shadow(
-                    elevation = 12.dp,
-                    shape = RoundedCornerShape(32.dp),
-                    ambientColor = colors.glassShadow,
-                    spotColor = colors.glassShadow
+                    elevation = 4.dp,
+                    shape = RoundedCornerShape(30.dp),
+                    ambientColor = colors.dockShadow,
+                    spotColor = colors.dockShadow
                 )
-                .clip(RoundedCornerShape(32.dp))
-                .background(colors.glassElevated)
-                .border(1.dp, colors.glassBorder, RoundedCornerShape(32.dp))
+                .clip(RoundedCornerShape(30.dp))
+                .background(colors.surfaceCard)
+                .border(1.dp, colors.hairlineBorder, RoundedCornerShape(30.dp))
                 .padding(horizontal = 8.dp, vertical = 18.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -276,8 +271,15 @@ fun ObsidianSideRail(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 60.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(if (isSelected) colors.segmentThumb else Color.Transparent)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(if (isSelected) colors.surfaceSubtle else Color.Transparent)
+                        .then(
+                            if (isSelected) {
+                                Modifier.border(1.dp, colors.hairlineBorder, RoundedCornerShape(22.dp))
+                            } else {
+                                Modifier
+                            }
+                        )
                         .clickable(role = Role.Tab) {
                             if (!isSelected) haptic()
                             onTabSelected(tab)

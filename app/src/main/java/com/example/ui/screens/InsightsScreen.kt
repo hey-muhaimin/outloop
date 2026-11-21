@@ -33,10 +33,10 @@ import androidx.compose.ui.unit.dp
 import com.example.ui.MainUiState
 import com.example.ui.components.ChartColumnData
 import com.example.ui.components.OutloopAppMonogramBadge
-import com.example.ui.components.OutloopGlassCard
 import com.example.ui.components.OutloopInsightsBarChart
 import com.example.ui.components.OutloopMark
 import com.example.ui.components.OutloopSegmentedControl
+import com.example.ui.components.OutloopTonalCard
 import com.example.ui.theme.OutloopTheme
 import java.util.Locale
 
@@ -143,7 +143,7 @@ fun InsightsScreen(
 
             if (totalCount == 0) {
                 item {
-                    OutloopGlassCard(
+                    OutloopTonalCard(
                         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 36.dp)
                     ) {
                         Column(
@@ -172,9 +172,9 @@ fun InsightsScreen(
                     }
                 }
             } else {
-                // Narrative 2x2 KPI glass card
+                // Narrative 2x2 KPI tonal card
                 item {
-                    OutloopGlassCard(contentPadding = PaddingValues(20.dp)) {
+                    OutloopTonalCard(contentPadding = PaddingValues(20.dp)) {
                         Text(
                             text = narrativeTitle,
                             style = MaterialTheme.typography.titleMedium,
@@ -217,7 +217,7 @@ fun InsightsScreen(
 
                 // Interactive bar chart card
                 item {
-                    OutloopGlassCard(contentPadding = PaddingValues(20.dp)) {
+                    OutloopTonalCard(contentPadding = PaddingValues(20.dp)) {
                         Text(
                             text = "Feeds interrupted",
                             style = MaterialTheme.typography.titleMedium,
@@ -234,7 +234,7 @@ fun InsightsScreen(
 
                 // By app breakdown
                 item {
-                    OutloopGlassCard(contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp)) {
+                    OutloopTonalCard(contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp)) {
                         Text(
                             text = "By app",
                             style = MaterialTheme.typography.titleMedium,

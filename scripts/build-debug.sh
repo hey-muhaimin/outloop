@@ -18,18 +18,21 @@ if [[ ! -f "$APK_PATH" ]]; then
   exit 1
 fi
 
-BUNDLED_DIR="$ROOT_DIR/bundled-apk"
+BUNDLED_DIR="$ROOT_DIR/build-output"
 mkdir -p "$BUNDLED_DIR"
 
 VERSIONED_APK="$BUNDLED_DIR/outloop-v${VERSION_NAME}-${VERSION_CODE}-debug.apk"
 LATEST_APK="$BUNDLED_DIR/outloop-debug-latest.apk"
+STANDARD_APK="$BUNDLED_DIR/app-debug.apk"
 
 cp "$APK_PATH" "$VERSIONED_APK"
 cp "$APK_PATH" "$LATEST_APK"
+cp "$APK_PATH" "$STANDARD_APK"
 
 SHA="$(compute_sha256 "$VERSIONED_APK")"
 echo "$SHA  $(basename "$VERSIONED_APK")" > "${VERSIONED_APK}.sha256"
 
-echo "Debug APK bundled: $VERSIONED_APK"
-echo "Latest symlink/copy: $LATEST_APK"
+echo "Debug APK copied to: $VERSIONED_APK"
+echo "Latest debug APK: $LATEST_APK"
+echo "Standard debug APK: $STANDARD_APK"
 echo "SHA-256: $SHA"

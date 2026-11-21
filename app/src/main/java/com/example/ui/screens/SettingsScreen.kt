@@ -59,17 +59,17 @@ import com.example.data.local.AppearanceMode
 import com.example.data.model.InterventionMode
 import com.example.data.repository.OutloopBackupPreview
 import com.example.ui.MainUiState
-import com.example.ui.components.OutloopGlassCard
 import com.example.ui.components.OutloopHairlineDivider
 import com.example.ui.components.OutloopListNavRow
 import com.example.ui.components.OutloopModalSheet
 import com.example.ui.components.OutloopPrimaryButton
 import com.example.ui.components.OutloopRadioOptionCard
-import com.example.ui.components.OutloopSecondaryGlassButton
+import com.example.ui.components.OutloopSecondaryButton
 import com.example.ui.components.OutloopSectionHeader
 import com.example.ui.components.OutloopSegmentedControl
 import com.example.ui.components.OutloopStatusPill
 import com.example.ui.components.OutloopSwitch
+import com.example.ui.components.OutloopTonalCard
 import com.example.ui.components.PillTone
 import com.example.ui.components.rememberOutloopHaptic
 import com.example.ui.theme.OutloopTheme
@@ -182,7 +182,7 @@ fun SettingsScreen(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutloopSectionHeader(text = "Protection")
-                    OutloopGlassCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
+                    OutloopTonalCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -256,7 +256,7 @@ fun SettingsScreen(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutloopSectionHeader(text = "Appearance")
-                    OutloopGlassCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
+                    OutloopTonalCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -354,7 +354,7 @@ fun SettingsScreen(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutloopSectionHeader(text = "Privacy and permissions")
-                    OutloopGlassCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
+                    OutloopTonalCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
                         OutloopListNavRow(
                             title = "Accessibility permission",
                             trailingBadge = if (!uiState.isAccessibilityEnabled) {
@@ -419,7 +419,7 @@ fun SettingsScreen(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutloopSectionHeader(text = "Data")
-                    OutloopGlassCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
+                    OutloopTonalCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
                         OutloopListNavRow(
                             title = "Export local backup",
                             valueText = "JSON",
@@ -554,7 +554,7 @@ fun SettingsScreen(
                 },
                 modifier = Modifier.testTag("confirm_restore_backup_button")
             )
-            OutloopSecondaryGlassButton(
+            OutloopSecondaryButton(
                 text = "Cancel",
                 onClick = {
                     pendingBackupPreview = null
@@ -596,7 +596,7 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.titleMedium
                 )
             }
-            OutloopSecondaryGlassButton(
+            OutloopSecondaryButton(
                 text = "Cancel",
                 onClick = { showClearHistorySheet = false }
             )
@@ -627,7 +627,7 @@ private fun QuietHoursSheet(
             color = colors.secondaryInk
         )
 
-        OutloopGlassCard(cornerRadius = 20.dp, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)) {
+        OutloopTonalCard(cornerRadius = 20.dp, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -660,8 +660,8 @@ private fun QuietHoursSheet(
                     val active = startMinutes == range.first && endMinutes == range.second
                     Surface(
                         shape = CircleShape,
-                        color = if (active) colors.primaryTint else colors.glassElevated,
-                        border = BorderStroke(1.dp, colors.glassBorder),
+                        color = if (active) colors.primaryTint else colors.surfaceElevated,
+                        border = BorderStroke(1.dp, colors.hairlineBorder),
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = 44.dp)
@@ -714,8 +714,8 @@ private fun TimeStepperRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(colors.glass)
-            .border(1.dp, colors.glassBorder, RoundedCornerShape(18.dp))
+            .background(colors.surfaceCard)
+            .border(1.dp, colors.hairlineBorder, RoundedCornerShape(18.dp))
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
@@ -759,8 +759,8 @@ private fun StepCircleIconButton(
         modifier = Modifier
             .size(48.dp)
             .clip(CircleShape)
-            .background(colors.glassElevated)
-            .border(1.dp, colors.glassBorder, CircleShape)
+            .background(colors.surfaceElevated)
+            .border(1.dp, colors.hairlineBorder, CircleShape)
             .clickable {
                 haptic()
                 onClick()

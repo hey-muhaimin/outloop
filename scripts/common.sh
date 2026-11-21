@@ -5,12 +5,12 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_GRADLE="$ROOT_DIR/app/build.gradle.kts"
 
 resolve_gradle() {
-  if [[ -x "$ROOT_DIR/gradlew" ]]; then
-    echo "$ROOT_DIR/gradlew"
-  elif command -v gradle >/dev/null 2>&1; then
+  if command -v gradle >/dev/null 2>&1; then
     echo "gradle"
+  elif [[ -x "$ROOT_DIR/gradlew" ]]; then
+    echo "$ROOT_DIR/gradlew"
   else
-    echo "Error: Neither ./gradlew nor gradle was found on PATH." >&2
+    echo "Error: Neither gradle nor ./gradlew was found on PATH." >&2
     exit 1
   fi
 }

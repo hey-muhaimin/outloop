@@ -62,14 +62,14 @@ import com.example.data.model.ProtectionStatus
 import com.example.data.repository.OutloopBackupPreview
 import com.example.ui.MainUiState
 import com.example.ui.MainViewModel
-import com.example.ui.components.AtmosphericBackground
 import com.example.ui.components.BottomTab
 import com.example.ui.components.FloatingPillNavBar
 import com.example.ui.components.InterventionBanner
 import com.example.ui.components.LocalAnimatedVisibilityScope
 import com.example.ui.components.LocalSharedTransitionScope
 import com.example.ui.components.NavAlertBadges
-import com.example.ui.components.ObsidianSideRail
+import com.example.ui.components.OutloopCanvas
+import com.example.ui.components.OutloopSideRail
 import com.example.ui.components.OutloopToastPill
 import com.example.ui.screens.AppDetailScreen
 import com.example.ui.screens.DiagnosticsScreen
@@ -152,7 +152,7 @@ fun FeedSurgeonRoot(
         hapticsEnabled = uiState.preferences.hapticFeedbackEnabled
     ) {
         if (uiState.isInitialLoading) {
-            AtmosphericBackground {
+            OutloopCanvas {
                 Box(modifier = Modifier.fillMaxSize())
             }
             return@FeedSurgeonTheme
@@ -315,7 +315,7 @@ fun OutloopNavigationHost(
 
     val m3StandardEasing = remember { CubicBezierEasing(0.2f, 0f, 0f, 1f) }
 
-    AtmosphericBackground {
+    OutloopCanvas {
         SharedTransitionLayout {
             CompositionLocalProvider(LocalSharedTransitionScope provides this) {
                 BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -324,7 +324,7 @@ fun OutloopNavigationHost(
 
                     Row(modifier = Modifier.fillMaxSize()) {
                         if (isWideScreen && selectedBottomTab != null) {
-                            ObsidianSideRail(
+                            OutloopSideRail(
                                 selectedTab = selectedBottomTab,
                                 onTabSelected = ::navigateToTopLevel,
                                 alerts = navAlerts

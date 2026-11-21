@@ -57,10 +57,10 @@ fun FeedSurgeonTheme(
             onBackground = outloopColors.ink,
             surface = outloopColors.sheetSurface,
             onSurface = outloopColors.ink,
-            surfaceVariant = outloopColors.glassElevated,
+            surfaceVariant = outloopColors.surfaceElevated,
             onSurfaceVariant = outloopColors.secondaryInk,
             outline = outloopColors.strokeStrong,
-            outlineVariant = outloopColors.divider,
+            outlineVariant = outloopColors.hairlineBorder,
             error = outloopColors.destructive
         )
     } else {
@@ -73,10 +73,10 @@ fun FeedSurgeonTheme(
             onBackground = outloopColors.ink,
             surface = outloopColors.sheetSurface,
             onSurface = outloopColors.ink,
-            surfaceVariant = outloopColors.glassElevated,
+            surfaceVariant = outloopColors.surfaceElevated,
             onSurfaceVariant = outloopColors.secondaryInk,
             outline = outloopColors.strokeStrong,
-            outlineVariant = outloopColors.divider,
+            outlineVariant = outloopColors.hairlineBorder,
             error = outloopColors.destructive
         )
     }

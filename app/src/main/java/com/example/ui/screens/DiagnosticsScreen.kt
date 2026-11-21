@@ -40,13 +40,13 @@ import com.example.data.local.AppPreferences
 import com.example.data.model.ProtectionStatus
 import com.example.ui.MainUiState
 import com.example.ui.components.OutloopBackButton
-import com.example.ui.components.OutloopGlassCard
 import com.example.ui.components.OutloopHairlineDivider
 import com.example.ui.components.OutloopPrimaryButton
-import com.example.ui.components.OutloopSecondaryGlassButton
+import com.example.ui.components.OutloopSecondaryButton
 import com.example.ui.components.OutloopSectionHeader
 import com.example.ui.components.OutloopStatusBannerCard
 import com.example.ui.components.OutloopSwitch
+import com.example.ui.components.OutloopTonalCard
 import com.example.ui.components.StatusBannerTone
 import com.example.ui.theme.OutloopTheme
 
@@ -140,7 +140,7 @@ fun DiagnosticsScreen(
                     color = colors.ink
                 )
 
-                OutloopGlassCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
+                OutloopTonalCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
                     DiagnosticRow("Accessibility service", accessibilityStatusLabel)
                     OutloopHairlineDivider()
                     DiagnosticRow("Last connection", lastConnectionLabel)
@@ -188,7 +188,7 @@ fun DiagnosticsScreen(
                 }
 
                 if (!uiState.isBatteryOptimizationIgnored) {
-                    OutloopSecondaryGlassButton(
+                    OutloopSecondaryButton(
                         text = "Allow unrestricted background activity",
                         onClick = {
                             runCatching {
@@ -212,7 +212,7 @@ fun DiagnosticsScreen(
                 }
 
                 OutloopSectionHeader(text = "Feed rules & logging")
-                OutloopGlassCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
+                OutloopTonalCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -262,7 +262,7 @@ fun DiagnosticsScreen(
                 }
 
                 if (uiState.preferences.eventCaptureEnabled || uiState.eventLogSizeBytes > 0L) {
-                    OutloopGlassCard(cornerRadius = 22.dp, contentPadding = PaddingValues(16.dp)) {
+                    OutloopTonalCard(cornerRadius = 22.dp, contentPadding = PaddingValues(16.dp)) {
                         Text(
                             text = "Local event log (${uiState.eventLogSizeBytes} bytes)",
                             style = MaterialTheme.typography.labelLarge,
@@ -279,13 +279,13 @@ fun DiagnosticsScreen(
                         Spacer(modifier = Modifier.height(10.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Box(modifier = Modifier.weight(1f)) {
-                                OutloopSecondaryGlassButton(
+                                OutloopSecondaryButton(
                                     text = "Share log",
                                     onClick = onShareEventLog
                                 )
                             }
                             Box(modifier = Modifier.weight(1f)) {
-                                OutloopSecondaryGlassButton(
+                                OutloopSecondaryButton(
                                     text = "Clear log",
                                     onClick = onClearEventLog
                                 )
@@ -322,7 +322,7 @@ fun DiagnosticsScreen(
                         onShowToast(msg)
                     }
                 )
-                OutloopSecondaryGlassButton(
+                OutloopSecondaryButton(
                     text = if (uiState.isSyncingRules) "Checking feed rules\u2026" else "Check feed rules now",
                     onClick = onCheckRulesNow,
                     enabled = !uiState.isSyncingRules

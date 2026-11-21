@@ -334,13 +334,13 @@ fun OutloopSimulationOverlay(
                 }
             }
 
-            // Frosted modal card
+            // Crisp tonal modal card
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(32.dp))
+                    .clip(RoundedCornerShape(28.dp))
                     .background(colors.sheetSurface)
-                    .border(1.dp, colors.glassBorder, RoundedCornerShape(32.dp))
+                    .border(1.dp, colors.hairlineBorder, RoundedCornerShape(28.dp))
                     .clickable(enabled = false, onClick = {})
                     .padding(24.dp)
                     .testTag("simulation_pause_dialog"),
@@ -382,7 +382,7 @@ fun OutloopSimulationOverlay(
                     modifier = Modifier.testTag("sim_return_button")
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                OutloopSecondaryGlassButton(
+                OutloopSecondaryButton(
                     text = "Allow once",
                     onClick = {
                         onActionFeedback("Simulation: allowed once for 5 minutes.")

@@ -46,13 +46,13 @@ class AccessibilityOverlayShield(private val context: Context) {
             val density = context.resources.displayMetrics.density
             fun dp(value: Int): Int = (value * density).toInt()
 
-            val cardBg = if (useDarkTheme) Color.parseColor("#EE16201A") else Color.parseColor("#F5FAF9F5")
-            val cardStroke = if (useDarkTheme) Color.parseColor("#2EFFFFFF") else Color.parseColor("#CCFFFFFF")
+            val cardBg = if (useDarkTheme) Color.parseColor("#19211B") else Color.parseColor("#FAF9F5")
+            val cardStroke = if (useDarkTheme) Color.parseColor("#1EF1F0E9") else Color.parseColor("#1A1C231D")
             val markColor = if (useDarkTheme) Color.parseColor("#A8B3A0") else Color.parseColor("#29362E")
             val primaryBtnBg = if (useDarkTheme) Color.parseColor("#A8B3A0") else Color.parseColor("#29362E")
             val primaryBtnText = if (useDarkTheme) Color.parseColor("#16201A") else Color.parseColor("#FAF9F5")
-            val secondaryBtnBg = if (useDarkTheme) Color.parseColor("#1FFFFFFF") else Color.parseColor("#B8FFFFFF")
-            val secondaryBtnStroke = if (useDarkTheme) Color.parseColor("#29FFFFFF") else Color.parseColor("#CCFFFFFF")
+            val secondaryBtnBg = if (useDarkTheme) Color.parseColor("#202A23") else Color.parseColor("#ECE9DF")
+            val secondaryBtnStroke = if (useDarkTheme) Color.parseColor("#1EF1F0E9") else Color.parseColor("#1A1C231D")
             val headlineColor = if (useDarkTheme) Color.parseColor("#F1F0E9") else Color.parseColor("#1C231D")
             val secondaryText = if (useDarkTheme) Color.parseColor("#B7C0B5") else Color.parseColor("#4A544C")
             val subtleTint = if (useDarkTheme) Color.parseColor("#A8B3A0") else Color.parseColor("#435A4A")

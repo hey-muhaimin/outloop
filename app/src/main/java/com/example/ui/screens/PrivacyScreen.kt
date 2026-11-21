@@ -29,8 +29,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.example.ui.components.OutloopBackButton
-import com.example.ui.components.OutloopGlassCard
 import com.example.ui.components.OutloopIconBadge
+import com.example.ui.components.OutloopTonalCard
 import com.example.ui.theme.OutloopTheme
 
 @Composable
@@ -115,7 +115,7 @@ private fun PrivacyDetailCard(
     body: String
 ) {
     val colors = OutloopTheme.colors
-    OutloopGlassCard(cornerRadius = 22.dp, contentPadding = PaddingValues(16.dp)) {
+    OutloopTonalCard(cornerRadius = 22.dp, contentPadding = PaddingValues(16.dp)) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.Top

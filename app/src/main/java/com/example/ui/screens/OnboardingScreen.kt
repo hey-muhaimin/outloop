@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -66,7 +67,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -83,20 +83,20 @@ import com.example.data.model.InterventionMode
 import com.example.service.AccessibilityStatusHelper
 import com.example.ui.components.OutloopAppMonogramBadge
 import com.example.ui.components.OutloopBackButton
-import com.example.ui.components.OutloopGlassCard
 import com.example.ui.components.OutloopHairlineDivider
 import com.example.ui.components.OutloopIconBadge
 import com.example.ui.components.OutloopMark
 import com.example.ui.components.OutloopModalSheet
 import com.example.ui.components.OutloopPrimaryButton
 import com.example.ui.components.OutloopRadioOptionCard
-import com.example.ui.components.OutloopSecondaryGlassButton
+import com.example.ui.components.OutloopSecondaryButton
 import com.example.ui.components.OutloopSimulationOverlay
 import com.example.ui.components.OutloopStatusBannerCard
 import com.example.ui.components.OutloopStatusPill
 import com.example.ui.components.OutloopStepCircleBadge
 import com.example.ui.components.OutloopSwitch
 import com.example.ui.components.OutloopTextButton
+import com.example.ui.components.OutloopTonalCard
 import com.example.ui.components.OutloopWelcomeArtwork
 import com.example.ui.components.PillTone
 import com.example.ui.components.StatusBannerTone
@@ -245,94 +245,119 @@ fun OnboardingScreen(
     ) { currentStep ->
         when (currentStep) {
             OnboardingStep.WELCOME -> {
-                Box(
+                Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(colors.welcomeHero)
+                        .background(colors.welcomeHero),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    OutloopWelcomeArtwork(
+                    // Upper 40% hero fold with compact wordmark and concentric open-loop mark
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(410.dp)
+                            .weight(0.40f)
                             .windowInsetsPadding(WindowInsets.statusBars)
-                    )
-
-                    // Top-left Outloop wordmark
-                    Row(
-                        modifier = Modifier
-                            .windowInsetsPadding(WindowInsets.statusBars)
-                            .padding(horizontal = 20.dp, vertical = 20.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        OutloopMark(size = 26.dp, color = Color(0xFFFAF9F5))
-                        Text(
-                            text = "outloop",
-                            fontFamily = ManropeFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 19.sp,
-                            letterSpacing = (-0.2).sp,
-                            color = Color(0xFFFAF9F5)
+                        OutloopWelcomeArtwork(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(top = 42.dp, bottom = 10.dp)
                         )
+
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(horizontal = 20.dp, vertical = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutloopMark(size = 24.dp, color = Color(0xFFFAF9F5))
+                            Text(
+                                text = "outloop",
+                                fontFamily = ManropeFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 19.sp,
+                                letterSpacing = (-0.2).sp,
+                                color = Color(0xFFFAF9F5)
+                            )
+                        }
                     }
 
-                    // Bottom frosted welcome sheet matching 1_Welcome screenshot
-                    Column(
+                    // Lower 60% crisp tonal copy fold with generous breathing room
+                    Box(
                         modifier = Modifier
-                            .align(Alignment.BottomCenter)
                             .fillMaxWidth()
-                            .widthIn(max = 600.dp)
-                            .clip(RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp))
-                            .background(colors.sheetSurface)
-                            .border(
-                                width = 1.dp,
-                                color = colors.glassBorder,
-                                shape = RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp)
-                            )
-                            .windowInsetsPadding(WindowInsets.navigationBars)
-                            .padding(horizontal = 20.dp, vertical = 28.dp)
+                            .weight(0.60f),
+                        contentAlignment = Alignment.BottomCenter
                     ) {
-                        Text(
-                            text = "Keep your apps. Reclaim your attention.",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = colors.textAction
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Make room for what matters.",
-                            style = MaterialTheme.typography.displayLarge.copy(
-                                fontSize = 36.sp,
-                                lineHeight = 42.sp
-                            ),
-                            color = colors.ink
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Stay connected to the apps you need without getting pulled into feeds you didn\u2019t come for.",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = colors.secondaryInk
-                        )
-                        Spacer(modifier = Modifier.height(28.dp))
-                        OutloopPrimaryButton(
-                            text = "Get started",
-                            onClick = { step = OnboardingStep.PRIVACY },
-                            modifier = Modifier.testTag("onboarding_get_started")
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutloopTextButton(
-                            text = "Not now",
-                            onClick = onDeclineDisclosure,
+                        Column(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("onboarding_decline")
-                        )
-                        Text(
-                            text = "Not now leaves protection off until you turn it on.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.secondaryInk,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                                .fillMaxSize()
+                                .widthIn(max = 600.dp)
+                                .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
+                                .background(colors.sheetSurface)
+                                .border(
+                                    width = 1.dp,
+                                    color = colors.hairlineBorder,
+                                    shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
+                                )
+                                .windowInsetsPadding(WindowInsets.navigationBars)
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 24.dp, vertical = 28.dp),
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Keep your apps. Reclaim your attention.",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = colors.textAction
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = "Make room for what matters.",
+                                    style = MaterialTheme.typography.displayLarge.copy(
+                                        fontSize = 36.sp,
+                                        lineHeight = 42.sp
+                                    ),
+                                    color = colors.ink
+                                )
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Text(
+                                    text = "Stay connected to the apps you need without getting pulled into feeds you didn\u2019t come for.",
+                                    style = MaterialTheme.typography.bodyLarge.copy(
+                                        lineHeight = 24.sp
+                                    ),
+                                    color = colors.secondaryInk
+                                )
+                            }
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 24.dp)
+                            ) {
+                                OutloopPrimaryButton(
+                                    text = "Get started",
+                                    onClick = { step = OnboardingStep.PRIVACY },
+                                    modifier = Modifier.testTag("onboarding_get_started")
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                OutloopTextButton(
+                                    text = "Not now",
+                                    onClick = onDeclineDisclosure,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("onboarding_decline")
+                                )
+                                Text(
+                                    text = "Not now leaves protection off until you turn it on.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.secondaryInk,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -542,7 +567,7 @@ fun OnboardingScreen(
                                         },
                                         modifier = Modifier.testTag("onboarding_check_again")
                                     )
-                                    OutloopSecondaryGlassButton(
+                                    OutloopSecondaryButton(
                                         text = "Open Android Settings",
                                         onClick = openAccessibilitySettings
                                     )
@@ -589,7 +614,7 @@ fun OnboardingScreen(
                 color = colors.secondaryInk
             )
             Spacer(modifier = Modifier.height(6.dp))
-            OutloopSecondaryGlassButton(
+            OutloopSecondaryButton(
                 text = "Done",
                 onClick = { showWhySheet = false }
             )
@@ -616,7 +641,7 @@ fun OnboardingScreen(
                 style = MaterialTheme.typography.bodyLarge,
                 color = colors.secondaryInk
             )
-            OutloopSecondaryGlassButton(
+            OutloopSecondaryButton(
                 text = "Done",
                 onClick = { simulationFeedback = null }
             )
@@ -679,7 +704,7 @@ private fun PrivacyConsentContent(onOpenPrivacyDetails: () -> Unit) {
         style = MaterialTheme.typography.bodyLarge,
         color = colors.secondaryInk
     )
-    OutloopGlassCard(contentPadding = PaddingValues(20.dp)) {
+    OutloopTonalCard(contentPadding = PaddingValues(20.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
             InfoPointRow(
                 icon = Icons.Outlined.Visibility,
@@ -745,7 +770,7 @@ private fun ChooseAppsContent(
             color = colors.secondaryInk,
             modifier = Modifier.padding(horizontal = 8.dp)
         )
-        OutloopGlassCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
+        OutloopTonalCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
             installedRules.forEachIndexed { index, rule ->
                 if (index > 0) OutloopHairlineDivider()
                 Row(
@@ -790,11 +815,11 @@ private fun ChooseAppsContent(
             color = colors.secondaryInk,
             modifier = Modifier.padding(horizontal = 8.dp)
         )
-        OutloopGlassCard(
+        OutloopTonalCard(
             cornerRadius = 24.dp,
             contentPadding = PaddingValues(0.dp),
-            alphaMultiplier = 0.72f,
-            modifier = Modifier.alpha(0.68f)
+            containerColor = colors.surfaceSubtle,
+            modifier = Modifier.alpha(0.75f)
         ) {
             notInstalledRules.forEachIndexed { index, rule ->
                 if (index > 0) OutloopHairlineDivider()
@@ -863,7 +888,7 @@ private fun HowItStepsInContent(
     }
 
     if (selectedMode == InterventionMode.OVERLAY) {
-        OutloopGlassCard(cornerRadius = 22.dp, contentPadding = PaddingValues(14.dp)) {
+        OutloopTonalCard(cornerRadius = 22.dp, contentPadding = PaddingValues(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -884,7 +909,8 @@ private fun HowItStepsInContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(18.dp))
-                    .background(colors.subtleFill)
+                    .background(colors.surfaceSubtle)
+                    .border(1.dp, colors.hairlineBorder, RoundedCornerShape(18.dp))
                     .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -926,8 +952,8 @@ private fun HowItStepsInContent(
                         modifier = Modifier
                             .heightIn(min = 48.dp)
                             .clip(CircleShape)
-                            .background(colors.glassElevated)
-                            .border(1.dp, colors.glassBorder, CircleShape)
+                            .background(colors.surfaceElevated)
+                            .border(1.dp, colors.hairlineBorder, CircleShape)
                             .clickable(onClick = onOpenSimulation)
                             .padding(horizontal = 16.dp),
                         contentAlignment = Alignment.Center
@@ -942,7 +968,7 @@ private fun HowItStepsInContent(
             }
         }
     } else {
-        OutloopGlassCard(cornerRadius = 22.dp, contentPadding = PaddingValues(16.dp)) {
+        OutloopTonalCard(cornerRadius = 22.dp, contentPadding = PaddingValues(16.dp)) {
             InfoPointRow(
                 icon = if (selectedMode == InterventionMode.BACK) {
                     Icons.AutoMirrored.Rounded.KeyboardArrowLeft
@@ -979,7 +1005,7 @@ private fun AllowAccessWaitingContent() {
         title = "Waiting for permission",
         body = "Outloop will check the connection when you come back."
     )
-    OutloopGlassCard(contentPadding = PaddingValues(20.dp)) {
+    OutloopTonalCard(contentPadding = PaddingValues(20.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(
                 text = "In Android Settings",
@@ -1030,7 +1056,7 @@ private fun AllowAccessCheckingContent(
             )
         }
     )
-    OutloopGlassCard(contentPadding = PaddingValues(20.dp)) {
+    OutloopTonalCard(contentPadding = PaddingValues(20.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -1103,7 +1129,7 @@ private fun AllowAccessProblemContent(
         title = "Protection isn\u2019t running yet",
         body = "Nothing will be interrupted until the connection is restored."
     )
-    OutloopGlassCard(contentPadding = PaddingValues(20.dp)) {
+    OutloopTonalCard(contentPadding = PaddingValues(20.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(
                 text = "Try this",
@@ -1125,7 +1151,7 @@ private fun AllowAccessProblemContent(
                 }
             )
             if (!isBatteryOptimizationIgnored) {
-                OutloopSecondaryGlassButton(
+                OutloopSecondaryButton(
                     text = "Allow unrestricted battery",
                     onClick = onOpenBatterySettings
                 )
@@ -1157,10 +1183,9 @@ private fun ReadyContent(
             Box(
                 modifier = Modifier
                     .size(120.dp)
-                    .shadow(14.dp, CircleShape, ambientColor = colors.glassShadow)
                     .clip(CircleShape)
-                    .background(colors.glassElevated)
-                    .border(1.dp, colors.glassBorder, CircleShape),
+                    .background(colors.surfaceCard)
+                    .border(1.dp, colors.hairlineBorder, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 OutloopMark(size = 64.dp, color = colors.primaryTint)
@@ -1209,7 +1234,7 @@ private fun ReadyContent(
         )
     }
 
-    OutloopGlassCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
+    OutloopTonalCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
         ReadySummaryRow("Apps", names)
         OutloopHairlineDivider()
         ReadySummaryRow("When a feed opens", selectedMode.shortLabel)

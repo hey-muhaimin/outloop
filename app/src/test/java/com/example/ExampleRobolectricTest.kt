@@ -704,4 +704,38 @@ class ExampleRobolectricTest {
         settings.setDailyBudgetCuts(0)
         settings.setAppearanceMode(AppearanceMode.SYSTEM)
     }
+
+    @Test
+    fun `scroll selector matcher matches visible scroll source viewId and falls back cleanly`() {
+        val ytRule = FeedSurgeonDatabase.defaultBuiltInRules().first {
+            it.packageName == "com.google.android.youtube"
+        }
+        val matchingSource = AccessibilityNodeInfo().apply {
+            packageName = "com.google.android.youtube"
+            viewIdResourceName = "com.google.android.youtube:id/reel_recycler"
+            isVisibleToUser = true
+        }
+        val unrelatedRoot = AccessibilityNodeInfo().apply {
+            packageName = "com.google.android.youtube"
+        }
+
+        val directMatch = SelectorMatcher.findMatchingScrollSelector(
+            sourceNode = matchingSource,
+            root = unrelatedRoot,
+            rule = ytRule
+        )
+        assertEquals("com.google.android.youtube:id/reel_recycler", directMatch)
+
+        val nonMatchingSource = AccessibilityNodeInfo().apply {
+            packageName = "com.google.android.youtube"
+            viewIdResourceName = "com.google.android.youtube:id/home_feed"
+            isVisibleToUser = true
+        }
+        val noMatch = SelectorMatcher.findMatchingScrollSelector(
+            sourceNode = nonMatchingSource,
+            root = unrelatedRoot,
+            rule = ytRule
+        )
+        assertNull(noMatch)
+    }
 }

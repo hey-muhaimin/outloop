@@ -136,7 +136,8 @@ class FeedSurgeonService : AccessibilityService() {
 
         currentInfo.apply {
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
-                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED or
+                AccessibilityEvent.TYPE_VIEW_SCROLLED
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
             flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS or
                 AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
@@ -201,7 +202,15 @@ class FeedSurgeonService : AccessibilityService() {
             return
         }
 
-        val rootNode = resolveTargetRootNode(pkg)
+        val isScrollEvent = eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED
+        val scrollSource = if (isScrollEvent) {
+            runCatching { event.source }.getOrNull()
+        } else {
+            null
+        }
+        val rootNode = resolveTargetRootNode(pkg) ?: scrollSource?.takeIf {
+            SelectorMatcher.matchesTargetPackage(it, pkg)
+        }
         if (rootNode == null) {
             if (captureLogs) {
                 logEventThrottled(pkg, eventType, eventClassName, null, null, "SKIPPED:no_root_window", nowElapsed)
@@ -209,7 +218,11 @@ class FeedSurgeonService : AccessibilityService() {
             return
         }
 
-        val matchedSelector = SelectorMatcher.findMatchingSelector(rootNode, rule)
+        val matchedSelector = if (isScrollEvent) {
+            SelectorMatcher.findMatchingScrollSelector(scrollSource, rootNode, rule)
+        } else {
+            SelectorMatcher.findMatchingSelector(rootNode, rule)
+        }
         if (matchedSelector == null) {
             if (captureLogs) {
                 logEventThrottled(pkg, eventType, eventClassName, rootNode, null, "NO_MATCH", nowElapsed)
@@ -234,13 +247,14 @@ class FeedSurgeonService : AccessibilityService() {
         lastBlockTimestamps[pkg] = nowElapsed
 
         if (captureLogs) {
+            val triggerPrefix = if (isScrollEvent) "TRIGGERED_SCROLL" else "TRIGGERED"
             logEventThrottled(
                 pkg,
                 eventType,
                 eventClassName,
                 rootNode,
                 matchedSelector,
-                "TRIGGERED:${rule.interventionMode.name}",
+                "$triggerPrefix:${rule.interventionMode.name}",
                 nowElapsed,
                 force = true
             )

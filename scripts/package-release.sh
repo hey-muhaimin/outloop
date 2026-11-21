@@ -10,7 +10,7 @@ usage() {
 Usage: $(basename "$0") [--bump major|minor|patch] [--mode debug|release|all] [--skip-tests]
 
 Validates and syncs bundled ruleset.json, runs verification tests, optionally bumps
-the app version, builds APK/AAB artifacts, and bundles outputs into ./bundled-apk/
+the app version, builds APK/AAB artifacts, and copies outputs into ./build-output/
 with SHA-256 checksums and RELEASE_INFO.txt.
 EOF
 }
@@ -61,7 +61,7 @@ esac
 
 VERSION_NAME="$(read_version_name)"
 VERSION_CODE="$(read_version_code)"
-BUNDLED_DIR="$ROOT_DIR/bundled-apk"
+BUNDLED_DIR="$ROOT_DIR/build-output"
 mkdir -p "$BUNDLED_DIR"
 
 cat > "$BUNDLED_DIR/RELEASE_INFO.txt" <<EOF

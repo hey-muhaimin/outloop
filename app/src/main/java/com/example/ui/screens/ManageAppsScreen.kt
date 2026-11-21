@@ -47,14 +47,14 @@ import com.example.data.model.InterventionMode
 import com.example.service.LaunchableAppInfo
 import com.example.ui.components.OutloopAppMonogramBadge
 import com.example.ui.components.OutloopBackButton
-import com.example.ui.components.OutloopGlassCard
 import com.example.ui.components.OutloopHairlineDivider
 import com.example.ui.components.OutloopModalSheet
 import com.example.ui.components.OutloopPrimaryButton
-import com.example.ui.components.OutloopSecondaryGlassButton
+import com.example.ui.components.OutloopSecondaryButton
 import com.example.ui.components.OutloopSectionHeader
 import com.example.ui.components.OutloopSegmentedControl
 import com.example.ui.components.OutloopSwitch
+import com.example.ui.components.OutloopTonalCard
 import com.example.ui.theme.OutloopTheme
 
 @Composable
@@ -131,7 +131,7 @@ fun ManageAppsScreen(
 
                 if (installedRules.isNotEmpty()) {
                     OutloopSectionHeader(text = "On your phone")
-                    OutloopGlassCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
+                    OutloopTonalCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
                         installedRules.forEachIndexed { idx, rule ->
                             if (idx > 0) OutloopHairlineDivider()
                             Row(
@@ -188,7 +188,7 @@ fun ManageAppsScreen(
                     }
                 }
 
-                OutloopSecondaryGlassButton(
+                OutloopSecondaryButton(
                     text = "Add custom app",
                     onClick = { showAddCustomSheet = true },
                     modifier = Modifier.testTag("manage_apps_add_custom")
@@ -196,11 +196,11 @@ fun ManageAppsScreen(
 
                 if (notInstalledRules.isNotEmpty()) {
                     OutloopSectionHeader(text = "Not installed")
-                    OutloopGlassCard(
+                    OutloopTonalCard(
                         cornerRadius = 24.dp,
                         contentPadding = PaddingValues(0.dp),
-                        alphaMultiplier = 0.72f,
-                        modifier = Modifier.alpha(0.68f)
+                        containerColor = colors.surfaceSubtle,
+                        modifier = Modifier.alpha(0.75f)
                     ) {
                         notInstalledRules.forEachIndexed { idx, rule ->
                             if (idx > 0) OutloopHairlineDivider()
@@ -308,8 +308,8 @@ private fun AddCustomAppSheet(
                     val isPicked = packageName == candidate.packageName
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = if (isPicked) colors.primaryTint else colors.glassElevated,
-                        border = BorderStroke(1.dp, colors.glassBorder),
+                        color = if (isPicked) colors.primaryTint else colors.surfaceElevated,
+                        border = BorderStroke(1.dp, colors.hairlineBorder),
                         modifier = Modifier
                             .heightIn(min = 44.dp)
                             .clip(RoundedCornerShape(16.dp))
