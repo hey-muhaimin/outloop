@@ -10,8 +10,8 @@
     <string name="nav_settings">Settings</string>
 
     <!-- Status -->
-    <string name="status_running">Protection active</string>
-    <string name="status_paused">Taking a little space</string>
+    <string name="status_running">Guard on</string>
+    <string name="status_paused">Paused</string>
     <string name="status_service_off">Setup needed</string>
     <string name="status_disconnected">Needs attention</string>
     <string name="status_no_apps">Choose apps</string>

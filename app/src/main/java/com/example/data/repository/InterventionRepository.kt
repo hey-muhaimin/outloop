@@ -112,6 +112,10 @@ class InterventionRepository(
         settingsDataStore.setDailyBudgetCuts(budgetCuts)
     }
 
+    suspend fun setStrictModeEnabled(enabled: Boolean) {
+        settingsDataStore.setStrictModeEnabled(enabled)
+    }
+
     suspend fun allowOnceForEvent(eventId: Long, packageName: String) {
         dao.markEventAllowedOnce(eventId)
         val current = dao.getRuleByPackage(packageName) ?: return

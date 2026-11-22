@@ -2,11 +2,13 @@ package com.example
 
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -49,57 +51,62 @@ class FeedSurgeonUiRobolectricTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun `onboarding flows cleanly through welcome privacy choose apps style and allow access`() {
+    fun `onboarding flows cleanly through welcome choose apps and embedded accessibility disclosure`() {
         val rules = FeedSurgeonDatabase.defaultBuiltInRules()
         val installed = setOf("com.google.android.youtube")
-        var selectedMode = InterventionMode.OVERLAY
+        var toggledPkg = ""
+        var toggledEnabled = false
 
         composeRule.setContent {
             FeedSurgeonTheme {
                 OnboardingScreen(
                     rules = rules,
                     installedPackages = installed,
-                    defaultMode = selectedMode,
+                    preferences = AppPreferences(),
                     isAccessibilityEnabled = false,
                     isServiceConnected = false,
                     isBatteryOptimizationIgnored = false,
                     isNotificationPermissionGranted = true,
                     onRefreshProtectionHealth = {},
-                    onToggleApp = { _, _ -> },
-                    onSelectDefaultMode = { selectedMode = it },
+                    onToggleApp = { pkg, enabled ->
+                        toggledPkg = pkg
+                        toggledEnabled = enabled
+                    },
                     onAcceptDisclosure = {},
                     onDeclineDisclosure = {},
                     onOpenPrivacyDetails = {},
-                    onCompleteOnboarding = {},
-                    onGoToSettings = {}
+                    onCompleteOnboarding = {}
                 )
             }
         }
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText("Make room for what matters.").assertIsDisplayed()
-        composeRule.onNodeWithTag("onboarding_get_started").performClick()
+        composeRule.onNodeWithText("Break the loop.\nKeep the apps.").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Feeds blocked").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Useful parts open").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("onboarding_get_started").performScrollTo().performClick()
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText("Here\u2019s exactly what Outloop can see.").assertIsDisplayed()
-        composeRule.onNodeWithTag("onboarding_agree").performClick()
-        composeRule.waitForIdle()
-
-        composeRule.onNodeWithText("On your phone").assertIsDisplayed()
+        composeRule.onNodeWithText("Pick the apps to guard").assertIsDisplayed()
+        composeRule.onNodeWithText("Feeds to block").assertIsDisplayed()
         composeRule.onNodeWithText("Not installed").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("onboarding_app_switch_com.google.android.youtube")
+            .performScrollTo()
+            .performClick()
+        assertEquals("com.google.android.youtube", toggledPkg)
+        assertTrue(!toggledEnabled || toggledEnabled)
+
         composeRule.onNodeWithTag("onboarding_apps_continue").performClick()
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText("Recommended").assertIsDisplayed()
-        composeRule.onNodeWithTag("onboarding_mode_back").performClick()
-        composeRule.waitForIdle()
-        assertEquals(InterventionMode.BACK, selectedMode)
-
-        composeRule.onNodeWithTag("onboarding_style_continue").performClick()
-        composeRule.waitForIdle()
-
-        composeRule.onNodeWithText("Waiting for permission").assertIsDisplayed()
+        composeRule.onNodeWithText("Let Outloop spot feeds").assertIsDisplayed()
+        composeRule.onNodeWithText("Accessibility access").assertIsDisplayed()
+        composeRule.onNodeWithText("Used only on this device to recognise feed screens, like Reels and Shorts. Outloop never reads messages, passwords, or sends screen data off your phone.")
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.onNodeWithTag("onboarding_privacy_details").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("onboarding_open_settings").assertIsDisplayed()
+        composeRule.onNodeWithTag("onboarding_not_now").assertIsDisplayed()
     }
 
     @Test
@@ -140,11 +147,68 @@ class FeedSurgeonUiRobolectricTest {
         }
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithTag("status_pill").assertTextContains("Taking a little space")
-        composeRule.onAllNodesWithText("Taking a little space").assertCountEquals(2)
-        composeRule.onAllNodesWithText("Taking a little space").onFirst().assertIsDisplayed()
+        composeRule.onNodeWithTag("status_pill").assertTextContains("Paused")
+        composeRule.onNodeWithTag("home_floating_resume_button").assertIsDisplayed()
+        composeRule.onNodeWithTag("home_list")
+            .performScrollToNode(hasTestTag("home_resume_now_button"))
+        composeRule.onNodeWithText("Guard is paused").assertIsDisplayed()
         composeRule.onNodeWithTag("home_resume_now_button").performClick()
         assertTrue(resumed)
+    }
+
+    @Test
+    fun `home screen enforces 10s Strict mode Pause Guard countdown before pausing`() {
+        val rules = FeedSurgeonDatabase.defaultBuiltInRules()
+        var pausedMinutes = 0
+
+        composeRule.setContent {
+            FeedSurgeonTheme {
+                HomeScreen(
+                    uiState = MainUiState(
+                        isInitialLoading = false,
+                        preferences = AppPreferences(strictModeEnabled = true),
+                        rules = rules,
+                        installedPackages = setOf("com.google.android.youtube"),
+                        isAccessibilityEnabled = true,
+                        isServiceConnected = true,
+                        protectionStatus = ProtectionStatus.OPERATIONAL,
+                        activeInstalledCount = 1,
+                        installedSupportedCount = 1,
+                        todayCutsCount = 14,
+                        todayReclaimedText = "1h 52m",
+                        streakDays = 6
+                    ),
+                    onStatusClick = {},
+                    onSetupClick = {},
+                    onManageAppsClick = {},
+                    onToggleGlobalPause = {},
+                    onPauseForMinutes = { pausedMinutes = it },
+                    onGlobalBreakExpired = {},
+                    onAppSnoozeExpired = {},
+                    onRefreshBlockersClick = {},
+                    onAppClick = {},
+                    onToggleApp = { _, _ -> },
+                    onShowEstimateToast = {}
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("home_floating_pause_button").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("pause_guard_dialog").assertIsDisplayed()
+        composeRule.onNodeWithText("Pause Guard?").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("pause_guard_countdown").performScrollTo().assertTextContains("10")
+        composeRule.onNodeWithTag("pause_guard_confirm_button").performScrollTo().assertIsNotEnabled()
+
+        composeRule.onNodeWithText("30 min").performScrollTo().performClick()
+        composeRule.mainClock.advanceTimeBy(10_500L)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("pause_guard_confirm_button").performScrollTo().assertIsEnabled()
+        composeRule.onNodeWithTag("pause_guard_confirm_button").performClick()
+        assertEquals(30, pausedMinutes)
     }
 
     @Test
@@ -180,11 +244,13 @@ class FeedSurgeonUiRobolectricTest {
         composeRule.waitForIdle()
 
         composeRule.onNodeWithTag("status_pill").assertTextContains("Setup needed")
+        composeRule.onNodeWithTag("home_list")
+            .performScrollToNode(hasTestTag("home_finish_setup_button"))
         composeRule.onNodeWithTag("home_finish_setup_button").assertIsDisplayed()
     }
 
     @Test
-    fun `app detail screen updates mode and opens pause preview simulation`() {
+    fun `app detail screen updates mode and opens loop broken simulation`() {
         val ytRule = FeedSurgeonDatabase.defaultBuiltInRules().first {
             it.packageName == "com.google.android.youtube"
         }
@@ -201,7 +267,10 @@ class FeedSurgeonUiRobolectricTest {
                     onAllowOnce = {},
                     onSnoozeMinutes = {},
                     onResumeSnooze = {},
-                    onShowToast = {}
+                    onShowToast = {},
+                    loopsToday = 14,
+                    timeKeptText = "1h 52m",
+                    streakDays = 6
                 )
             }
         }
@@ -214,19 +283,19 @@ class FeedSurgeonUiRobolectricTest {
         composeRule.onNodeWithTag("detail_preview_button").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("simulation_pause_dialog").assertIsDisplayed()
-        composeRule.onNodeWithText("Take a moment.").assertIsDisplayed()
+        composeRule.onNodeWithText("Loop\nbroken").assertIsDisplayed()
     }
 
     @Test
-    fun `insights screen switches between Today 7 days and 30 days ranges`() {
+    fun `insights screen switches between Day Week and Month ranges`() {
         val dayBars = listOf(
-            DayBarStat("S", "Saturday", "Nov 14", count = 3, reclaimedMinutes = 9, fraction = 0.5f, isToday = false),
-            DayBarStat("S", "Sunday", "Nov 15", count = 2, reclaimedMinutes = 6, fraction = 0.35f, isToday = false),
             DayBarStat("M", "Monday", "Nov 16", count = 5, reclaimedMinutes = 15, fraction = 0.8f, isToday = false),
             DayBarStat("T", "Tuesday", "Nov 17", count = 4, reclaimedMinutes = 12, fraction = 0.65f, isToday = false),
             DayBarStat("W", "Wednesday", "Nov 18", count = 6, reclaimedMinutes = 18, fraction = 1f, isToday = false),
             DayBarStat("T", "Thursday", "Nov 19", count = 3, reclaimedMinutes = 9, fraction = 0.5f, isToday = false),
-            DayBarStat("F", "Friday", "Nov 20", count = 4, reclaimedMinutes = 12, fraction = 0.65f, isToday = true)
+            DayBarStat("F", "Friday", "Nov 20", count = 4, reclaimedMinutes = 12, fraction = 0.65f, isToday = false),
+            DayBarStat("S", "Saturday", "Nov 21", count = 3, reclaimedMinutes = 9, fraction = 0.5f, isToday = false),
+            DayBarStat("S", "Sunday", "Nov 22", count = 2, reclaimedMinutes = 6, fraction = 0.35f, isToday = true)
         )
         val todayBuckets = listOf(
             InsightBucketStat("Morning", "Morning (5am\u201312pm)", 2, 1f),
@@ -251,17 +320,23 @@ class FeedSurgeonUiRobolectricTest {
                         isInitialLoading = false,
                         preferences = AppPreferences(reclaimedSecondsPerCut = 180),
                         installedPackages = setOf("com.google.android.youtube"),
+                        isAccessibilityEnabled = true,
+                        isServiceConnected = true,
+                        protectionStatus = ProtectionStatus.OPERATIONAL,
+                        activeInstalledCount = 1,
                         todayCutsCount = 4,
-                        todayReclaimedText = "~12 min",
+                        todayReclaimedText = "12m",
                         todayHourBuckets = todayBuckets,
                         todayBusiestTimeLabel = "Morning",
                         todayByAppBreakdown = appBreakdown,
                         weeklyCutsCount = 27,
                         weeklyDayBars = dayBars,
-                        weeklyReclaimedText = "~1 h 21 min",
+                        weeklyReclaimedText = "1h 21m",
+                        weeklyDeltaLabel = "+18% vs last week",
+                        bestStreakDays = 11,
                         byAppBreakdown = appBreakdown,
                         thirtyDayCutsCount = 72,
-                        thirtyDayReclaimedText = "~3 h 36 min",
+                        thirtyDayReclaimedText = "3h 36m",
                         thirtyDayWeekBuckets = thirtyBuckets,
                         thirtyDayByAppBreakdown = appBreakdown
                     )
@@ -270,18 +345,25 @@ class FeedSurgeonUiRobolectricTest {
         }
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText("Your attention had a little more room this week.").assertIsDisplayed()
-        composeRule.onNodeWithText("Today").performClick()
+        composeRule.onNodeWithText("Time kept this week").assertIsDisplayed()
+        composeRule.onNodeWithText("+18% vs last week").assertIsDisplayed()
+        composeRule.onNodeWithTag("insights_list")
+            .performScrollToNode(hasText("Where loops start"))
+        composeRule.onNodeWithText("Where loops start").assertIsDisplayed()
+        composeRule.onNodeWithTag("insights_list")
+            .performScrollToNode(hasTestTag("insights_range_selector"))
+        composeRule.onNodeWithText("Day").performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("Small moments of awareness add up.").assertIsDisplayed()
-        composeRule.onNodeWithText("30 days").performClick()
+        composeRule.onNodeWithText("Time kept today").assertIsDisplayed()
+        composeRule.onNodeWithText("Month").performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("You paused before entering 72 feeds.").assertIsDisplayed()
+        composeRule.onNodeWithText("Time kept this month").assertIsDisplayed()
     }
 
     @Test
-    fun `settings screen shows appearance controls and clear history sheet`() {
+    fun `settings screen toggles strict mode changes theme and clears history`() {
         var appearance = AppearanceMode.LIGHT
+        var strictMode = false
         var cleared = false
 
         composeRule.setContent {
@@ -289,7 +371,10 @@ class FeedSurgeonUiRobolectricTest {
                 SettingsScreen(
                     uiState = MainUiState(
                         isInitialLoading = false,
-                        preferences = AppPreferences(appearanceMode = appearance),
+                        preferences = AppPreferences(
+                            appearanceMode = appearance,
+                            strictModeEnabled = strictMode
+                        ),
                         rules = FeedSurgeonDatabase.defaultBuiltInRules(),
                         installedPackages = setOf("com.google.android.youtube"),
                         isAccessibilityEnabled = true,
@@ -307,21 +392,34 @@ class FeedSurgeonUiRobolectricTest {
                     onSetHapticFeedback = {},
                     onSetShowBanner = {},
                     onClearHistory = { cleared = true },
-                    onShowToast = {}
+                    onShowToast = {},
+                    onSetStrictModeEnabled = { strictMode = it }
                 )
             }
         }
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText("Connected").assertIsDisplayed()
+        composeRule.onNodeWithTag("settings_strict_mode_switch").performClick()
+        assertTrue(strictMode)
         composeRule.onNodeWithTag("settings_list")
-            .performScrollToNode(hasTestTag("settings_appearance_selector"))
-        composeRule.onNodeWithText("Dark").performClick()
-        assertEquals(AppearanceMode.DARK, appearance)
+            .performScrollToNode(hasTestTag("settings_accessibility_row"))
+        composeRule.onNodeWithText("Active").assertIsDisplayed()
 
         composeRule.onNodeWithTag("settings_list")
-            .performScrollToNode(hasTestTag("settings_clear_history_button"))
-        composeRule.onNodeWithTag("settings_clear_history_button").performClick()
+            .performScrollToNode(hasTestTag("settings_theme_row"))
+        composeRule.onNodeWithTag("settings_theme_row").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_appearance_selector").assertIsDisplayed()
+        composeRule.onNodeWithText("Dark").performClick()
+        assertEquals(AppearanceMode.DARK, appearance)
+        composeRule.onNodeWithText("Done").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("settings_list")
+            .performScrollToNode(hasTestTag("settings_about_row"))
+        composeRule.onNodeWithTag("settings_about_row").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_clear_history_button").performScrollTo().performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("confirm_clear_history_button").performClick()
         assertTrue(cleared)
@@ -459,6 +557,8 @@ class FeedSurgeonUiRobolectricTest {
 
         composeRule.onNodeWithText("4 of 10 daily target").assertIsDisplayed()
         composeRule.onNodeWithTag("status_pill").assertTextContains("Quiet hours")
+        composeRule.onNodeWithTag("home_list")
+            .performScrollToNode(hasTestTag("home_app_row_com.google.android.youtube"))
         composeRule.onNodeWithText("Quiet hours active").assertIsDisplayed()
         composeRule.onNodeWithTag("home_resume_quiet_hours_button").performClick()
         assertTrue(resumedEarly)
@@ -515,8 +615,10 @@ class FeedSurgeonUiRobolectricTest {
         assertTrue(quietEnabled)
 
         composeRule.onNodeWithTag("settings_list")
-            .performScrollToNode(hasTestTag("settings_daily_budget"))
-        composeRule.onNodeWithTag("settings_daily_budget").performClick()
+            .performScrollToNode(hasTestTag("settings_always_open"))
+        composeRule.onNodeWithTag("settings_always_open").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_daily_budget").performScrollTo().performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("budget_option_10").performScrollTo().performClick()
         composeRule.waitForIdle()

@@ -4,23 +4,17 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -50,9 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -61,7 +53,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.ui.theme.OutloopMetrics
+import androidx.compose.ui.unit.sp
 import com.example.ui.theme.OutloopTheme
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -77,7 +69,7 @@ enum class BottomTab(
     HOME(
         label = "Home",
         testTag = "nav_home",
-        selectedIcon = Icons.Rounded.Home,
+        selectedIcon = Icons.Outlined.Home,
         unselectedIcon = Icons.Outlined.Home
     ),
     INSIGHTS(
@@ -100,6 +92,10 @@ data class NavAlertBadges(
     val settingsNeedsAttention: Boolean = false
 )
 
+/**
+ * Full-width warm linen bottom navigation bar with mint capsule behind the active icon,
+ * matching the Tonal Bento mockups and Material 3 NavigationBar ergonomics.
+ */
 @Composable
 fun FloatingPillNavBar(
     selectedTab: BottomTab,
@@ -110,134 +106,93 @@ fun FloatingPillNavBar(
     val colors = OutloopTheme.colors
     val haptic = rememberOutloopHaptic()
     val tabs = BottomTab.entries
-    val selectedIndex = tabs.indexOf(selectedTab).coerceAtLeast(0)
 
-    Box(
+    Column(
         modifier = modifier
             .fillMaxWidth()
+            .background(colors.navBarBg)
             .windowInsetsPadding(WindowInsets.navigationBars)
-            .padding(
-                start = OutloopMetrics.ScreenHorizontalPadding,
-                end = OutloopMetrics.ScreenHorizontalPadding,
-                bottom = OutloopMetrics.DockBottomPadding
-            ),
-        contentAlignment = Alignment.Center
     ) {
-        BoxWithConstraints(
+        OutloopHairlineDivider()
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(OutloopMetrics.DockHeight)
-                .shadow(
-                    elevation = 4.dp,
-                    shape = RoundedCornerShape(28.dp),
-                    ambientColor = colors.dockShadow,
-                    spotColor = colors.dockShadow
-                )
-                .clip(RoundedCornerShape(28.dp))
-                .background(colors.surfaceCard)
-                .border(1.dp, colors.hairlineBorder, RoundedCornerShape(28.dp))
-                .padding(4.dp)
+                .height(74.dp)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            val pillWidth = maxWidth / tabs.size
-            val pillOffset by animateDpAsState(
-                targetValue = pillWidth * selectedIndex,
-                animationSpec = spring(
-                    dampingRatio = 0.84f,
-                    stiffness = Spring.StiffnessMediumLow
-                ),
-                label = "outloopDockPillOffset"
-            )
+            tabs.forEach { tab ->
+                val isSelected = tab == selectedTab
+                val capsuleColor by animateColorAsState(
+                    targetValue = if (isSelected) colors.mintBg else Color.Transparent,
+                    label = "navCapsuleColor"
+                )
+                val iconTint by animateColorAsState(
+                    targetValue = if (isSelected) colors.mintInk else colors.secondaryInk,
+                    label = "navIconTint"
+                )
+                val showDot = when (tab) {
+                    BottomTab.HOME -> alerts.homeNeedsAttention
+                    BottomTab.SETTINGS -> alerts.settingsNeedsAttention
+                    BottomTab.INSIGHTS -> false
+                }
 
-            Box(
-                modifier = Modifier
-                    .offset(x = pillOffset)
-                    .width(pillWidth)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(colors.surfaceSubtle)
-                    .border(1.dp, colors.hairlineBorder, RoundedCornerShape(24.dp))
-            )
-
-            Row(modifier = Modifier.fillMaxSize()) {
-                tabs.forEach { tab ->
-                    val isSelected = tab == selectedTab
-                    val tint by animateColorAsState(
-                        targetValue = if (isSelected) colors.primaryTint else colors.secondaryInk,
-                        label = "dockTabTint"
-                    )
-                    val iconScale by animateFloatAsState(
-                        targetValue = if (isSelected) 1.08f else 0.96f,
-                        animationSpec = spring(
-                            dampingRatio = 0.72f,
-                            stiffness = Spring.StiffnessMedium
-                        ),
-                        label = "dockIconScale"
-                    )
-                    val showDot = when (tab) {
-                        BottomTab.HOME -> alerts.homeNeedsAttention
-                        BottomTab.SETTINGS -> alerts.settingsNeedsAttention
-                        BottomTab.INSIGHTS -> false
-                    }
-
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable(
+                            role = Role.Tab,
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            if (!isSelected) haptic()
+                            onTabSelected(tab)
+                        }
+                        .semantics {
+                            selected = isSelected
+                            contentDescription = tab.label
+                        }
+                        .testTag(tab.testTag),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
                     Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(24.dp))
-                            .clickable(
-                                role = Role.Tab,
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) {
-                                if (!isSelected) {
-                                    haptic()
-                                }
-                                onTabSelected(tab)
-                            }
-                            .semantics {
-                                selected = isSelected
-                                contentDescription = tab.label
-                            }
-                            .testTag(tab.testTag),
+                            .size(width = 62.dp, height = 32.dp)
+                            .clip(CircleShape)
+                            .background(capsuleColor),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(1.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier.graphicsLayer {
-                                    scaleX = iconScale
-                                    scaleY = iconScale
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
-                                    contentDescription = null,
-                                    tint = tint,
-                                    modifier = Modifier.size(19.dp)
-                                )
-                                if (showDot) {
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.TopEnd)
-                                            .offset(x = 3.dp, y = (-2).dp)
-                                            .size(6.dp)
-                                            .clip(CircleShape)
-                                            .background(colors.warnText)
-                                    )
-                                }
-                            }
-                            Text(
-                                text = tab.label,
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold
-                                ),
-                                color = tint,
-                                maxLines = 1
+                        Box {
+                            Icon(
+                                imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
+                                contentDescription = null,
+                                tint = iconTint,
+                                modifier = Modifier.size(21.dp)
                             )
+                            if (showDot) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = 5.dp, y = (-2).dp)
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(colors.warnText)
+                                )
+                            }
                         }
                     }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = tab.label,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
+                        ),
+                        color = if (isSelected) colors.ink else colors.secondaryInk,
+                        maxLines = 1
+                    )
                 }
             }
         }
@@ -245,7 +200,7 @@ fun FloatingPillNavBar(
 }
 
 @Composable
-fun OutloopSideRail(
+fun ObsidianSideRail(
     selectedTab: BottomTab,
     onTabSelected: (BottomTab) -> Unit,
     modifier: Modifier = Modifier,
@@ -257,39 +212,25 @@ fun OutloopSideRail(
         modifier = modifier
             .fillMaxHeight()
             .windowInsetsPadding(WindowInsets.navigationBars)
-            .padding(start = 12.dp, top = 20.dp, bottom = 18.dp),
+            .padding(start = 16.dp, top = 24.dp, bottom = 24.dp),
         contentAlignment = Alignment.TopCenter
     ) {
         Column(
             modifier = Modifier
-                .width(OutloopMetrics.SideRailWidth)
-                .shadow(
-                    elevation = 4.dp,
-                    shape = RoundedCornerShape(24.dp),
-                    ambientColor = colors.dockShadow,
-                    spotColor = colors.dockShadow
-                )
-                .clip(RoundedCornerShape(24.dp))
-                .background(colors.surfaceCard)
-                .border(1.dp, colors.hairlineBorder, RoundedCornerShape(24.dp))
-                .padding(horizontal = 6.dp, vertical = 14.dp),
+                .width(92.dp)
+                .clip(RoundedCornerShape(28.dp))
+                .background(colors.navBarBg)
+                .border(1.dp, colors.cardBorder, RoundedCornerShape(28.dp))
+                .padding(horizontal = 8.dp, vertical = 18.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            OutloopMark(size = 20.dp, color = colors.primaryTint)
-            Spacer(modifier = Modifier.height(4.dp))
+            OutloopMark(size = 24.dp, color = colors.ink)
+            Spacer(modifier = Modifier.height(6.dp))
 
             BottomTab.entries.forEach { tab ->
                 val isSelected = tab == selectedTab
-                val tint by animateColorAsState(
-                    targetValue = if (isSelected) colors.primaryTint else colors.secondaryInk,
-                    label = "railTabTint"
-                )
-                val iconScale by animateFloatAsState(
-                    targetValue = if (isSelected) 1.08f else 0.96f,
-                    animationSpec = spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMedium),
-                    label = "railIconScale"
-                )
+                val tint = if (isSelected) colors.mintInk else colors.secondaryInk
                 val showDot = when (tab) {
                     BottomTab.HOME -> alerts.homeNeedsAttention
                     BottomTab.SETTINGS -> alerts.settingsNeedsAttention
@@ -298,16 +239,9 @@ fun OutloopSideRail(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 52.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(if (isSelected) colors.surfaceSubtle else Color.Transparent)
-                        .then(
-                            if (isSelected) {
-                                Modifier.border(1.dp, colors.hairlineBorder, RoundedCornerShape(18.dp))
-                            } else {
-                                Modifier
-                            }
-                        )
+                        .heightIn(min = 60.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(if (isSelected) colors.mintBg else Color.Transparent)
                         .clickable(role = Role.Tab) {
                             if (!isSelected) haptic()
                             onTabSelected(tab)
@@ -317,31 +251,26 @@ fun OutloopSideRail(
                             contentDescription = tab.label
                         }
                         .testTag(tab.testTag)
-                        .padding(vertical = 6.dp),
+                        .padding(vertical = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
-                        Box(
-                            modifier = Modifier.graphicsLayer {
-                                scaleX = iconScale
-                                scaleY = iconScale
-                            }
-                        ) {
+                        Box {
                             Icon(
                                 imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
                                 contentDescription = null,
                                 tint = tint,
-                                modifier = Modifier.size(19.dp)
+                                modifier = Modifier.size(21.dp)
                             )
                             if (showDot) {
                                 Box(
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
-                                        .offset(x = 3.dp, y = (-2).dp)
-                                        .size(6.dp)
+                                        .offset(x = 4.dp, y = (-2).dp)
+                                        .size(7.dp)
                                         .clip(CircleShape)
                                         .background(colors.warnText)
                                 )
@@ -349,8 +278,10 @@ fun OutloopSideRail(
                         }
                         Text(
                             text = tab.label,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = tint,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
+                            ),
+                            color = if (isSelected) colors.ink else colors.secondaryInk,
                             maxLines = 1
                         )
                     }

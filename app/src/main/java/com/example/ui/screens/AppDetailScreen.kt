@@ -12,7 +12,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,16 +33,14 @@ import androidx.compose.ui.unit.dp
 import com.example.data.local.TargetAppRuleEntity
 import com.example.data.model.InterventionMode
 import com.example.ui.components.OutloopAppMonogramBadge
+import com.example.ui.components.OutloopBackButton
+import com.example.ui.components.OutloopBentoCard
 import com.example.ui.components.OutloopHairlineDivider
 import com.example.ui.components.OutloopPrimaryButton
 import com.example.ui.components.OutloopRadioOptionCard
 import com.example.ui.components.OutloopSectionHeader
 import com.example.ui.components.OutloopSimulationOverlay
-import com.example.ui.components.OutloopStaggeredEntrance
-import com.example.ui.components.OutloopSubScreenScaffold
 import com.example.ui.components.OutloopSwitch
-import com.example.ui.components.OutloopTonalCard
-import com.example.ui.theme.OutloopMetrics
 import com.example.ui.theme.OutloopTheme
 
 @Composable
@@ -52,7 +54,10 @@ fun AppDetailScreen(
     onSnoozeMinutes: (Int) -> Unit,
     onResumeSnooze: () -> Unit,
     onShowToast: (String) -> Unit,
-    currentTimeMs: Long = System.currentTimeMillis()
+    loopsToday: Int = 14,
+    timeKeptText: String = "0m",
+    streakDays: Int = 0,
+    strictModeEnabled: Boolean = false
 ) {
     BackHandler(onBack = onBack)
     val colors = OutloopTheme.colors
@@ -62,134 +67,138 @@ fun AppDetailScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(OutloopMetrics.ScreenHorizontalPadding),
+                .padding(20.dp),
             contentAlignment = Alignment.Center
         ) {
-            OutloopTonalCard {
+            OutloopBentoCard {
                 Text(
                     text = "App rule not found.",
                     style = MaterialTheme.typography.titleMedium,
                     color = colors.ink
                 )
-                Spacer(modifier = Modifier.height(OutloopMetrics.SectionSpacing))
+                Spacer(modifier = Modifier.height(12.dp))
                 OutloopPrimaryButton(text = "Back", onClick = onBack)
             }
         }
         return
     }
 
-    val isSnoozed = rule.snoozeUntilMs > currentTimeMs
+    val isSnoozed = rule.snoozeUntilMs > System.currentTimeMillis()
 
-    OutloopSubScreenScaffold(
-        onBack = onBack,
-        bottomBar = {
-            OutloopPrimaryButton(
-                text = "Preview pause screen",
-                onClick = { showPreviewOverlay = true },
-                modifier = Modifier.testTag("detail_preview_button")
-            )
-        }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .navigationBarsPadding(),
+        contentAlignment = Alignment.TopCenter
     ) {
-        OutloopStaggeredEntrance(index = 0) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .widthIn(max = 600.dp)
+        ) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 20.dp, top = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                OutloopAppMonogramBadge(
-                    appName = rule.displayName,
-                    packageName = rule.packageName,
-                    size = OutloopMetrics.AppDetailBadgeSize,
-                    cornerRadius = OutloopMetrics.AppDetailBadgeCornerRadius
-                )
-                Column {
-                    Text(
-                        text = rule.displayName,
-                        style = MaterialTheme.typography.headlineLarge,
-                        color = colors.ink
-                    )
-                    Text(
-                        text = "${rule.feedLabel} \u00B7 ${if (rule.enabled) "Protected" else "Off"}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.secondaryInk
-                    )
-                }
+                OutloopBackButton(onClick = onBack)
             }
-        }
 
-        OutloopStaggeredEntrance(index = 1) {
-            OutloopTonalCard(
-                cornerRadius = OutloopMetrics.CardCornerRadius,
-                contentPadding = PaddingValues(0.dp)
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = OutloopMetrics.NavRowMinHeight)
-                        .padding(horizontal = OutloopMetrics.ListRowPaddingHorizontal, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Text(
-                        text = "Protect ${rule.displayName}",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Normal),
-                        color = colors.ink
+                    OutloopAppMonogramBadge(
+                        appName = rule.displayName,
+                        packageName = rule.packageName,
+                        size = 56.dp,
+                        cornerRadius = 17.dp,
+                        preferMonogram = true
                     )
-                    OutloopSwitch(
-                        checked = rule.enabled,
-                        onCheckedChange = onToggleEnabled,
-                        contentDescription = "Protect ${rule.displayName}",
-                        modifier = Modifier.testTag("detail_protect_switch")
-                    )
+                    Column {
+                        Text(
+                            text = rule.displayName,
+                            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
+                            color = colors.ink
+                        )
+                        Text(
+                            text = "${rule.feedLabel} \u00B7 ${if (rule.enabled) "Guarded" else "Off"}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.secondaryInk
+                        )
+                    }
                 }
-                OutloopHairlineDivider()
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = OutloopMetrics.NavRowMinHeight)
-                        .padding(horizontal = OutloopMetrics.ListRowPaddingHorizontal, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "Feed Outloop watches",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Normal),
-                        color = colors.ink
-                    )
-                    Text(
-                        text = rule.feedLabel,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = colors.secondaryInk
-                    )
-                }
-            }
-        }
 
-        OutloopStaggeredEntrance(index = 2) {
-            Column(verticalArrangement = Arrangement.spacedBy(OutloopMetrics.ItemSpacing)) {
+                OutloopBentoCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 54.dp)
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Guard ${rule.displayName}",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Normal),
+                            color = colors.ink
+                        )
+                        OutloopSwitch(
+                            checked = rule.enabled,
+                            onCheckedChange = onToggleEnabled,
+                            contentDescription = "Guard ${rule.displayName}",
+                            modifier = Modifier.testTag("detail_protect_switch")
+                        )
+                    }
+                    OutloopHairlineDivider()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 52.dp)
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Feed Outloop watches",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Normal),
+                            color = colors.ink
+                        )
+                        Text(
+                            text = rule.feedLabel,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = colors.secondaryInk
+                        )
+                    }
+                }
+
                 OutloopSectionHeader(text = "When a feed opens")
-                listOf(
-                    InterventionMode.OVERLAY,
-                    InterventionMode.BACK,
-                    InterventionMode.HOME_TAB
-                ).forEach { mode ->
-                    OutloopRadioOptionCard(
-                        title = mode.shortLabel,
-                        subtitle = mode.explanation,
-                        selected = rule.interventionMode == mode,
-                        onClick = { onSelectMode(mode) },
-                        modifier = Modifier.testTag("detail_mode_${mode.name.lowercase()}")
-                    )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        InterventionMode.OVERLAY,
+                        InterventionMode.BACK,
+                        InterventionMode.HOME_TAB
+                    ).forEach { mode ->
+                        OutloopRadioOptionCard(
+                            title = mode.shortLabel,
+                            subtitle = mode.explanation,
+                            selected = rule.interventionMode == mode,
+                            onClick = { onSelectMode(mode) },
+                            modifier = Modifier.testTag("detail_mode_${mode.name.lowercase()}")
+                        )
+                    }
                 }
-            }
-        }
 
-        OutloopStaggeredEntrance(index = 3) {
-            Column(verticalArrangement = Arrangement.spacedBy(OutloopMetrics.ItemSpacing)) {
                 OutloopSectionHeader(text = "Just for now")
-                OutloopTonalCard(
-                    cornerRadius = OutloopMetrics.CardCornerRadius,
-                    contentPadding = PaddingValues(0.dp)
-                ) {
+                OutloopBentoCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
                     DetailActionRow(
                         title = "Allow once",
                         subtitle = "Lets the next feed open without a pause.",
@@ -201,20 +210,20 @@ fun AppDetailScreen(
                     OutloopHairlineDivider()
                     if (isSnoozed) {
                         DetailActionRow(
-                            title = "Resume protection",
+                            title = "Resume guard",
                             subtitle = "Ends the active pause for ${rule.displayName}.",
                             onClick = {
                                 onResumeSnooze()
-                                onShowToast("${rule.displayName} protection resumed.")
+                                onShowToast("${rule.displayName} guard resumed.")
                             }
                         )
                     } else {
                         DetailActionRow(
-                            title = "Snooze for 15 minutes",
-                            subtitle = "Pauses protection for ${rule.displayName} only.",
+                            title = "Pause for 15 minutes",
+                            subtitle = "Pauses Guard for ${rule.displayName} only.",
                             onClick = {
                                 onSnoozeMinutes(15)
-                                onShowToast("Snoozed ${rule.displayName} for 15 minutes.")
+                                onShowToast("Paused ${rule.displayName} for 15 minutes.")
                             }
                         )
                     }
@@ -222,9 +231,9 @@ fun AppDetailScreen(
                     DetailActionRow(
                         title = if (rule.enabled) "Turn off for ${rule.displayName}" else "Turn on for ${rule.displayName}",
                         subtitle = if (rule.enabled) {
-                            "Stops protecting it until you turn it back on."
+                            "Stops guarding it until you turn it back on."
                         } else {
-                            "Resumes protecting ${rule.feedLabel}."
+                            "Resumes guarding ${rule.feedLabel}."
                         },
                         titleColor = if (rule.enabled) colors.destructive else colors.primaryTint,
                         onClick = {
@@ -234,11 +243,23 @@ fun AppDetailScreen(
                                 onShowToast("${rule.displayName} is off. You can turn it back on any time.")
                                 onBack()
                             } else {
-                                onShowToast("${rule.displayName} protection is on.")
+                                onShowToast("${rule.displayName} guard is on.")
                             }
                         }
                     )
                 }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 16.dp)
+            ) {
+                OutloopPrimaryButton(
+                    text = "Preview loop broken screen",
+                    onClick = { showPreviewOverlay = true },
+                    modifier = Modifier.testTag("detail_preview_button")
+                )
             }
         }
     }
@@ -247,6 +268,10 @@ fun AppDetailScreen(
         OutloopSimulationOverlay(
             appName = rule.displayName,
             feedLabel = rule.feedLabel,
+            loopsToday = loopsToday,
+            timeKeptText = timeKeptText,
+            streakDays = streakDays,
+            strictModeEnabled = strictModeEnabled,
             onActionFeedback = onShowToast,
             onDismiss = { showPreviewOverlay = false }
         )
@@ -264,12 +289,8 @@ private fun DetailActionRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = OutloopMetrics.RowMinHeight)
             .clickable(onClick = onClick)
-            .padding(
-                horizontal = OutloopMetrics.ListRowPaddingHorizontal,
-                vertical = OutloopMetrics.ListRowPaddingVertical
-            )
+            .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Text(
             text = title,

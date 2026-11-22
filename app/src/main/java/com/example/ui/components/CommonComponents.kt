@@ -1,26 +1,16 @@
 package com.example.ui.components
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -30,15 +20,15 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,6 +36,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -58,23 +49,18 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
@@ -92,10 +78,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.service.InstalledAppDetector
 import com.example.ui.theme.LocalHapticsEnabled
-import com.example.ui.theme.OutloopMetrics
+import com.example.ui.theme.ManropeFontFamily
 import com.example.ui.theme.OutloopTheme
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -112,64 +97,10 @@ fun rememberOutloopHaptic(): () -> Unit {
 }
 
 /**
- * Spring press-scale micro-interaction shared across interactive buttons, pills, and cards.
- */
-fun Modifier.outloopPressScale(
-    interactionSource: MutableInteractionSource,
-    pressedScale: Float = 0.97f
-): Modifier = composed {
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) pressedScale else 1f,
-        animationSpec = spring(
-            dampingRatio = 0.72f,
-            stiffness = Spring.StiffnessMedium
-        ),
-        label = "outloopPressScale"
-    )
-    this.graphicsLayer {
-        scaleX = scale
-        scaleY = scale
-    }
-}
-
-/**
- * Subtle staggered spring slide-and-fade entrance for cards and content groups.
+ * Calm uniform warm linen canvas for the Tonal Bento design system (zero glass or atmospheric blobs).
  */
 @Composable
-fun OutloopStaggeredEntrance(
-    index: Int,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
-) {
-    val progress = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        val delayMs = (index.coerceIn(0, 6) * 32L)
-        if (delayMs > 0L) delay(delayMs)
-        progress.animateTo(
-            targetValue = 1f,
-            animationSpec = spring(
-                dampingRatio = 0.86f,
-                stiffness = Spring.StiffnessMediumLow
-            )
-        )
-    }
-    Box(
-        modifier = modifier.graphicsLayer {
-            val v = progress.value
-            alpha = v.coerceIn(0.05f, 1f)
-            translationY = (1f - v) * 16f
-        }
-    ) {
-        content()
-    }
-}
-
-/**
- * Calm, uniform Outloop canvas without radial gradients or blur overlays.
- */
-@Composable
-fun OutloopCanvas(
+fun OutloopBentoCanvas(
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit
 ) {
@@ -183,115 +114,67 @@ fun OutloopCanvas(
 }
 
 /**
- * Unified top header for the 3 primary tabs (Home, Insights, Settings) ensuring consistent
- * title positioning, eyebrow alignment, and compact vertical spacing.
+ * Shared top bar for Home, Insights, and Settings:
+ * Open-loop mark + "Outloop" wordmark on left, dynamic guard status pill on right,
+ * and display title ("Today", "Insights", "Settings") beneath.
  */
 @Composable
-fun OutloopTabHeader(
+fun OutloopBentoHeader(
     title: String,
-    modifier: Modifier = Modifier,
-    eyebrow: String? = null,
-    trailing: (@Composable () -> Unit)? = null
+    statusText: String,
+    statusTone: PillTone,
+    onStatusClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
 ) {
     val colors = OutloopTheme.colors
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        if (!eyebrow.isNullOrBlank()) {
-            Text(
-                text = eyebrow,
-                style = MaterialTheme.typography.labelMedium,
-                color = colors.secondaryInk
-            )
-        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.displayLarge,
-                color = colors.ink
-            )
-            if (trailing != null) {
-                trailing()
-            }
-        }
-    }
-}
-
-/**
- * Unified sub-screen scaffold shared across Manage Apps, App Detail, Privacy, and Diagnostics
- * so back button placement, margins, typography, and sticky footer spacing stay identical.
- */
-@Composable
-fun OutloopSubScreenScaffold(
-    onBack: () -> Unit,
-    modifier: Modifier = Modifier,
-    bottomBar: (@Composable ColumnScope.() -> Unit)? = null,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .navigationBarsPadding(),
-        contentAlignment = Alignment.TopCenter
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .widthIn(max = OutloopMetrics.MaxContentWidth)
-        ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        start = OutloopMetrics.TopBarStartPadding,
-                        end = OutloopMetrics.ScreenHorizontalPadding,
-                        top = OutloopMetrics.TopBarTopPadding
-                    ),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                OutloopBackButton(onClick = onBack)
-            }
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(
-                        horizontal = OutloopMetrics.ScreenHorizontalPadding,
-                        vertical = OutloopMetrics.SectionSpacing
-                    ),
-                verticalArrangement = Arrangement.spacedBy(OutloopMetrics.SectionSpacing),
-                content = content
-            )
-
-            if (bottomBar != null) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(
-                            horizontal = OutloopMetrics.ScreenHorizontalPadding,
-                            vertical = 12.dp
-                        ),
-                    verticalArrangement = Arrangement.spacedBy(OutloopMetrics.ItemSpacing),
-                    content = bottomBar
+                OutloopMark(
+                    size = 24.dp,
+                    color = colors.ink,
+                    strokeWidth = 3.2.dp
+                )
+                Text(
+                    text = "Outloop",
+                    fontFamily = ManropeFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 19.sp,
+                    letterSpacing = (-0.3).sp,
+                    color = colors.ink
                 )
             }
+            OutloopStatusPill(
+                text = statusText,
+                tone = statusTone,
+                onClick = onStatusClick,
+                modifier = Modifier.testTag("status_pill")
+            )
         }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.displayLarge,
+            color = colors.ink
+        )
     }
 }
 
 /**
- * Exact Outloop "One open loop" vector geometry sweeping counter-clockwise
- * with an open 36-degree gap at the upper right (-27 deg to -63 deg).
+ * Exact Outloop "One open loop" vector geometry matching -27 deg start, -324 deg sweep.
  */
 @Composable
 fun OutloopMark(
-    size: Dp = 22.dp,
+    size: Dp = 26.dp,
     color: Color = OutloopTheme.colors.primaryTint,
     strokeWidth: Dp? = null,
     modifier: Modifier = Modifier
@@ -313,105 +196,36 @@ fun OutloopMark(
     }
 }
 
-@Composable
-fun OutloopWelcomeArtwork(
-    modifier: Modifier = Modifier
-) {
-    val colors = OutloopTheme.colors
-    val infiniteTransition = rememberInfiniteTransition(label = "welcomeHeroMotion")
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 0.965f,
-        targetValue = 1.035f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 3600, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "welcomePulseScale"
-    )
-    val swayDegrees by infiniteTransition.animateFloat(
-        initialValue = -5f,
-        targetValue = 5f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 4800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "welcomeSwayDegrees"
-    )
-
-    Canvas(modifier = modifier) {
-        val cx = size.width / 2f
-        val cy = size.height * 0.52f
-        val maxRadius = (minOf(size.width, size.height) * 0.40f * pulseScale).coerceAtLeast(32f)
-
-        val outerR1 = maxRadius
-        val outerR2 = maxRadius * 0.76f
-        val mainR = maxRadius * 0.51f
-        val mainStrokePx = (mainR * 0.25f).coerceIn(8.dp.toPx(), 15.dp.toPx())
-
-        rotate(degrees = swayDegrees, pivot = Offset(cx, cy)) {
-            drawArc(
-                color = colors.welcomeOuterRing.copy(alpha = 0.18f),
-                startAngle = -27f,
-                sweepAngle = -324f,
-                useCenter = false,
-                topLeft = Offset(cx - outerR1, cy - outerR1),
-                size = Size(outerR1 * 2f, outerR1 * 2f),
-                style = Stroke(width = 1.5.dp.toPx(), cap = StrokeCap.Round)
-            )
-        }
-        rotate(degrees = -swayDegrees * 0.7f, pivot = Offset(cx, cy)) {
-            drawArc(
-                color = colors.welcomeOuterRing.copy(alpha = 0.30f),
-                startAngle = -27f,
-                sweepAngle = -324f,
-                useCenter = false,
-                topLeft = Offset(cx - outerR2, cy - outerR2),
-                size = Size(outerR2 * 2f, outerR2 * 2f),
-                style = Stroke(width = 1.5.dp.toPx(), cap = StrokeCap.Round)
-            )
-        }
-        drawArc(
-            color = Color(0xFFFAF9F5),
-            startAngle = -27f,
-            sweepAngle = -324f,
-            useCenter = false,
-            topLeft = Offset(cx - mainR, cy - mainR),
-            size = Size(mainR * 2f, mainR * 2f),
-            style = Stroke(width = mainStrokePx, cap = StrokeCap.Round)
-        )
-    }
-}
-
 /**
- * Crisp tonal card surface with a 1dp hairline border and zero glass/blur effects.
+ * Crisp matte Tonal Bento card with optional subtle hairline border and zero drop shadows.
  */
 @Composable
-fun OutloopTonalCard(
+fun OutloopBentoCard(
     modifier: Modifier = Modifier,
-    cornerRadius: Dp = OutloopMetrics.CardCornerRadius,
-    elevated: Boolean = false,
-    contentPadding: PaddingValues = OutloopMetrics.CardPadding,
+    cornerRadius: Dp = 24.dp,
     containerColor: Color? = null,
+    borderColor: Color? = OutloopTheme.colors.cardBorder,
+    contentPadding: PaddingValues = PaddingValues(20.dp),
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val colors = OutloopTheme.colors
     val shape = RoundedCornerShape(cornerRadius)
-    val fill = containerColor ?: if (elevated) colors.surfaceElevated else colors.surfaceCard
-    val interactionSource = remember { MutableInteractionSource() }
+    val fill = containerColor ?: colors.cardSurface
 
     val cardModifier = modifier
-        .then(if (onClick != null) Modifier.outloopPressScale(interactionSource, 0.985f) else Modifier)
         .clip(shape)
         .background(fill)
-        .border(1.dp, colors.hairlineBorder, shape)
+        .then(
+            if (borderColor != null) {
+                Modifier.border(1.dp, borderColor, shape)
+            } else {
+                Modifier
+            }
+        )
         .then(
             if (onClick != null) {
-                Modifier.clickable(
-                    interactionSource = interactionSource,
-                    indication = LocalIndication.current,
-                    onClick = onClick
-                )
+                Modifier.clickable(onClick = onClick)
             } else {
                 Modifier
             }
@@ -440,21 +254,20 @@ fun OutloopStatusBannerCard(
 ) {
     val colors = OutloopTheme.colors
     val (bg, fg) = when (tone) {
-        StatusBannerTone.SUCCESS -> colors.okBg to colors.okText
-        StatusBannerTone.WARNING -> colors.warnBg to colors.warnText
+        StatusBannerTone.SUCCESS -> colors.mintBg to colors.mintInk
+        StatusBannerTone.WARNING -> colors.peachBg to colors.warnText
         StatusBannerTone.INFO -> colors.infoBg to colors.infoText
     }
-    val shape = RoundedCornerShape(OutloopMetrics.SubCardCornerRadius)
+    val shape = RoundedCornerShape(22.dp)
     Box(
         modifier = modifier
             .fillMaxWidth()
             .clip(shape)
             .background(bg)
-            .border(1.dp, fg.copy(alpha = 0.14f), shape)
-            .padding(14.dp)
+            .padding(16.dp)
     ) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.Top
         ) {
             Icon(
@@ -463,7 +276,7 @@ fun OutloopStatusBannerCard(
                 tint = fg,
                 modifier = Modifier
                     .padding(top = 1.dp)
-                    .size(19.dp)
+                    .size(22.dp)
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -475,10 +288,10 @@ fun OutloopStatusBannerCard(
                 Text(
                     text = body,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = fg.copy(alpha = 0.92f)
+                    color = fg.copy(alpha = 0.90f)
                 )
                 if (action != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     action()
                 }
             }
@@ -497,26 +310,24 @@ fun OutloopPrimaryButton(
 ) {
     val colors = OutloopTheme.colors
     val haptic = rememberOutloopHaptic()
-    val interactionSource = remember { MutableInteractionSource() }
     Button(
         onClick = {
             haptic()
             onClick()
         },
         enabled = enabled,
-        interactionSource = interactionSource,
         shape = CircleShape,
+        elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp, 0.dp, 0.dp, 0.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor ?: colors.primaryTint,
             contentColor = contentColor ?: colors.onPrimaryTint,
-            disabledContainerColor = (containerColor ?: colors.primaryTint).copy(alpha = 0.45f),
+            disabledContainerColor = (containerColor ?: colors.primaryTint).copy(alpha = 0.40f),
             disabledContentColor = (contentColor ?: colors.onPrimaryTint).copy(alpha = 0.72f)
         ),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp),
         modifier = modifier
-            .outloopPressScale(interactionSource)
             .fillMaxWidth()
-            .heightIn(min = OutloopMetrics.ButtonMinHeight)
+            .heightIn(min = 54.dp)
     ) {
         Text(
             text = text,
@@ -535,25 +346,60 @@ fun OutloopSecondaryButton(
 ) {
     val colors = OutloopTheme.colors
     val haptic = rememberOutloopHaptic()
-    val interactionSource = remember { MutableInteractionSource() }
     Button(
         onClick = {
             haptic()
             onClick()
         },
         enabled = enabled,
-        interactionSource = interactionSource,
         shape = CircleShape,
-        border = BorderStroke(1.dp, colors.hairlineBorder),
+        elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp, 0.dp, 0.dp, 0.dp),
+        border = BorderStroke(1.dp, colors.strokeStrong),
         colors = ButtonDefaults.buttonColors(
-            containerColor = colors.surfaceElevated,
-            contentColor = colors.ink
+            containerColor = colors.cardSurface,
+            contentColor = colors.ink,
+            disabledContainerColor = colors.cardSurface.copy(alpha = 0.7f),
+            disabledContentColor = colors.secondaryInk
         ),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
         modifier = modifier
-            .outloopPressScale(interactionSource)
             .fillMaxWidth()
-            .heightIn(min = OutloopMetrics.ButtonMinHeight)
+            .heightIn(min = 52.dp)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+fun OutloopTonalButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    containerColor: Color = OutloopTheme.colors.mintBg,
+    contentColor: Color = OutloopTheme.colors.mintInk
+) {
+    val haptic = rememberOutloopHaptic()
+    Button(
+        onClick = {
+            haptic()
+            onClick()
+        },
+        enabled = enabled,
+        shape = CircleShape,
+        elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp, 0.dp, 0.dp, 0.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = containerColor,
+            contentColor = contentColor
+        ),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 52.dp)
     ) {
         Text(
             text = text,
@@ -577,8 +423,7 @@ fun OutloopTextButton(
             haptic()
             onClick()
         },
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-        modifier = modifier.heightIn(min = OutloopMetrics.ButtonMinHeight)
+        modifier = modifier.heightIn(min = 48.dp)
     ) {
         Text(
             text = text,
@@ -596,37 +441,24 @@ fun OutloopBackButton(
 ) {
     val colors = OutloopTheme.colors
     val haptic = rememberOutloopHaptic()
-    val interactionSource = remember { MutableInteractionSource() }
-    // Keeps full 48dp minimum interactive touch target with a compact 38dp visual circle
     Box(
         modifier = modifier
-            .outloopPressScale(interactionSource, 0.94f)
             .size(48.dp)
             .clip(CircleShape)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = LocalIndication.current
-            ) {
+            .background(colors.cardSurface)
+            .border(1.dp, colors.cardBorder, CircleShape)
+            .clickable {
                 haptic()
                 onClick()
             },
         contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .clip(CircleShape)
-                .background(colors.surfaceCard)
-                .border(1.dp, colors.hairlineBorder, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
-                contentDescription = contentDescription,
-                tint = colors.ink,
-                modifier = Modifier.size(22.dp)
-            )
-        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
+            contentDescription = contentDescription,
+            tint = colors.ink,
+            modifier = Modifier.size(26.dp)
+        )
     }
 }
 
@@ -645,14 +477,14 @@ fun OutloopSwitch(
         label = "switchTrack"
     )
     val thumbOffset by animateDpAsState(
-        targetValue = if (checked) 20.dp else 2.dp,
+        targetValue = if (checked) 22.dp else 3.dp,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "switchThumb"
     )
 
     Box(
         modifier = modifier
-            .size(width = 48.dp, height = 48.dp)
+            .size(width = 52.dp, height = 48.dp)
             .semantics(mergeDescendants = true) {
                 this.contentDescription = contentDescription
                 this.stateDescription = if (checked) "On" else "Off"
@@ -671,22 +503,76 @@ fun OutloopSwitch(
     ) {
         Box(
             modifier = Modifier
-                .size(width = 46.dp, height = 28.dp)
+                .size(width = 50.dp, height = 30.dp)
                 .clip(CircleShape)
                 .background(if (enabled) trackColor else colors.switchOff.copy(alpha = 0.55f))
         ) {
             Box(
                 modifier = Modifier
-                    .offset(x = thumbOffset, y = 2.dp)
+                    .offset(x = thumbOffset, y = 3.dp)
                     .size(24.dp)
-                    .shadow(1.dp, CircleShape)
                     .clip(CircleShape)
-                    .background(Color.White)
+                    .background(if (checked) colors.switchOnThumb else Color.White)
             )
         }
     }
 }
 
+/**
+ * Rounded-square checkbox matching the Choose Apps Tonal Bento mockup.
+ */
+@Composable
+fun OutloopCheckbox(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    contentDescription: String,
+    modifier: Modifier = Modifier
+) {
+    val colors = OutloopTheme.colors
+    val haptic = rememberOutloopHaptic()
+    val shape = RoundedCornerShape(8.dp)
+    Box(
+        modifier = modifier
+            .size(48.dp)
+            .semantics(mergeDescendants = true) {
+                this.contentDescription = contentDescription
+                this.stateDescription = if (checked) "Selected" else "Not selected"
+            }
+            .clickable(
+                role = Role.Checkbox,
+                onClick = {
+                    haptic()
+                    onCheckedChange(!checked)
+                }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(26.dp)
+                .clip(shape)
+                .background(if (checked) colors.primaryTint else colors.cardSurface)
+                .then(
+                    if (checked) Modifier
+                    else Modifier.border(1.5.dp, colors.strokeStrong, shape)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (checked) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = null,
+                    tint = colors.onPrimaryTint,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Outlined capsule segmented control with mint active segment fill matching Insights & Pause Guard mockups.
+ */
 @Composable
 fun <T> OutloopSegmentedControl(
     options: List<Pair<T, String>>,
@@ -699,50 +585,42 @@ fun <T> OutloopSegmentedControl(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .height(46.dp)
             .clip(CircleShape)
-            .background(colors.surfaceSubtle)
-            .border(1.dp, colors.hairlineBorder, CircleShape)
-            .padding(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp)
+            .background(colors.cardSurface)
+            .border(1.dp, colors.strokeStrong, CircleShape),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        options.forEach { (value, label) ->
+        options.forEachIndexed { index, (value, label) ->
             val isSelected = value == selected
-            val pillBg by animateColorAsState(
-                targetValue = if (isSelected) colors.segmentThumb else Color.Transparent,
-                animationSpec = tween(durationMillis = 180),
-                label = "segmentPillBg"
-            )
-            val labelColor by animateColorAsState(
-                targetValue = if (isSelected) colors.ink else colors.secondaryInk,
-                animationSpec = tween(durationMillis = 180),
-                label = "segmentLabelColor"
-            )
+            if (index > 0) {
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .fillMaxHeight()
+                        .background(colors.divider)
+                )
+            }
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = 38.dp)
-                    .clip(CircleShape)
-                    .background(pillBg)
-                    .then(
-                        if (isSelected) {
-                            Modifier.border(1.dp, colors.hairlineBorder, CircleShape)
-                        } else {
-                            Modifier
-                        }
-                    )
+                    .fillMaxHeight()
+                    .background(if (isSelected) colors.segmentThumb else Color.Transparent)
                     .clickable {
                         if (!isSelected) {
                             haptic()
                             onSelect(value)
                         }
                     }
-                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                    .padding(horizontal = 6.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = labelColor,
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                    ),
+                    color = if (isSelected) colors.mintInk else colors.ink,
                     maxLines = 1,
                     textAlign = TextAlign.Center
                 )
@@ -755,6 +633,7 @@ enum class PillTone {
     NEUTRAL,
     SUCCESS,
     WARNING,
+    PEACH,
     ACTIVE_DOT
 }
 
@@ -767,67 +646,35 @@ fun OutloopStatusPill(
     onClick: (() -> Unit)? = null
 ) {
     val colors = OutloopTheme.colors
-    val interactionSource = remember { MutableInteractionSource() }
     val (bg, fg) = when (tone) {
-        PillTone.NEUTRAL, PillTone.ACTIVE_DOT -> colors.surfaceCard to colors.ink
-        PillTone.SUCCESS -> colors.okBg to colors.okText
+        PillTone.NEUTRAL -> colors.cardSurface to colors.ink
+        PillTone.SUCCESS, PillTone.ACTIVE_DOT -> colors.mintBg to colors.mintInk
+        PillTone.PEACH -> colors.peachBg to colors.peachInk
         PillTone.WARNING -> colors.warnBg to colors.warnText
     }
     Row(
         modifier = modifier
-            .then(if (onClick != null) Modifier.outloopPressScale(interactionSource, 0.96f) else Modifier)
-            .heightIn(min = if (onClick != null) 34.dp else 28.dp)
+            .heightIn(min = 32.dp)
             .clip(CircleShape)
             .background(bg)
             .then(
-                if (tone == PillTone.NEUTRAL || tone == PillTone.ACTIVE_DOT) {
-                    Modifier.border(1.dp, colors.hairlineBorder, CircleShape)
-                } else {
-                    Modifier.border(1.dp, fg.copy(alpha = 0.14f), CircleShape)
-                }
-            )
-            .then(
-                if (onClick != null) {
-                    Modifier.clickable(
-                        interactionSource = interactionSource,
-                        indication = LocalIndication.current,
-                        onClick = onClick
-                    )
+                if (tone == PillTone.NEUTRAL) {
+                    Modifier.border(1.dp, colors.cardBorder, CircleShape)
                 } else {
                     Modifier
                 }
             )
-            .padding(horizontal = 11.dp, vertical = 5.dp),
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 14.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        if (tone == PillTone.ACTIVE_DOT) {
-            val dotPulse by rememberInfiniteTransition(label = "statusDotPulse").animateFloat(
-                initialValue = 0.72f,
-                targetValue = 1.0f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "dotPulse"
-            )
-            Box(
-                modifier = Modifier
-                    .size(7.dp)
-                    .graphicsLayer {
-                        scaleX = dotPulse
-                        scaleY = dotPulse
-                        alpha = dotPulse
-                    }
-                    .clip(CircleShape)
-                    .background(colors.switchOn)
-            )
-        } else if (leadingIcon != null) {
+        if (leadingIcon != null) {
             Icon(
                 imageVector = leadingIcon,
                 contentDescription = null,
                 tint = fg,
-                modifier = Modifier.size(13.dp)
+                modifier = Modifier.size(14.dp)
             )
         }
         Text(
@@ -857,13 +704,13 @@ fun OutloopSectionHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 6.dp),
+            .padding(horizontal = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
             color = colors.secondaryInk
         )
         if (trailing != null) {
@@ -876,40 +723,44 @@ fun OutloopSectionHeader(
 fun OutloopIconBadge(
     icon: ImageVector,
     modifier: Modifier = Modifier,
-    size: Dp = OutloopMetrics.IconBadgeSize,
-    cornerRadius: Dp = OutloopMetrics.IconBadgeCornerRadius,
-    tint: Color? = null
+    size: Dp = 42.dp,
+    cornerRadius: Dp = 13.dp,
+    containerColor: Color = OutloopTheme.colors.mintBg,
+    tint: Color? = OutloopTheme.colors.mintInk
 ) {
     val colors = OutloopTheme.colors
     Box(
         modifier = modifier
             .size(size)
             .clip(RoundedCornerShape(cornerRadius))
-            .background(colors.surfaceSubtle)
-            .border(1.dp, colors.hairlineBorder, RoundedCornerShape(cornerRadius)),
+            .background(containerColor),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = tint ?: colors.primaryTint,
-            modifier = Modifier.size(OutloopMetrics.IconBadgeGlyphSize)
+            tint = tint ?: colors.mintInk,
+            modifier = Modifier.size(20.dp)
         )
     }
 }
 
+/**
+ * Dark-forest rounded-square monogram badge matching the Tonal Bento Home & Onboarding mockups.
+ */
 @Composable
 fun OutloopAppMonogramBadge(
     appName: String,
     modifier: Modifier = Modifier,
     packageName: String? = null,
-    size: Dp = OutloopMetrics.AppBadgeSize,
-    cornerRadius: Dp = OutloopMetrics.AppBadgeCornerRadius
+    size: Dp = 44.dp,
+    cornerRadius: Dp = 13.dp,
+    preferMonogram: Boolean = false
 ) {
     val colors = OutloopTheme.colors
     val context = LocalContext.current
-    val appIcon: ImageBitmap? by produceState<ImageBitmap?>(initialValue = null, packageName) {
-        value = if (!packageName.isNullOrBlank()) {
+    val appIcon: ImageBitmap? by produceState<ImageBitmap?>(initialValue = null, packageName, preferMonogram) {
+        value = if (!preferMonogram && !packageName.isNullOrBlank()) {
             withContext(Dispatchers.IO) {
                 InstalledAppDetector.loadCachedAppIcon(context, packageName)
             }
@@ -924,8 +775,7 @@ fun OutloopAppMonogramBadge(
         modifier = modifier
             .size(size)
             .clip(shape)
-            .background(colors.surfaceSubtle)
-            .border(1.dp, colors.hairlineBorder, shape),
+            .background(colors.badgeDarkBg),
         contentAlignment = Alignment.Center
     ) {
         if (appIcon != null) {
@@ -940,9 +790,9 @@ fun OutloopAppMonogramBadge(
         } else {
             Text(
                 text = letter,
-                fontSize = (size.value * 0.37f).sp,
+                fontSize = (size.value * 0.40f).sp,
                 fontWeight = FontWeight.Bold,
-                color = colors.primaryTint
+                color = colors.badgeDarkInk
             )
         }
     }
@@ -957,17 +807,16 @@ fun OutloopStepCircleBadge(
 ) {
     val colors = OutloopTheme.colors
     val (bg, fg) = when (tone) {
-        StatusBannerTone.SUCCESS -> colors.okBg to colors.okText
-        StatusBannerTone.WARNING -> colors.warnBg to colors.warnText
+        StatusBannerTone.SUCCESS -> colors.mintBg to colors.mintInk
+        StatusBannerTone.WARNING -> colors.peachBg to colors.warnText
         StatusBannerTone.INFO -> colors.infoBg to colors.infoText
-        null -> colors.surfaceSubtle to colors.primaryTint
+        null -> colors.mintBg to colors.mintInk
     }
     Box(
         modifier = modifier
-            .size(24.dp)
+            .size(28.dp)
             .clip(CircleShape)
-            .background(bg)
-            .then(if (tone == null) Modifier.border(1.dp, colors.hairlineBorder, CircleShape) else Modifier),
+            .background(bg),
         contentAlignment = Alignment.Center
     ) {
         if (icon != null) {
@@ -975,12 +824,12 @@ fun OutloopStepCircleBadge(
                 imageVector = icon,
                 contentDescription = null,
                 tint = fg,
-                modifier = Modifier.size(14.dp)
+                modifier = Modifier.size(16.dp)
             )
         } else {
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                 color = fg
             )
         }
@@ -998,46 +847,28 @@ fun OutloopRadioOptionCard(
 ) {
     val colors = OutloopTheme.colors
     val haptic = rememberOutloopHaptic()
-    val interactionSource = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(OutloopMetrics.SubCardCornerRadius)
-    val bgColor by animateColorAsState(
-        targetValue = if (selected) colors.surfaceElevated else colors.surfaceCard,
-        animationSpec = tween(180),
-        label = "radioCardBg"
-    )
-    val borderColor by animateColorAsState(
-        targetValue = if (selected) colors.primaryTint else colors.hairlineBorder,
-        animationSpec = tween(180),
-        label = "radioCardBorder"
-    )
-
+    val shape = RoundedCornerShape(20.dp)
     Row(
         modifier = modifier
-            .outloopPressScale(interactionSource, 0.985f)
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
             .clip(shape)
-            .background(bgColor)
+            .background(if (selected) colors.mintBg.copy(alpha = 0.55f) else colors.cardSurface)
             .border(
                 width = if (selected) 2.dp else 1.dp,
-                color = borderColor,
+                color = if (selected) colors.primaryTint else colors.cardBorder,
                 shape = shape
             )
-            .clickable(
-                role = Role.RadioButton,
-                interactionSource = interactionSource,
-                indication = LocalIndication.current
-            ) {
+            .clickable(role = Role.RadioButton) {
                 haptic()
                 onClick()
             }
-            .padding(horizontal = 14.dp, vertical = 11.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(20.dp)
+                .size(22.dp)
                 .clip(CircleShape)
                 .border(
                     width = 2.dp,
@@ -1046,19 +877,10 @@ fun OutloopRadioOptionCard(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            val dotScale by animateFloatAsState(
-                targetValue = if (selected) 1f else 0f,
-                animationSpec = spring(stiffness = Spring.StiffnessMedium),
-                label = "radioDotScale"
-            )
-            if (dotScale > 0.05f) {
+            if (selected) {
                 Box(
                     modifier = Modifier
-                        .size(9.dp)
-                        .graphicsLayer {
-                            scaleX = dotScale
-                            scaleY = dotScale
-                        }
+                        .size(10.dp)
                         .clip(CircleShape)
                         .background(colors.primaryTint)
                 )
@@ -1068,7 +890,7 @@ fun OutloopRadioOptionCard(
         Column(modifier = Modifier.weight(1f)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
                     text = title,
@@ -1079,13 +901,13 @@ fun OutloopRadioOptionCard(
                     Box(
                         modifier = Modifier
                             .clip(CircleShape)
-                            .background(colors.recommendedChipBg)
-                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                            .background(colors.mintBg)
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
                     ) {
                         Text(
                             text = badgeText,
                             style = MaterialTheme.typography.labelSmall,
-                            color = colors.primaryTint
+                            color = colors.mintInk
                         )
                     }
                 }
@@ -1105,6 +927,8 @@ fun OutloopListNavRow(
     title: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    leadingIcon: ImageVector? = null,
     valueText: String? = null,
     titleColor: Color? = null,
     trailingBadge: (@Composable RowScope.() -> Unit)? = null
@@ -1113,33 +937,46 @@ fun OutloopListNavRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = OutloopMetrics.NavRowMinHeight)
+            .heightIn(min = 56.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = OutloopMetrics.ListRowPaddingHorizontal, vertical = 10.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Normal),
-            color = titleColor ?: colors.ink,
-            modifier = Modifier.weight(1f)
-        )
+        if (leadingIcon != null) {
+            OutloopIconBadge(icon = leadingIcon)
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
+                color = titleColor ?: colors.ink
+            )
+            if (!subtitle.isNullOrBlank()) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.secondaryInk
+                )
+            }
+        }
         if (trailingBadge != null) {
             trailingBadge()
-        } else if (valueText != null) {
-            Text(
-                text = valueText,
-                style = MaterialTheme.typography.bodyLarge,
-                color = colors.secondaryInk
+        } else {
+            if (valueText != null) {
+                Text(
+                    text = valueText,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = colors.secondaryInk
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = colors.secondaryInk,
+                modifier = Modifier.size(18.dp)
             )
         }
-        Icon(
-            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-            contentDescription = null,
-            tint = colors.secondaryInk,
-            modifier = Modifier.size(16.dp)
-        )
     }
 }
 
@@ -1151,19 +988,19 @@ fun OutloopToastPill(
     val colors = OutloopTheme.colors
     Surface(
         shape = RoundedCornerShape(18.dp),
-        color = colors.surfaceElevated,
-        border = BorderStroke(1.dp, colors.hairlineBorder),
-        shadowElevation = 4.dp,
+        color = colors.heroSurface,
+        border = BorderStroke(1.dp, colors.cardBorder),
+        shadowElevation = 2.dp,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = OutloopMetrics.ScreenHorizontalPadding)
+            .padding(horizontal = 20.dp)
     ) {
         Text(
             text = message,
             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-            color = colors.ink,
+            color = colors.onHeroSurface,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
         )
     }
 }
@@ -1177,23 +1014,23 @@ fun InterventionBanner(
 ) {
     val colors = OutloopTheme.colors
     Surface(
-        shape = RoundedCornerShape(OutloopMetrics.SubCardCornerRadius),
-        color = colors.surfaceElevated,
-        border = BorderStroke(1.dp, colors.hairlineBorder),
-        shadowElevation = 4.dp,
+        shape = RoundedCornerShape(22.dp),
+        color = colors.cardSurfaceElevated,
+        border = BorderStroke(1.dp, colors.strokeStrong),
+        shadowElevation = 2.dp,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = OutloopMetrics.ScreenHorizontalPadding, vertical = 6.dp)
+            .padding(horizontal = 20.dp, vertical = 8.dp)
             .testTag("intervention_banner")
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            OutloopMark(size = 16.dp, color = colors.switchOn)
+            OutloopMark(size = 18.dp, color = colors.primaryTint)
             Text(
                 text = toast.message,
                 style = MaterialTheme.typography.bodyMedium,
@@ -1240,14 +1077,14 @@ fun OutloopModalSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        shape = RoundedCornerShape(topStart = OutloopMetrics.SheetCornerRadius, topEnd = OutloopMetrics.SheetCornerRadius),
+        shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
         containerColor = colors.sheetSurface,
         contentColor = colors.ink,
         dragHandle = {
             Box(
                 modifier = Modifier
-                    .padding(top = 10.dp, bottom = 4.dp)
-                    .size(width = 36.dp, height = 4.dp)
+                    .padding(top = 12.dp, bottom = 6.dp)
+                    .size(width = 40.dp, height = 5.dp)
                     .clip(CircleShape)
                     .background(colors.strokeStrong)
             )
@@ -1257,8 +1094,8 @@ fun OutloopModalSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(start = OutloopMetrics.ScreenHorizontalPadding, end = OutloopMetrics.ScreenHorizontalPadding, bottom = 22.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
                 text = title,

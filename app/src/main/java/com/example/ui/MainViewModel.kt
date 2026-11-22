@@ -25,15 +25,11 @@ import com.example.service.InstalledAppDetector
 import com.example.service.LaunchableAppInfo
 import com.example.service.ProtectionHealthHelper
 import com.example.worker.RulesetSyncWorker
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -71,7 +67,6 @@ data class MainUiState(
     val preferences: AppPreferences = AppPreferences(),
     val rules: List<TargetAppRuleEntity> = emptyList(),
     val installedPackages: Set<String> = emptySet(),
-    val hasScannedInstalledApps: Boolean = true,
     val isAccessibilityEnabled: Boolean = false,
     val isServiceConnected: Boolean = false,
     val lastConnectedAtMs: Long = 0L,
@@ -99,7 +94,6 @@ data class MainUiState(
     val thirtyDayByAppBreakdown: List<AppBreakdownStat> = emptyList(),
     val lastDetectionSummary: String = "None recorded yet",
     val lastInterventionOutcomeSummary: String = "None recorded yet",
-    val foregroundAppSummary: String = "Waiting for monitored app",
     val recentToast: InterventionToastState? = null,
     val isSyncingRules: Boolean = false,
     val syncStatusMessage: String? = null,
@@ -111,12 +105,12 @@ data class MainUiState(
     val quietHoursEndLabel: String = "",
     val launchableApps: List<LaunchableAppInfo> = emptyList(),
     val streakDays: Int = 0,
-    val currentTimeMs: Long = System.currentTimeMillis()
+    val bestStreakDays: Int = 0,
+    val weeklyDeltaLabel: String? = null
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
-    private val app = (application as? FeedSurgeonApp)
-        ?: (application.applicationContext as FeedSurgeonApp)
+    private val app = application as FeedSurgeonApp
     private val interventionRepo = app.interventionRepository
     private val rulesetRepo = app.rulesetRepository
     private val backupManager = app.localBackupManager
@@ -133,13 +127,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         ProtectionHealthHelper.isNotificationPermissionGranted(application)
     )
     private val _installedPackages = MutableStateFlow<Set<String>>(emptySet())
-    private val _hasScannedInstalledApps = MutableStateFlow(false)
     private val _launchableApps = MutableStateFlow<List<LaunchableAppInfo>>(emptyList())
     private val _isSyncingRules = MutableStateFlow(false)
     private val _syncMessage = MutableStateFlow<String?>(null)
     private val _eventLogPreview = MutableStateFlow("")
     private val _eventLogSizeBytes = MutableStateFlow(0L)
-    private val _nowMs = MutableStateFlow(System.currentTimeMillis())
+
+    init {
+        refreshEventLog()
+        viewModelScope.launch {
+            eventLogger.logVersion.collect {
+                _eventLogPreview.value = eventLogger.readTail(120)
+                _eventLogSizeBytes.value = eventLogger.getFileSizeBytes()
+            }
+        }
+    }
 
     private data class TransientState(
         val accessibilityEnabled: Boolean,
@@ -148,26 +150,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val batteryOptimizationIgnored: Boolean,
         val notificationPermissionGranted: Boolean,
         val installedPackages: Set<String>,
-        val hasScannedInstalledApps: Boolean,
         val launchableApps: List<LaunchableAppInfo>,
         val isSyncing: Boolean,
         val syncMessage: String?,
         val toast: InterventionToastState?,
         val logPreview: String,
-        val logSizeBytes: Long,
-        val nowMs: Long,
-        val foregroundAppLabel: String?
+        val logSizeBytes: Long
     )
 
-    private data class Tuple8<A, B, C, D, E, F, G, H>(
+    private data class Tuple6<A, B, C, D, E, F>(
         val first: A,
         val second: B,
         val third: C,
         val fourth: D,
         val fifth: E,
-        val sixth: F,
-        val seventh: G,
-        val eighth: H
+        val sixth: F
     )
 
     private val syncAndLogFlow = combine(
@@ -176,32 +173,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         DiagnosticsBridge.recentToast,
         _eventLogPreview,
         _eventLogSizeBytes,
-        _launchableApps,
-        _nowMs,
-        DiagnosticsBridge.foregroundMonitoredAppLabel
+        _launchableApps
     ) { array ->
-        Tuple8(
+        Tuple6(
             array[0] as Boolean,
             array[1] as String?,
             array[2] as InterventionToastState?,
             array[3] as String,
             array[4] as Long,
             @Suppress("UNCHECKED_CAST")
-            (array[5] as List<LaunchableAppInfo>),
-            array[6] as Long,
-            array[7] as String?
+            (array[5] as List<LaunchableAppInfo>)
         )
     }
-
-    private data class Tuple7<A, B, C, D, E, F, G>(
-        val first: A,
-        val second: B,
-        val third: C,
-        val fourth: D,
-        val fifth: E,
-        val sixth: F,
-        val seventh: G
-    )
 
     private val environmentFlow = combine(
         _accessibilityEnabled,
@@ -209,18 +192,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         DiagnosticsBridge.lastConnectedTimestampMs,
         _batteryOptimizationIgnored,
         _notificationPermissionGranted,
-        _installedPackages,
-        _hasScannedInstalledApps
+        _installedPackages
     ) { array ->
-        Tuple7(
+        Tuple6(
             array[0] as Boolean,
             array[1] as Boolean,
             array[2] as Long,
             array[3] as Boolean,
             array[4] as Boolean,
             @Suppress("UNCHECKED_CAST")
-            (array[5] as Set<String>),
-            array[6] as Boolean
+            (array[5] as Set<String>)
         )
     }
 
@@ -235,15 +216,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             batteryOptimizationIgnored = env.fourth,
             notificationPermissionGranted = env.fifth,
             installedPackages = env.sixth,
-            hasScannedInstalledApps = env.seventh,
             launchableApps = extra.sixth,
             isSyncing = extra.first,
             syncMessage = extra.second,
             toast = extra.third,
             logPreview = extra.fourth,
-            logSizeBytes = extra.fifth,
-            nowMs = extra.seventh,
-            foregroundAppLabel = extra.eighth
+            logSizeBytes = extra.fifth
         )
     }
 
@@ -253,12 +231,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         interventionRepo.eventsLast30Days,
         transientFlow
     ) { prefs, rules, events, transient ->
-        val installed = if (transient.hasScannedInstalledApps) {
-            transient.installedPackages
-        } else {
+        val installed = transient.installedPackages.ifEmpty {
             InstalledAppDetector.getInstalledPackages(app, rules.map { it.packageName })
         }
-        val nowMs = transient.nowMs
+        val nowMs = System.currentTimeMillis()
         val countedEvents = filterCountedEvents(events)
 
         val todayStart = InterventionRepository.startOfTodayMs(nowMs)
@@ -272,12 +248,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val weekStart = InterventionRepository.startOfWeekDaysAgoMs(6, nowMs)
         val weekEvents = countedEvents.filter { it.timestampMs >= weekStart }
         val weekSeconds = weekEvents.sumOf { it.reclaimedSeconds }
+        val prevWeekStart = InterventionRepository.startOfWeekDaysAgoMs(13, nowMs)
+        val prevWeekEvents = countedEvents.filter { it.timestampMs in prevWeekStart until weekStart }
+        val prevWeekSeconds = prevWeekEvents.sumOf { it.reclaimedSeconds }
+        val weeklyDeltaLabel = computeWeeklyDeltaLabel(weekSeconds, prevWeekSeconds)
         val weekAllowedOnce = weekEvents.count { it.wasAllowedOnce }
 
         val thirtyDayStart = InterventionRepository.startOfWeekDaysAgoMs(27, nowMs)
         val thirtyDayEvents = countedEvents.filter { it.timestampMs >= thirtyDayStart }
         val thirtyDaySeconds = thirtyDayEvents.sumOf { it.reclaimedSeconds }
         val thirtyDayBuckets = buildThirtyDayWeekBuckets(thirtyDayEvents, nowMs)
+        val currentStreak = computeStreakDays(countedEvents, nowMs)
+        val bestStreak = computeBestStreakDays(countedEvents, nowMs, currentStreak)
 
         val todayByApp = buildAppBreakdown(rules, todayEvents)
         val weekByApp = buildAppBreakdown(rules, weekEvents)
@@ -308,7 +290,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             preferences = prefs,
             rules = rules,
             installedPackages = installed,
-            hasScannedInstalledApps = true,
             isAccessibilityEnabled = transient.accessibilityEnabled,
             isServiceConnected = transient.serviceConnected,
             lastConnectedAtMs = transient.lastConnectedAtMs,
@@ -336,8 +317,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             thirtyDayByAppBreakdown = thirtyDayByApp,
             lastDetectionSummary = lastDetectionSummary,
             lastInterventionOutcomeSummary = lastOutcomeSummary,
-            foregroundAppSummary = transient.foregroundAppLabel?.let { "$it (foreground)" }
-                ?: "Waiting for monitored app",
             recentToast = transient.toast,
             isSyncingRules = transient.isSyncing,
             syncStatusMessage = transient.syncMessage,
@@ -348,93 +327,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             isInQuietHours = isInQuietHours,
             quietHoursEndLabel = AppPreferences.formatMinutesOfDay(prefs.quietEndMinutes),
             launchableApps = transient.launchableApps,
-            streakDays = computeStreakDays(countedEvents, nowMs),
-            currentTimeMs = nowMs
+            streakDays = currentStreak,
+            bestStreakDays = bestStreak,
+            weeklyDeltaLabel = weeklyDeltaLabel
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = MainUiState()
     )
-
-    init {
-        refreshEventLog()
-        refreshInstalledApps(app)
-
-        viewModelScope.launch {
-            runCatching {
-                eventLogger.logVersion.collect {
-                    _eventLogPreview.value = eventLogger.readTail(120)
-                    _eventLogSizeBytes.value = eventLogger.getFileSizeBytes()
-                }
-            }
-        }
-
-        // Real-time Accessibility permission observer
-        viewModelScope.launch {
-            runCatching {
-                AccessibilityStatusHelper.observeServiceEnabled(app).collect { enabled ->
-                    _accessibilityEnabled.value = enabled
-                }
-            }
-        }
-
-        // Real-time app install / uninstall / update observer
-        viewModelScope.launch {
-            runCatching {
-                InstalledAppDetector.observePackageChanges(app).collect {
-                    refreshInstalledApps(app)
-                }
-            }
-        }
-
-        // Re-scan installed apps whenever tracked rule package names change (e.g. custom rules or sync)
-        viewModelScope.launch {
-            runCatching {
-                interventionRepo.allRules
-                    .map { rules -> rules.map { it.packageName }.sorted() }
-                    .distinctUntilChanged()
-                    .collect { packages ->
-                        if (packages.isNotEmpty()) {
-                            val scanned = withContext(Dispatchers.IO) {
-                                InstalledAppDetector.getInstalledPackages(app, packages)
-                            }
-                            _installedPackages.value = scanned
-                            _hasScannedInstalledApps.value = true
-                        }
-                    }
-            }
-        }
-
-        // Lightweight real-time clock for countdowns, quiet-hours transitions, and relative labels
-        viewModelScope.launch {
-            while (true) {
-                var nextDelayMs = 15_000L
-                try {
-                    val now = System.currentTimeMillis()
-                    _nowMs.value = now
-                    val current = uiState.value
-                    if (current.preferences.globalPauseUntilMs in 1L..now &&
-                        current.preferences.globalPauseUntilMs != Long.MAX_VALUE
-                    ) {
-                        interventionRepo.resumeGlobalProtection()
-                    }
-                    current.rules.forEach { rule ->
-                        if (rule.snoozeUntilMs in 1L..now) {
-                            interventionRepo.clearSnooze(rule.packageName)
-                        }
-                    }
-                    val hasActiveCountdown = (current.isGloballyPaused && current.globalPauseUntilMs != Long.MAX_VALUE) ||
-                        current.rules.any { it.snoozeUntilMs > now }
-                    nextDelayMs = if (hasActiveCountdown) 1_000L else 15_000L
-                } catch (ce: CancellationException) {
-                    throw ce
-                } catch (_: Throwable) {
-                }
-                delay(nextDelayMs)
-            }
-        }
-    }
 
     fun refreshAccessibilityStatus(context: Context) {
         _accessibilityEnabled.value = AccessibilityStatusHelper.isServiceEnabled(context)
@@ -449,40 +350,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun refreshInstalledApps(context: Context) {
-        val appContext = context.applicationContext ?: context
+        val packages = uiState.value.rules.map { it.packageName }.ifEmpty {
+            com.example.data.local.FeedSurgeonDatabase.BUILT_IN_PACKAGE_NAMES.toList()
+        }
+        _installedPackages.value = InstalledAppDetector.getInstalledPackages(context, packages)
         viewModelScope.launch {
-            runCatching {
-                val packages = withContext(Dispatchers.IO) {
-                    val dbPackages = runCatching {
-                        app.database.feedSurgeonDao().getAllRulesSnapshot().map { it.packageName }
-                    }.getOrDefault(emptyList())
-                    (com.example.data.local.FeedSurgeonDatabase.BUILT_IN_PACKAGE_NAMES + dbPackages).distinct()
-                }
-                val installed = withContext(Dispatchers.IO) {
-                    InstalledAppDetector.getInstalledPackages(appContext, packages)
-                }
-                _installedPackages.value = installed
-                _hasScannedInstalledApps.value = true
-                val discovered = withContext(Dispatchers.IO) {
-                    InstalledAppDetector.getLaunchableApps(appContext)
-                }
-                _launchableApps.value = discovered
+            val discovered = withContext(Dispatchers.IO) {
+                InstalledAppDetector.getLaunchableApps(context)
             }
+            _launchableApps.value = discovered
         }
     }
 
     fun triggerAutoSyncIfNeeded() {
         viewModelScope.launch {
-            runCatching {
-                rulesetRepo.ensureLocalCacheSeeded()
-                when (val result = rulesetRepo.autoSyncIfDue(force = false)) {
-                    is RulesetSyncResult.Success -> {
-                        if (!result.fromLocalCache) {
-                            _syncMessage.value = "Updated focus rules for ${result.updatedApps} apps"
-                        }
+            rulesetRepo.ensureLocalCacheSeeded()
+            when (val result = rulesetRepo.autoSyncIfDue(force = false)) {
+                is RulesetSyncResult.Success -> {
+                    if (!result.fromLocalCache) {
+                        _syncMessage.value = "Updated focus rules for ${result.updatedApps} apps"
                     }
-                    is RulesetSyncResult.Error -> Unit
                 }
+                is RulesetSyncResult.Error -> Unit
             }
         }
     }
@@ -508,10 +397,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refreshEventLog() {
         viewModelScope.launch {
-            runCatching {
-                _eventLogPreview.value = eventLogger.readTail(120)
-                _eventLogSizeBytes.value = eventLogger.getFileSizeBytes()
-            }
+            _eventLogPreview.value = eventLogger.readTail(120)
+            _eventLogSizeBytes.value = eventLogger.getFileSizeBytes()
         }
     }
 
@@ -709,6 +596,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setDailyBudgetCuts(budgetCuts: Int) {
         viewModelScope.launch {
             interventionRepo.setDailyBudgetCuts(budgetCuts)
+        }
+    }
+
+    fun setStrictModeEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            interventionRepo.setStrictModeEnabled(enabled)
         }
     }
 
@@ -944,6 +837,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return streak
     }
 
+    private fun computeBestStreakDays(
+        events: List<InterventionEventEntity>,
+        nowMs: Long,
+        currentStreak: Int
+    ): Int {
+        if (events.isEmpty()) return 0
+        var best = currentStreak
+        var run = 0
+        for (daysAgo in 29 downTo 0) {
+            val dayStart = InterventionRepository.startOfWeekDaysAgoMs(daysAgo, nowMs)
+            val dayEnd = dayStart + 24L * 60 * 60 * 1000
+            if (events.any { it.timestampMs in dayStart until dayEnd }) {
+                run++
+                if (run > best) best = run
+            } else {
+                run = 0
+            }
+        }
+        return best
+    }
+
+    private fun computeWeeklyDeltaLabel(
+        thisWeekSeconds: Int,
+        prevWeekSeconds: Int
+    ): String? {
+        if (thisWeekSeconds <= 0) return null
+        if (prevWeekSeconds <= 0) return "Active this week"
+        val pct = kotlin.math.round(((thisWeekSeconds - prevWeekSeconds) * 100f) / prevWeekSeconds.toFloat()).toInt()
+        return if (pct >= 0) "+$pct% vs last week" else "$pct% vs last week"
+    }
+
     private fun buildAppBreakdown(
         rules: List<TargetAppRuleEntity>,
         events: List<InterventionEventEntity>
@@ -967,9 +891,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun formatReclaimedDuration(totalSeconds: Int): String {
         val minutes = totalSeconds / 60
         return when {
-            minutes <= 0 -> "0 min"
-            minutes < 60 -> "~$minutes min"
-            else -> "~${minutes / 60} h ${minutes % 60} min"
+            minutes <= 0 -> "0m"
+            minutes < 60 -> "${minutes}m"
+            minutes % 60 == 0 -> "${minutes / 60}h"
+            else -> "${minutes / 60}h ${minutes % 60}m"
         }
     }
 

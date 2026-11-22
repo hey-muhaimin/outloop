@@ -50,7 +50,8 @@ data class AppPreferences(
     val quietStartMinutes: Int = DEFAULT_QUIET_START_MINUTES,
     val quietEndMinutes: Int = DEFAULT_QUIET_END_MINUTES,
     val quietOverrideUntilMs: Long = 0L,
-    val dailyBudgetCuts: Int = 0
+    val dailyBudgetCuts: Int = 0,
+    val strictModeEnabled: Boolean = false
 ) {
     fun isGloballyPaused(nowMs: Long = System.currentTimeMillis()): Boolean =
         globalPauseUntilMs == Long.MAX_VALUE || globalPauseUntilMs > nowMs
@@ -204,6 +205,7 @@ class SettingsDataStore(private val context: Context) {
         val QUIET_END_MINUTES = intPreferencesKey("quiet_end_minutes")
         val QUIET_OVERRIDE_UNTIL_MS = longPreferencesKey("quiet_override_until_ms")
         val DAILY_BUDGET_CUTS = intPreferencesKey("daily_budget_cuts")
+        val STRICT_MODE_ENABLED = booleanPreferencesKey("strict_mode_enabled")
     }
 
     val preferencesFlow: Flow<AppPreferences> = context.feedSurgeonDataStore.data.map { prefs ->
@@ -230,7 +232,8 @@ class SettingsDataStore(private val context: Context) {
             quietStartMinutes = (prefs[Keys.QUIET_START_MINUTES] ?: AppPreferences.DEFAULT_QUIET_START_MINUTES).coerceIn(0, 1439),
             quietEndMinutes = (prefs[Keys.QUIET_END_MINUTES] ?: AppPreferences.DEFAULT_QUIET_END_MINUTES).coerceIn(0, 1439),
             quietOverrideUntilMs = prefs[Keys.QUIET_OVERRIDE_UNTIL_MS] ?: 0L,
-            dailyBudgetCuts = (prefs[Keys.DAILY_BUDGET_CUTS] ?: 0).coerceIn(0, 100)
+            dailyBudgetCuts = (prefs[Keys.DAILY_BUDGET_CUTS] ?: 0).coerceIn(0, 100),
+            strictModeEnabled = prefs[Keys.STRICT_MODE_ENABLED] ?: false
         )
     }
 
@@ -319,6 +322,12 @@ class SettingsDataStore(private val context: Context) {
         }
     }
 
+    suspend fun setStrictModeEnabled(enabled: Boolean) {
+        context.feedSurgeonDataStore.edit { prefs ->
+            prefs[Keys.STRICT_MODE_ENABLED] = enabled
+        }
+    }
+
     suspend fun restoreBackupPreferences(
         appearanceMode: AppearanceMode,
         defaultInterventionMode: InterventionMode,
@@ -329,7 +338,8 @@ class SettingsDataStore(private val context: Context) {
         quietHoursEnabled: Boolean,
         quietStartMinutes: Int,
         quietEndMinutes: Int,
-        dailyBudgetCuts: Int
+        dailyBudgetCuts: Int,
+        strictModeEnabled: Boolean = false
     ) {
         context.feedSurgeonDataStore.edit { prefs ->
             prefs[Keys.APPEARANCE_MODE] = appearanceMode.name
@@ -343,6 +353,7 @@ class SettingsDataStore(private val context: Context) {
             prefs[Keys.QUIET_END_MINUTES] = quietEndMinutes.coerceIn(0, 1439)
             prefs[Keys.QUIET_OVERRIDE_UNTIL_MS] = 0L
             prefs[Keys.DAILY_BUDGET_CUTS] = dailyBudgetCuts.coerceIn(0, 100)
+            prefs[Keys.STRICT_MODE_ENABLED] = strictModeEnabled
         }
     }
 

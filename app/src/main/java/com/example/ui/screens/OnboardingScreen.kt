@@ -10,20 +10,15 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -34,7 +29,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -45,13 +39,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
-import androidx.compose.material.icons.outlined.Block
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.AccessibilityNew
 import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.Icon
@@ -64,55 +53,43 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.example.data.local.AppPreferences
 import com.example.data.local.TargetAppRuleEntity
-import com.example.data.model.InterventionMode
 import com.example.service.AccessibilityStatusHelper
 import com.example.ui.components.OutloopAppMonogramBadge
-import com.example.ui.components.OutloopBackButton
+import com.example.ui.components.OutloopBentoCard
+import com.example.ui.components.OutloopCheckbox
 import com.example.ui.components.OutloopHairlineDivider
-import com.example.ui.components.OutloopIconBadge
 import com.example.ui.components.OutloopMark
-import com.example.ui.components.OutloopModalSheet
 import com.example.ui.components.OutloopPrimaryButton
-import com.example.ui.components.OutloopRadioOptionCard
 import com.example.ui.components.OutloopSecondaryButton
-import com.example.ui.components.OutloopSimulationOverlay
-import com.example.ui.components.OutloopStaggeredEntrance
 import com.example.ui.components.OutloopStatusBannerCard
 import com.example.ui.components.OutloopStatusPill
 import com.example.ui.components.OutloopStepCircleBadge
-import com.example.ui.components.OutloopSwitch
 import com.example.ui.components.OutloopTextButton
-import com.example.ui.components.OutloopTonalCard
-import com.example.ui.components.OutloopWelcomeArtwork
 import com.example.ui.components.PillTone
 import com.example.ui.components.StatusBannerTone
-import com.example.ui.components.outloopPressScale
-import com.example.ui.theme.OutloopMetrics
 import com.example.ui.theme.OutloopTheme
 import kotlinx.coroutines.delay
 
 enum class OnboardingStep {
     WELCOME,
-    PRIVACY,
     CHOOSE_APPS,
-    STYLE,
     ALLOW_ACCESS,
     CHECKING,
     PROBLEM,
@@ -123,32 +100,25 @@ enum class OnboardingStep {
 fun OnboardingScreen(
     rules: List<TargetAppRuleEntity>,
     installedPackages: Set<String>,
-    defaultMode: InterventionMode,
+    preferences: AppPreferences = AppPreferences(),
     isAccessibilityEnabled: Boolean,
     isServiceConnected: Boolean,
     isBatteryOptimizationIgnored: Boolean,
     isNotificationPermissionGranted: Boolean,
     onRefreshProtectionHealth: () -> Unit,
     onToggleApp: (String, Boolean) -> Unit,
-    onSelectDefaultMode: (InterventionMode) -> Unit,
     onAcceptDisclosure: () -> Unit,
     onDeclineDisclosure: () -> Unit,
     onOpenPrivacyDetails: () -> Unit,
-    onCompleteOnboarding: () -> Unit,
-    onGoToSettings: () -> Unit,
-    hasScannedInstalledApps: Boolean = true
+    onCompleteOnboarding: () -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val colors = OutloopTheme.colors
-    val easing = remember { CubicBezierEasing(0.2f, 0f, 0f, 1f) }
 
     var step by rememberSaveable { mutableStateOf(OnboardingStep.WELCOME) }
     var awaitingPermissionReturn by rememberSaveable { mutableStateOf(false) }
     var checkAttemptKey by rememberSaveable { mutableIntStateOf(0) }
-    var showWhySheet by rememberSaveable { mutableStateOf(false) }
-    var showSimulationOverlay by rememberSaveable { mutableStateOf(false) }
-    var simulationFeedback by remember { mutableStateOf<String?>(null) }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -156,7 +126,6 @@ fun OnboardingScreen(
         onRefreshProtectionHealth()
     }
 
-    // Re-check Accessibility permission when returning from Android Settings
     DisposableEffect(lifecycleOwner, step, awaitingPermissionReturn) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -175,19 +144,6 @@ fun OnboardingScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // Real-time transition if Accessibility turns on while in ALLOW_ACCESS or PROBLEM (e.g. split-screen)
-    LaunchedEffect(step, isAccessibilityEnabled, isServiceConnected) {
-        if ((step == OnboardingStep.ALLOW_ACCESS || step == OnboardingStep.PROBLEM) && isAccessibilityEnabled) {
-            awaitingPermissionReturn = false
-            step = if (isServiceConnected) OnboardingStep.READY else OnboardingStep.CHECKING
-            if (step == OnboardingStep.CHECKING) checkAttemptKey++
-        } else if (step == OnboardingStep.CHECKING && isAccessibilityEnabled && isServiceConnected) {
-            delay(350L)
-            step = OnboardingStep.READY
-        }
-    }
-
-    // Probe real service connection while in CHECKING state
     LaunchedEffect(step, checkAttemptKey) {
         if (step == OnboardingStep.CHECKING) {
             var waitedMs = 0L
@@ -196,7 +152,7 @@ fun OnboardingScreen(
                 waitedMs += 250L
                 val enabledNow = AccessibilityStatusHelper.isServiceEnabled(context)
                 if (enabledNow && isServiceConnected) {
-                    delay(400L)
+                    delay(450L)
                     step = OnboardingStep.READY
                     return@LaunchedEffect
                 }
@@ -213,10 +169,8 @@ fun OnboardingScreen(
     BackHandler(enabled = step != OnboardingStep.WELCOME) {
         step = when (step) {
             OnboardingStep.WELCOME -> OnboardingStep.WELCOME
-            OnboardingStep.PRIVACY -> OnboardingStep.WELCOME
-            OnboardingStep.CHOOSE_APPS -> OnboardingStep.PRIVACY
-            OnboardingStep.STYLE -> OnboardingStep.CHOOSE_APPS
-            OnboardingStep.ALLOW_ACCESS -> OnboardingStep.STYLE
+            OnboardingStep.CHOOSE_APPS -> OnboardingStep.WELCOME
+            OnboardingStep.ALLOW_ACCESS -> OnboardingStep.CHOOSE_APPS
             OnboardingStep.CHECKING -> OnboardingStep.ALLOW_ACCESS
             OnboardingStep.PROBLEM -> OnboardingStep.ALLOW_ACCESS
             OnboardingStep.READY -> OnboardingStep.ALLOW_ACCESS
@@ -224,6 +178,10 @@ fun OnboardingScreen(
     }
 
     val openAccessibilitySettings = {
+        onAcceptDisclosure()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !isNotificationPermissionGranted) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
         awaitingPermissionReturn = true
         runCatching {
             context.startActivity(
@@ -255,661 +213,502 @@ fun OnboardingScreen(
         Unit
     }
 
-    AnimatedContent(
-        targetState = step,
-        transitionSpec = {
-            val forward = targetState.ordinal >= initialState.ordinal
-            (fadeIn(tween(220, easing = easing)) + slideInHorizontally(
-                animationSpec = tween(260, easing = easing)
-            ) { width -> if (forward) width / 5 else -width / 5 }) togetherWith
-                (fadeOut(tween(180, easing = easing)) + slideOutHorizontally(
-                    animationSpec = tween(240, easing = easing)
-                ) { width -> if (forward) -width / 5 else width / 5 })
-        },
-        label = "outloopOnboardingStep",
-        modifier = Modifier.fillMaxSize()
-    ) { currentStep ->
-        when (currentStep) {
-            OnboardingStep.WELCOME -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(colors.welcomeHero),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // Upper 40% hero fold with compact wordmark and breathing open-loop mark
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(0.40f)
-                            .windowInsetsPadding(WindowInsets.statusBars)
-                    ) {
-                        OutloopWelcomeArtwork(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(top = 36.dp, bottom = 8.dp)
-                        )
+    val stepIndex = when (step) {
+        OnboardingStep.WELCOME -> 1
+        OnboardingStep.CHOOSE_APPS -> 2
+        OnboardingStep.ALLOW_ACCESS,
+        OnboardingStep.CHECKING,
+        OnboardingStep.PROBLEM -> 3
+        OnboardingStep.READY -> 4
+    }
 
-                        Row(
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(
-                                    horizontal = OutloopMetrics.ScreenHorizontalPadding,
-                                    vertical = 12.dp
-                                ),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(7.dp)
-                        ) {
-                            OutloopMark(size = 20.dp, color = Color(0xFFFAF9F5))
-                            Text(
-                                text = "outloop",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = Color(0xFFFAF9F5)
-                            )
-                        }
+    val selectedCount = rules.count {
+        it.enabled && (installedPackages.isEmpty() || it.packageName in installedPackages)
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.navigationBars),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .widthIn(max = 600.dp)
+        ) {
+            OnboardingProgressBarHeader(
+                currentStep = stepIndex,
+                totalSteps = 4,
+                showSkip = step != OnboardingStep.READY && step != OnboardingStep.CHECKING,
+                onSkip = onDeclineDisclosure
+            )
+
+            AnimatedContent(
+                targetState = step,
+                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                label = "outloopOnboardingStep",
+                modifier = Modifier.weight(1f)
+            ) { currentStep ->
+                when (currentStep) {
+                    OnboardingStep.WELCOME -> {
+                        WelcomeBentoStep(
+                            onGetStarted = { step = OnboardingStep.CHOOSE_APPS }
+                        )
                     }
 
-                    // Lower 60% crisp tonal copy fold aligned directly with all other screens
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(0.60f),
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
-                        val sheetShape = RoundedCornerShape(
-                            topStart = OutloopMetrics.SheetCornerRadius,
-                            topEnd = OutloopMetrics.SheetCornerRadius
-                        )
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .widthIn(max = OutloopMetrics.MaxContentWidth)
-                                .clip(sheetShape)
-                                .background(colors.sheetSurface)
-                                .border(1.dp, colors.hairlineBorder, sheetShape)
-                                .windowInsetsPadding(WindowInsets.navigationBars)
-                                .verticalScroll(rememberScrollState())
-                                .padding(
-                                    horizontal = OutloopMetrics.ScreenHorizontalPadding,
-                                    vertical = 20.dp
-                                ),
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            OutloopStaggeredEntrance(index = 0) {
-                                Column(verticalArrangement = Arrangement.spacedBy(OutloopMetrics.ItemSpacing)) {
-                                    Text(
-                                        text = "Keep your apps. Reclaim your attention.",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = colors.textAction
-                                    )
-                                    Text(
-                                        text = "Make room for what matters.",
-                                        style = MaterialTheme.typography.headlineLarge,
-                                        color = colors.ink
-                                    )
-                                    Text(
-                                        text = "Stay connected to the apps you need without getting pulled into feeds you didn\u2019t come for.",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = colors.secondaryInk
-                                    )
-                                }
+                    OnboardingStep.CHOOSE_APPS -> {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                ChooseAppsBentoContent(
+                                    rules = rules,
+                                    installedPackages = installedPackages,
+                                    selectedCount = selectedCount,
+                                    onToggleApp = onToggleApp
+                                )
                             }
 
-                            OutloopStaggeredEntrance(index = 1) {
-                                Column(
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                OutloopSecondaryButton(
+                                    text = "Back",
+                                    onClick = { step = OnboardingStep.WELCOME },
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 18.dp),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    OutloopPrimaryButton(
-                                        text = "Get started",
-                                        onClick = { step = OnboardingStep.PRIVACY },
-                                        modifier = Modifier.testTag("onboarding_get_started")
-                                    )
-                                    OutloopTextButton(
-                                        text = "Not now",
-                                        onClick = onDeclineDisclosure,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .testTag("onboarding_decline")
-                                    )
-                                    Text(
-                                        text = "Not now leaves protection off until you turn it on.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = colors.secondaryInk,
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            else -> {
-                val stepIndex = when (currentStep) {
-                    OnboardingStep.PRIVACY -> 1
-                    OnboardingStep.CHOOSE_APPS -> 2
-                    OnboardingStep.STYLE -> 3
-                    OnboardingStep.ALLOW_ACCESS,
-                    OnboardingStep.CHECKING,
-                    OnboardingStep.PROBLEM,
-                    OnboardingStep.READY -> 4
-                    OnboardingStep.WELCOME -> 1
-                }
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .windowInsetsPadding(WindowInsets.statusBars)
-                        .windowInsetsPadding(WindowInsets.navigationBars),
-                    contentAlignment = Alignment.TopCenter
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .widthIn(max = OutloopMetrics.MaxContentWidth)
-                    ) {
-                        if (currentStep != OnboardingStep.READY) {
-                            OnboardingTopBar(
-                                currentStep = stepIndex,
-                                totalSteps = 4,
-                                showBack = currentStep != OnboardingStep.CHECKING,
-                                onBack = {
-                                    step = when (currentStep) {
-                                        OnboardingStep.PRIVACY -> OnboardingStep.WELCOME
-                                        OnboardingStep.CHOOSE_APPS -> OnboardingStep.PRIVACY
-                                        OnboardingStep.STYLE -> OnboardingStep.CHOOSE_APPS
-                                        OnboardingStep.ALLOW_ACCESS,
-                                        OnboardingStep.PROBLEM -> OnboardingStep.STYLE
-                                        else -> OnboardingStep.ALLOW_ACCESS
-                                    }
-                                }
-                            )
-                        }
-
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .verticalScroll(rememberScrollState())
-                                .padding(
-                                    horizontal = OutloopMetrics.ScreenHorizontalPadding,
-                                    vertical = OutloopMetrics.SectionSpacing
-                                ),
-                            verticalArrangement = Arrangement.spacedBy(OutloopMetrics.SectionSpacing)
-                        ) {
-                            when (currentStep) {
-                                OnboardingStep.PRIVACY -> {
-                                    PrivacyConsentContent(onOpenPrivacyDetails = onOpenPrivacyDetails)
-                                }
-
-                                OnboardingStep.CHOOSE_APPS -> {
-                                    ChooseAppsContent(
-                                        rules = rules,
-                                        installedPackages = installedPackages,
-                                        hasScannedInstalledApps = hasScannedInstalledApps,
-                                        onToggleApp = onToggleApp
-                                    )
-                                }
-
-                                OnboardingStep.STYLE -> {
-                                    HowItStepsInContent(
-                                        selectedMode = defaultMode,
-                                        onSelectMode = onSelectDefaultMode,
-                                        onOpenSimulation = { showSimulationOverlay = true }
-                                    )
-                                }
-
-                                OnboardingStep.ALLOW_ACCESS -> {
-                                    AllowAccessWaitingContent()
-                                }
-
-                                OnboardingStep.CHECKING -> {
-                                    AllowAccessCheckingContent(
-                                        rules = rules,
-                                        installedPackages = installedPackages
-                                    )
-                                }
-
-                                OnboardingStep.PROBLEM -> {
-                                    AllowAccessProblemContent(
-                                        isBatteryOptimizationIgnored = isBatteryOptimizationIgnored,
-                                        onOpenBatterySettings = openBatterySettings
-                                    )
-                                }
-
-                                OnboardingStep.READY -> {
-                                    ReadyContent(
-                                        rules = rules,
-                                        installedPackages = installedPackages,
-                                        selectedMode = defaultMode
-                                    )
-                                }
-
-                                OnboardingStep.WELCOME -> Unit
-                            }
-                        }
-
-                        // Sticky bottom action footer using shared compact metrics
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(
-                                    horizontal = OutloopMetrics.ScreenHorizontalPadding,
-                                    vertical = 12.dp
-                                ),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            when (currentStep) {
-                                OnboardingStep.PRIVACY -> {
-                                    OutloopPrimaryButton(
-                                        text = "Agree and continue",
-                                        onClick = {
+                                        .weight(1f)
+                                        .testTag("onboarding_apps_back")
+                                )
+                                OutloopPrimaryButton(
+                                    text = "Continue",
+                                    onClick = {
+                                        if (AccessibilityStatusHelper.isServiceEnabled(context) && isServiceConnected) {
                                             onAcceptDisclosure()
-                                            step = OnboardingStep.CHOOSE_APPS
-                                        },
-                                        modifier = Modifier.testTag("onboarding_agree")
-                                    )
-                                    OutloopTextButton(
-                                        text = "Not now",
-                                        onClick = onDeclineDisclosure,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
+                                            step = OnboardingStep.READY
+                                        } else {
+                                            step = OnboardingStep.ALLOW_ACCESS
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .weight(1.35f)
+                                        .testTag("onboarding_apps_continue")
+                                )
+                            }
+                        }
+                    }
 
-                                OnboardingStep.CHOOSE_APPS -> {
-                                    val selectedCount = rules.count {
-                                        it.enabled && (it.packageName in installedPackages || !it.isBuiltIn)
-                                    }
-                                    Text(
-                                        text = "$selectedCount app${if (selectedCount == 1) "" else "s"} selected",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = colors.secondaryInk
-                                    )
-                                    OutloopPrimaryButton(
-                                        text = "Continue",
-                                        onClick = { step = OnboardingStep.STYLE },
-                                        modifier = Modifier.testTag("onboarding_apps_continue")
-                                    )
-                                }
+                    OnboardingStep.ALLOW_ACCESS -> {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                AccessibilityBentoContent(
+                                    onOpenPrivacyDetails = onOpenPrivacyDetails
+                                )
+                            }
 
-                                OnboardingStep.STYLE -> {
-                                    OutloopPrimaryButton(
-                                        text = "Continue",
-                                        onClick = {
-                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !isNotificationPermissionGranted) {
-                                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                            }
-                                            if (AccessibilityStatusHelper.isServiceEnabled(context) && isServiceConnected) {
-                                                step = OnboardingStep.READY
-                                            } else {
-                                                step = OnboardingStep.ALLOW_ACCESS
-                                            }
-                                        },
-                                        modifier = Modifier.testTag("onboarding_style_continue")
-                                    )
-                                }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                OutloopSecondaryButton(
+                                    text = "Not now",
+                                    onClick = onDeclineDisclosure,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("onboarding_not_now")
+                                )
+                                OutloopPrimaryButton(
+                                    text = "Open settings",
+                                    onClick = openAccessibilitySettings,
+                                    modifier = Modifier
+                                        .weight(1.35f)
+                                        .testTag("onboarding_open_settings")
+                                )
+                            }
+                        }
+                    }
 
-                                OnboardingStep.ALLOW_ACCESS -> {
-                                    OutloopPrimaryButton(
-                                        text = "Open Android Settings",
-                                        onClick = openAccessibilitySettings,
-                                        modifier = Modifier.testTag("onboarding_open_settings")
-                                    )
-                                    OutloopTextButton(
-                                        text = "Why does Android ask for this?",
-                                        onClick = { showWhySheet = true },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    OutloopTextButton(
-                                        text = "Continue without protection",
-                                        onClick = onCompleteOnboarding,
-                                        color = colors.secondaryInk,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .testTag("onboarding_skip_protection")
-                                    )
-                                }
+                    OnboardingStep.CHECKING -> {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                AllowAccessCheckingContent(
+                                    rules = rules,
+                                    installedPackages = installedPackages
+                                )
+                            }
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutloopPrimaryButton(
+                                    text = "Checking\u2026",
+                                    onClick = {},
+                                    enabled = false
+                                )
+                                OutloopTextButton(
+                                    text = "Open settings",
+                                    onClick = openAccessibilitySettings,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                    }
 
-                                OnboardingStep.CHECKING -> {
-                                    OutloopPrimaryButton(
-                                        text = "Checking\u2026",
-                                        onClick = {},
-                                        enabled = false
-                                    )
-                                    OutloopTextButton(
-                                        text = "Open Android Settings",
-                                        onClick = openAccessibilitySettings,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
+                    OnboardingStep.PROBLEM -> {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                AllowAccessProblemContent(
+                                    isBatteryOptimizationIgnored = isBatteryOptimizationIgnored,
+                                    onOpenBatterySettings = openBatterySettings
+                                )
+                            }
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutloopPrimaryButton(
+                                    text = "Check again",
+                                    onClick = {
+                                        if (AccessibilityStatusHelper.isServiceEnabled(context)) {
+                                            step = OnboardingStep.CHECKING
+                                            checkAttemptKey++
+                                        } else {
+                                            openAccessibilitySettings()
+                                        }
+                                    },
+                                    modifier = Modifier.testTag("onboarding_check_again")
+                                )
+                                OutloopSecondaryButton(
+                                    text = "Open settings",
+                                    onClick = openAccessibilitySettings
+                                )
+                                OutloopTextButton(
+                                    text = "Continue without Guard",
+                                    onClick = onCompleteOnboarding,
+                                    color = colors.secondaryInk,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                    }
 
-                                OnboardingStep.PROBLEM -> {
-                                    OutloopPrimaryButton(
-                                        text = "Check again",
-                                        onClick = {
-                                            if (AccessibilityStatusHelper.isServiceEnabled(context)) {
-                                                step = OnboardingStep.CHECKING
-                                                checkAttemptKey++
-                                            } else {
-                                                openAccessibilitySettings()
-                                            }
-                                        },
-                                        modifier = Modifier.testTag("onboarding_check_again")
-                                    )
-                                    OutloopSecondaryButton(
-                                        text = "Open Android Settings",
-                                        onClick = openAccessibilitySettings
-                                    )
-                                    OutloopTextButton(
-                                        text = "Continue without protection",
-                                        onClick = onCompleteOnboarding,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-
-                                OnboardingStep.READY -> {
-                                    OutloopPrimaryButton(
-                                        text = "Go to Home",
-                                        onClick = onCompleteOnboarding,
-                                        modifier = Modifier.testTag("onboarding_finish")
-                                    )
-                                    OutloopTextButton(
-                                        text = "Change these in Settings",
-                                        onClick = {
-                                            onCompleteOnboarding()
-                                            onGoToSettings()
-                                        },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-
-                                OnboardingStep.WELCOME -> Unit
+                    OnboardingStep.READY -> {
+                        val scheduleSummary = if (preferences.quietHoursEnabled) {
+                            "${AppPreferences.formatMinutesOfDay(preferences.quietStartMinutes)} \u2013 ${AppPreferences.formatMinutesOfDay(preferences.quietEndMinutes)}"
+                        } else {
+                            "All day"
+                        }
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                ReadyBentoContent(
+                                    selectedCount = selectedCount,
+                                    isAccessibilityActive = isAccessibilityEnabled && isServiceConnected,
+                                    scheduleSummary = scheduleSummary
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 16.dp)
+                            ) {
+                                OutloopPrimaryButton(
+                                    text = "Go to Home",
+                                    onClick = onCompleteOnboarding,
+                                    modifier = Modifier.testTag("onboarding_finish")
+                                )
                             }
                         }
                     }
                 }
             }
-        }
-    }
-
-    if (showWhySheet) {
-        OutloopModalSheet(
-            title = "Why does Android ask?",
-            onDismiss = { showWhySheet = false }
-        ) {
-            Text(
-                text = "Short-form feeds can\u2019t be recognised any other way. Android requires your explicit permission before any app can observe which screen is open, and you can withdraw it at any time in Android Settings.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = colors.secondaryInk
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            OutloopSecondaryButton(
-                text = "Done",
-                onClick = { showWhySheet = false }
-            )
-        }
-    }
-
-    if (showSimulationOverlay) {
-        val sampleRule = rules.firstOrNull { it.enabled && (it.packageName in installedPackages || !it.isBuiltIn) }
-            ?: rules.firstOrNull { it.enabled }
-            ?: rules.firstOrNull()
-        OutloopSimulationOverlay(
-            appName = sampleRule?.displayName ?: "Instagram",
-            feedLabel = sampleRule?.feedLabel ?: "Reels",
-            onActionFeedback = { msg -> simulationFeedback = msg },
-            onDismiss = { showSimulationOverlay = false }
-        )
-    }
-
-    if (simulationFeedback != null) {
-        OutloopModalSheet(
-            title = "Preview complete",
-            onDismiss = { simulationFeedback = null }
-        ) {
-            Text(
-                text = simulationFeedback.orEmpty(),
-                style = MaterialTheme.typography.bodyLarge,
-                color = colors.secondaryInk
-            )
-            OutloopSecondaryButton(
-                text = "Done",
-                onClick = { simulationFeedback = null }
-            )
         }
     }
 }
 
 @Composable
-private fun OnboardingTopBar(
+private fun OnboardingProgressBarHeader(
     currentStep: Int,
     totalSteps: Int,
-    showBack: Boolean,
-    onBack: () -> Unit
+    showSkip: Boolean,
+    onSkip: () -> Unit
 ) {
     val colors = OutloopTheme.colors
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(
-                start = OutloopMetrics.TopBarStartPadding,
-                end = OutloopMetrics.ScreenHorizontalPadding,
-                top = OutloopMetrics.TopBarTopPadding
-            ),
+            .padding(start = 20.dp, end = 12.dp, top = 14.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        if (showBack) {
-            OutloopBackButton(onClick = onBack)
-        } else {
-            Spacer(modifier = Modifier.size(48.dp))
-        }
         Row(
             modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             for (i in 1..totalSteps) {
-                val segColor by animateColorAsState(
-                    targetValue = if (i <= currentStep) colors.primaryTint else colors.divider,
-                    animationSpec = tween(220),
-                    label = "stepBar_$i"
-                )
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(3.5.dp)
+                        .height(4.dp)
                         .clip(CircleShape)
-                        .background(segColor)
+                        .background(if (i <= currentStep) colors.primaryTint else colors.progressTrack)
                 )
             }
         }
-        Text(
-            text = "Step $currentStep of $totalSteps",
-            style = MaterialTheme.typography.labelLarge,
-            color = colors.secondaryInk
-        )
-    }
-}
-
-@Composable
-private fun PrivacyConsentContent(onOpenPrivacyDetails: () -> Unit) {
-    val colors = OutloopTheme.colors
-    OutloopStaggeredEntrance(index = 0) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (showSkip) {
             Text(
-                text = "Here\u2019s exactly what Outloop can see.",
-                style = MaterialTheme.typography.headlineLarge,
-                color = colors.ink
-            )
-            Text(
-                text = "Outloop uses Android\u2019s Accessibility Service. Before you turn it on, here\u2019s what that means.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = colors.secondaryInk
+                text = "Skip",
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                ),
+                color = colors.secondaryInk,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable(onClick = onSkip)
+                    .padding(horizontal = 10.dp, vertical = 12.dp)
+                    .testTag("onboarding_skip")
             )
         }
     }
-    OutloopStaggeredEntrance(index = 1) {
-        OutloopTonalCard(contentPadding = OutloopMetrics.CardPadding) {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                InfoPointRow(
-                    icon = Icons.Outlined.Visibility,
-                    title = "What it looks at",
-                    body = "Technical screen labels in the apps you choose, only to tell whether a Shorts, Reels or Watch feed is open."
-                )
-                InfoPointRow(
-                    icon = Icons.Outlined.Block,
-                    title = "What it doesn\u2019t read",
-                    body = "Your messages, your passwords or the videos you watch."
-                )
-                InfoPointRow(
-                    icon = Icons.Outlined.PhoneAndroid,
-                    title = "Where it stays",
-                    body = "Detection runs strictly on your phone. Nothing is collected off-device or shared with third parties. Troubleshooting logs remain off unless you turn them on."
-                )
-            }
-        }
-    }
-    OutloopStaggeredEntrance(index = 2) {
-        val context = LocalContext.current
-        val policyUrl = androidx.compose.ui.res.stringResource(com.example.R.string.privacy_policy_url)
-        OutloopStatusBannerCard(
-            tone = StatusBannerTone.INFO,
-            icon = Icons.Outlined.Info,
-            title = "You\u2019re in control",
-            body = "Turn this off any time in Android Settings.",
-            action = {
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text(
-                        text = "Read the full privacy details",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = colors.infoText,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable(onClick = onOpenPrivacyDetails)
-                            .padding(vertical = 4.dp)
-                    )
-                    Text(
-                        text = "Privacy policy",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = colors.infoText,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable {
-                                runCatching {
-                                    context.startActivity(
-                                        Intent(Intent.ACTION_VIEW, Uri.parse(policyUrl)).apply {
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        }
-                                    )
-                                }
-                            }
-                            .padding(vertical = 4.dp)
-                    )
-                }
-            }
-        )
-    }
 }
 
+/**
+ * Step 1: Balanced ~40% upper rounded dark-forest hero and ~60% breathing room copy fold.
+ */
 @Composable
-private fun ChooseAppsContent(
-    rules: List<TargetAppRuleEntity>,
-    installedPackages: Set<String>,
-    hasScannedInstalledApps: Boolean,
-    onToggleApp: (String, Boolean) -> Unit
+private fun WelcomeBentoStep(
+    onGetStarted: () -> Unit
 ) {
     val colors = OutloopTheme.colors
-    OutloopStaggeredEntrance(index = 0) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                text = "Choose your apps",
-                style = MaterialTheme.typography.headlineLarge,
-                color = colors.ink
-            )
-            Text(
-                text = "Outloop only steps in on short-form feeds in the apps installed on your phone.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = colors.secondaryInk
-            )
-        }
-    }
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val availableHeight = maxHeight
+        val heroHeight = (availableHeight * 0.37f).coerceIn(152.dp, 250.dp)
+        val lowerMinHeight = (availableHeight - heroHeight - 44.dp).coerceAtLeast(0.dp)
 
-    val installedRules = if (hasScannedInstalledApps) {
-        rules.filter { it.packageName in installedPackages || !it.isBuiltIn }
-    } else {
-        emptyList()
-    }
-    val notInstalledRules = if (hasScannedInstalledApps) {
-        rules.filter { it.packageName !in installedPackages && it.isBuiltIn }
-    } else {
-        rules
-    }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 10.dp)
+        ) {
+            // Upper ~40% fold: compact dark hero box containing the Outloop open-loop mark
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(heroHeight)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(colors.heroSurface),
+                contentAlignment = Alignment.Center
+            ) {
+                OutloopMark(
+                    size = if (heroHeight < 180.dp) 76.dp else 98.dp,
+                    color = colors.heroAccent,
+                    strokeWidth = if (heroHeight < 180.dp) 11.dp else 14.dp
+                )
+            }
 
-    OutloopStaggeredEntrance(index = 1) {
-        Column(verticalArrangement = Arrangement.spacedBy(OutloopMetrics.ItemSpacing)) {
-            Text(
-                text = "On your phone",
-                style = MaterialTheme.typography.labelMedium,
-                color = colors.secondaryInk,
-                modifier = Modifier.padding(horizontal = 6.dp)
-            )
-            if (installedRules.isNotEmpty()) {
-                OutloopTonalCard(cornerRadius = OutloopMetrics.CardCornerRadius, contentPadding = PaddingValues(0.dp)) {
-                    installedRules.forEachIndexed { index, rule ->
-                        if (index > 0) OutloopHairlineDivider()
-                        Row(
+            Spacer(modifier = Modifier.height(22.dp))
+
+            // Lower ~60% fold: generous breathing room for headline, body, tonal badges, and CTA
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = lowerMinHeight),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Text(
+                        text = "Break the loop.\nKeep the apps.",
+                        style = MaterialTheme.typography.displayLarge.copy(
+                            fontSize = 35.sp,
+                            lineHeight = 41.sp
+                        ),
+                        color = colors.ink
+                    )
+                    Text(
+                        text = "Outloop blocks endless feeds like Reels and Shorts, and leaves messages, search and everything else open.",
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontSize = 16.sp,
+                            lineHeight = 24.sp
+                        ),
+                        color = colors.secondaryInk
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = OutloopMetrics.RowMinHeight)
-                                .padding(
-                                    horizontal = OutloopMetrics.ListRowPaddingHorizontal,
-                                    vertical = OutloopMetrics.ListRowPaddingVertical
-                                ),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                .weight(1f)
+                                .heightIn(min = 44.dp)
+                                .clip(CircleShape)
+                                .background(colors.mintBg)
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            OutloopAppMonogramBadge(
-                                appName = rule.displayName,
-                                packageName = rule.packageName
+                            Text(
+                                text = "Feeds blocked",
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                color = colors.mintInk,
+                                maxLines = 1
                             )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = rule.displayName,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = colors.ink
-                                )
-                                Text(
-                                    text = "Interrupts ${rule.feedLabel}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.secondaryInk
-                                )
-                            }
-                            OutloopSwitch(
-                                checked = rule.enabled,
-                                onCheckedChange = { enabled -> onToggleApp(rule.packageName, enabled) },
-                                contentDescription = "Protect ${rule.displayName}",
-                                modifier = Modifier.testTag("onboarding_app_switch_${rule.packageName}")
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 44.dp)
+                                .clip(CircleShape)
+                                .background(colors.peachBg)
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Useful parts open",
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                color = colors.peachInk,
+                                maxLines = 1
                             )
                         }
                     }
                 }
-            } else {
-                OutloopTonalCard(
-                    cornerRadius = OutloopMetrics.SubCardCornerRadius,
-                    contentPadding = OutloopMetrics.CompactCardPadding
+
+                Column {
+                    Spacer(modifier = Modifier.height(20.dp))
+                    OutloopPrimaryButton(
+                        text = "Get started",
+                        onClick = onGetStarted,
+                        modifier = Modifier
+                            .padding(bottom = 8.dp)
+                            .testTag("onboarding_get_started")
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChooseAppsBentoContent(
+    rules: List<TargetAppRuleEntity>,
+    installedPackages: Set<String>,
+    selectedCount: Int,
+    onToggleApp: (String, Boolean) -> Unit
+) {
+    val colors = OutloopTheme.colors
+    Text(
+        text = "Pick the apps to guard",
+        style = MaterialTheme.typography.headlineLarge,
+        color = colors.ink
+    )
+    Text(
+        text = "Only the feeds are blocked. Messages, search and the rest stay open.",
+        style = MaterialTheme.typography.bodyLarge,
+        color = colors.secondaryInk
+    )
+
+    val installedRules = if (installedPackages.isEmpty()) rules else rules.filter { it.packageName in installedPackages }
+    val notInstalledRules = if (installedPackages.isEmpty()) emptyList() else rules.filter { it.packageName !in installedPackages }
+
+    if (installedRules.isNotEmpty()) {
+        OutloopBentoCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Feeds to block",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = colors.secondaryInk
+                )
+                Text(
+                    text = "$selectedCount selected",
+                    style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
+                    color = colors.ink
+                )
+            }
+
+            installedRules.forEachIndexed { index, rule ->
+                if (index > 0) OutloopHairlineDivider()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 66.dp)
+                        .clickable { onToggleApp(rule.packageName, !rule.enabled) }
+                        .padding(start = 18.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        text = if (hasScannedInstalledApps) {
-                            "No supported short-form video apps were detected on this phone yet. You can install one anytime or add a custom app later from Manage Apps."
-                        } else {
-                            "Checking installed apps on this phone\u2026"
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.secondaryInk
+                    OutloopAppMonogramBadge(
+                        appName = rule.displayName,
+                        packageName = rule.packageName,
+                        preferMonogram = true
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = rule.displayName,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = colors.ink
+                        )
+                        Text(
+                            text = appFeedSummary(rule),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.secondaryInk
+                        )
+                    }
+                    OutloopCheckbox(
+                        checked = rule.enabled,
+                        onCheckedChange = { enabled -> onToggleApp(rule.packageName, enabled) },
+                        contentDescription = "Guard ${rule.displayName}",
+                        modifier = Modifier.testTag("onboarding_app_switch_${rule.packageName}")
                     )
                 }
             }
@@ -917,254 +716,134 @@ private fun ChooseAppsContent(
     }
 
     if (notInstalledRules.isNotEmpty()) {
-        OutloopStaggeredEntrance(index = 2) {
-            Column(verticalArrangement = Arrangement.spacedBy(OutloopMetrics.ItemSpacing)) {
-                Text(
-                    text = "Not installed",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = colors.secondaryInk,
-                    modifier = Modifier.padding(horizontal = 6.dp)
-                )
-                OutloopTonalCard(
-                    cornerRadius = OutloopMetrics.CardCornerRadius,
-                    contentPadding = PaddingValues(0.dp),
-                    containerColor = colors.surfaceSubtle,
-                    modifier = Modifier.alpha(0.75f)
-                ) {
-                    notInstalledRules.forEachIndexed { index, rule ->
-                        if (index > 0) OutloopHairlineDivider()
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = OutloopMetrics.RowMinHeight)
-                                .padding(
-                                    horizontal = OutloopMetrics.ListRowPaddingHorizontal,
-                                    vertical = OutloopMetrics.ListRowPaddingVertical
-                                ),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            OutloopAppMonogramBadge(appName = rule.displayName)
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = rule.displayName,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = colors.ink
-                                )
-                                Text(
-                                    text = "${rule.feedLabel} \u00B7 not installed",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.secondaryInk
-                                )
-                            }
-                            OutloopSwitch(
-                                checked = false,
-                                enabled = false,
-                                onCheckedChange = {},
-                                contentDescription = "${rule.displayName} not installed"
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun HowItStepsInContent(
-    selectedMode: InterventionMode,
-    onSelectMode: (InterventionMode) -> Unit,
-    onOpenSimulation: () -> Unit
-) {
-    val colors = OutloopTheme.colors
-    OutloopStaggeredEntrance(index = 0) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                text = "How should Outloop step in?",
-                style = MaterialTheme.typography.headlineLarge,
-                color = colors.ink
-            )
-            Text(
-                text = "Pick what happens when a feed opens. You can change this per app later.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = colors.secondaryInk
-            )
-        }
-    }
-
-    OutloopStaggeredEntrance(index = 1) {
-        Column(verticalArrangement = Arrangement.spacedBy(OutloopMetrics.ItemSpacing)) {
-            listOf(InterventionMode.OVERLAY, InterventionMode.BACK, InterventionMode.HOME_TAB).forEach { mode ->
-                OutloopRadioOptionCard(
-                    title = mode.shortLabel,
-                    subtitle = mode.explanation,
-                    selected = selectedMode == mode,
-                    badgeText = if (mode == InterventionMode.OVERLAY) "Recommended" else null,
-                    onClick = { onSelectMode(mode) },
-                    modifier = Modifier.testTag("onboarding_mode_${mode.name.lowercase()}")
-                )
-            }
-        }
-    }
-
-    OutloopStaggeredEntrance(index = 2) {
-        if (selectedMode == InterventionMode.OVERLAY) {
-            OutloopTonalCard(
-                cornerRadius = OutloopMetrics.CardCornerRadius,
-                contentPadding = OutloopMetrics.CompactCardPadding
-            ) {
+        Text(
+            text = "Not installed",
+            style = MaterialTheme.typography.labelMedium,
+            color = colors.secondaryInk,
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
+        OutloopBentoCard(
+            cornerRadius = 24.dp,
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier.alpha(0.65f)
+        ) {
+            notInstalledRules.forEachIndexed { index, rule ->
+                if (index > 0) OutloopHairlineDivider()
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Preview",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = colors.ink
-                    )
-                    OutloopStatusPill(
-                        text = "Simulation, not a real feed",
-                        tone = PillTone.NEUTRAL
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(OutloopMetrics.SubCardCornerRadius))
-                        .background(colors.surfaceSubtle)
-                        .border(1.dp, colors.hairlineBorder, RoundedCornerShape(OutloopMetrics.SubCardCornerRadius))
-                        .padding(14.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .heightIn(min = 64.dp)
+                        .padding(horizontal = 18.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    OutloopMark(size = 22.dp, color = colors.primaryTint)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Take a moment.",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = colors.ink
+                    OutloopAppMonogramBadge(
+                        appName = rule.displayName,
+                        preferMonogram = true
                     )
-                    Text(
-                        text = "Is this what you came here for?",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.secondaryInk
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        val primaryInteraction = remember { MutableInteractionSource() }
-                        val allowInteraction = remember { MutableInteractionSource() }
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .outloopPressScale(primaryInteraction)
-                                .heightIn(min = OutloopMetrics.ButtonMinHeight)
-                                .clip(CircleShape)
-                                .background(colors.primaryTint)
-                                .clickable(
-                                    interactionSource = primaryInteraction,
-                                    indication = null,
-                                    onClick = onOpenSimulation
-                                )
-                                .padding(horizontal = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Return to my intention",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = colors.onPrimaryTint,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                        Box(
-                            modifier = Modifier
-                                .outloopPressScale(allowInteraction)
-                                .heightIn(min = OutloopMetrics.ButtonMinHeight)
-                                .clip(CircleShape)
-                                .background(colors.surfaceElevated)
-                                .border(1.dp, colors.hairlineBorder, CircleShape)
-                                .clickable(
-                                    interactionSource = allowInteraction,
-                                    indication = null,
-                                    onClick = onOpenSimulation
-                                )
-                                .padding(horizontal = 14.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Allow once",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = colors.ink
-                            )
-                        }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = rule.displayName,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = colors.ink
+                        )
+                        Text(
+                            text = "${rule.feedLabel} \u00B7 not installed",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.secondaryInk
+                        )
                     }
                 }
-            }
-        } else {
-            OutloopTonalCard(
-                cornerRadius = OutloopMetrics.CardCornerRadius,
-                contentPadding = OutloopMetrics.CompactCardPadding
-            ) {
-                InfoPointRow(
-                    icon = if (selectedMode == InterventionMode.BACK) {
-                        Icons.AutoMirrored.Rounded.KeyboardArrowLeft
-                    } else {
-                        Icons.Outlined.Home
-                    },
-                    title = selectedMode.shortLabel,
-                    body = if (selectedMode == InterventionMode.BACK) {
-                        "You\u2019ll be returned to the previous screen automatically."
-                    } else {
-                        "You\u2019ll land on the app\u2019s main tab instead of the feed."
-                    }
-                )
             }
         }
     }
 }
 
 @Composable
-private fun AllowAccessWaitingContent() {
+private fun AccessibilityBentoContent(
+    onOpenPrivacyDetails: () -> Unit
+) {
     val colors = OutloopTheme.colors
-    OutloopStaggeredEntrance(index = 0) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                text = "One small setup step",
-                style = MaterialTheme.typography.headlineLarge,
-                color = colors.ink
+    Text(
+        text = "Let Outloop spot feeds",
+        style = MaterialTheme.typography.headlineLarge,
+        color = colors.ink
+    )
+    Text(
+        text = "Android needs your permission before Outloop can recognise feed screens.",
+        style = MaterialTheme.typography.bodyLarge,
+        color = colors.secondaryInk
+    )
+
+    // Mint Accessibility hero card
+    OutloopBentoCard(
+        cornerRadius = 22.dp,
+        containerColor = colors.mintBg,
+        borderColor = null,
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 18.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.AccessibilityNew,
+                contentDescription = null,
+                tint = colors.mintInk,
+                modifier = Modifier.size(34.dp)
             )
-            Text(
-                text = "Outloop uses Android\u2019s Accessibility Service to recognise the feeds you chose and respond the way you picked.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = colors.secondaryInk
-            )
-        }
-    }
-    OutloopStaggeredEntrance(index = 1) {
-        OutloopStatusBannerCard(
-            tone = StatusBannerTone.WARNING,
-            icon = Icons.Outlined.Schedule,
-            title = "Waiting for permission",
-            body = "Outloop will check the connection automatically."
-        )
-    }
-    OutloopStaggeredEntrance(index = 2) {
-        OutloopTonalCard(contentPadding = OutloopMetrics.CardPadding) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column {
                 Text(
-                    text = "In Android Settings",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = colors.ink
+                    text = "Accessibility access",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = colors.mintInk
                 )
-                NumberedStepRow("1", "Open Accessibility settings", "The button below takes you there.")
-                NumberedStepRow("2", "Choose Outloop", "Usually under Downloaded apps. Names vary by phone.")
-                NumberedStepRow("3", "Turn on Use Outloop", "Then tap Allow.")
+                Text(
+                    text = "Required for Guard to work",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.mintInk.copy(alpha = 0.86f)
+                )
             }
         }
+    }
+
+    // Cream numbered instructions card
+    OutloopBentoCard(cornerRadius = 24.dp, contentPadding = PaddingValues(20.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text(
+                text = "How to turn it on",
+                style = MaterialTheme.typography.labelLarge,
+                color = colors.secondaryInk
+            )
+            NumberedStepRow("1", "Open Accessibility settings")
+            NumberedStepRow("2", "Choose Outloop under Installed apps")
+            NumberedStepRow("3", "Switch on Use Outloop")
+        }
+    }
+
+    // Peach prominent Play compliance disclosure callout
+    OutloopBentoCard(
+        cornerRadius = 20.dp,
+        containerColor = colors.peachBg,
+        borderColor = null,
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp)
+    ) {
+        Text(
+            text = "Used only on this device to recognise feed screens, like Reels and Shorts. Outloop never reads messages, passwords, or sends screen data off your phone.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.peachInk
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "Read privacy details",
+            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+            color = colors.warnText,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(onClick = onOpenPrivacyDetails)
+                .padding(vertical = 4.dp)
+                .testTag("onboarding_privacy_details")
+        )
     }
 }
 
@@ -1175,90 +854,63 @@ private fun AllowAccessCheckingContent(
 ) {
     val colors = OutloopTheme.colors
     val selectedNames = rules
-        .filter { it.enabled && (it.packageName in installedPackages || !it.isBuiltIn) }
+        .filter { it.enabled && (installedPackages.isEmpty() || it.packageName in installedPackages) }
         .joinToString(", ") { it.displayName }
-        .ifEmpty { "No installed apps selected yet." }
+        .ifEmpty { "Selected apps" }
 
-    OutloopStaggeredEntrance(index = 0) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                text = "Checking your protection",
-                style = MaterialTheme.typography.headlineLarge,
-                color = colors.ink
-            )
-            Text(
-                text = "Android says Outloop is switched on. We\u2019re confirming that the service is connected.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = colors.secondaryInk
+    Text(
+        text = "Checking your guard",
+        style = MaterialTheme.typography.headlineLarge,
+        color = colors.ink
+    )
+    Text(
+        text = "Android says Outloop is switched on. Confirming that the Accessibility service is connected.",
+        style = MaterialTheme.typography.bodyLarge,
+        color = colors.secondaryInk
+    )
+    OutloopStatusBannerCard(
+        tone = StatusBannerTone.INFO,
+        icon = Icons.Outlined.Schedule,
+        title = "Connecting Guard service",
+        body = "This usually takes a couple of seconds.",
+        action = {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(CircleShape),
+                color = colors.primaryTint,
+                trackColor = colors.progressTrack
             )
         }
-    }
-    OutloopStaggeredEntrance(index = 1) {
-        OutloopStatusBannerCard(
-            tone = StatusBannerTone.INFO,
-            icon = Icons.Outlined.Schedule,
-            title = "Checking your protection service",
-            body = "This usually takes a few seconds.",
-            action = {
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(5.dp)
-                        .clip(CircleShape),
-                    color = colors.infoText,
-                    trackColor = colors.infoText.copy(alpha = 0.25f)
+    )
+    OutloopBentoCard(cornerRadius = 24.dp, contentPadding = PaddingValues(20.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutloopStepCircleBadge(
+                    label = "",
+                    tone = StatusBannerTone.SUCCESS,
+                    icon = Icons.Rounded.Check
+                )
+                Text(
+                    text = "Accessibility permission granted",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = colors.ink
                 )
             }
-        )
-    }
-    OutloopStaggeredEntrance(index = 2) {
-        OutloopTonalCard(contentPadding = OutloopMetrics.CardPadding) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    OutloopStepCircleBadge(
-                        label = "",
-                        tone = StatusBannerTone.SUCCESS,
-                        icon = Icons.Rounded.Check
-                    )
-                    Column {
-                        Text(
-                            text = "Permission granted",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = colors.ink
-                        )
-                        Text(
-                            text = "Outloop is switched on in Accessibility settings.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colors.secondaryInk
-                        )
-                    }
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    OutloopStepCircleBadge(
-                        label = "",
-                        tone = StatusBannerTone.INFO,
-                        icon = Icons.Outlined.Schedule
-                    )
-                    Column {
-                        Text(
-                            text = "Confirming the connection",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = colors.ink
-                        )
-                        Text(
-                            text = "Waiting for Android to report the service as running.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colors.secondaryInk
-                        )
-                    }
-                }
-                NumberedStepRow("3", "Getting your apps ready", selectedNames)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutloopStepCircleBadge(label = "2")
+                Text(
+                    text = "Preparing guard for $selectedNames",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.secondaryInk
+                )
             }
         }
     }
@@ -1270,217 +922,181 @@ private fun AllowAccessProblemContent(
     onOpenBatterySettings: () -> Unit
 ) {
     val colors = OutloopTheme.colors
-    OutloopStaggeredEntrance(index = 0) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Text(
+        text = "Almost there",
+        style = MaterialTheme.typography.headlineLarge,
+        color = colors.ink
+    )
+    Text(
+        text = "Outloop is switched on, but Android isn\u2019t reporting an active connection yet.",
+        style = MaterialTheme.typography.bodyLarge,
+        color = colors.secondaryInk
+    )
+    OutloopStatusBannerCard(
+        tone = StatusBannerTone.WARNING,
+        icon = Icons.Outlined.WarningAmber,
+        title = "Guard isn\u2019t running yet",
+        body = "Feeds won\u2019t be blocked until the Accessibility connection completes."
+    )
+    OutloopBentoCard(cornerRadius = 24.dp, contentPadding = PaddingValues(20.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(
-                text = "Almost there",
-                style = MaterialTheme.typography.headlineLarge,
+                text = "Try this",
+                style = MaterialTheme.typography.titleMedium,
                 color = colors.ink
             )
-            Text(
-                text = "Outloop is switched on, but Android isn\u2019t reporting an active connection.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = colors.secondaryInk
-            )
-        }
-    }
-    OutloopStaggeredEntrance(index = 1) {
-        OutloopStatusBannerCard(
-            tone = StatusBannerTone.WARNING,
-            icon = Icons.Outlined.WarningAmber,
-            title = "Protection isn\u2019t running yet",
-            body = "Nothing will be interrupted until the connection is restored."
-        )
-    }
-    OutloopStaggeredEntrance(index = 2) {
-        OutloopTonalCard(contentPadding = OutloopMetrics.CardPadding) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = "Try this",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = colors.ink
-                )
-                NumberedStepRow(
-                    number = "1",
-                    title = "Switch Outloop off, then on again",
-                    body = "In Accessibility settings."
-                )
-                NumberedStepRow(
-                    number = "2",
-                    title = "Allow background activity",
-                    body = if (isBatteryOptimizationIgnored) {
-                        "Battery optimization is already unrestricted."
-                    } else {
-                        "Some phones stop services to save battery. Check Outloop\u2019s battery setting."
-                    }
-                )
-                if (!isBatteryOptimizationIgnored) {
-                    OutloopSecondaryButton(
-                        text = "Allow unrestricted battery",
-                        onClick = onOpenBatterySettings
-                    )
+            NumberedStepRow("1", "Switch Outloop off and back on in Accessibility settings")
+            NumberedStepRow(
+                "2",
+                if (isBatteryOptimizationIgnored) {
+                    "Battery optimization is already unrestricted"
+                } else {
+                    "Allow unrestricted background battery activity"
                 }
+            )
+            if (!isBatteryOptimizationIgnored) {
+                OutloopSecondaryButton(
+                    text = "Allow unrestricted battery",
+                    onClick = onOpenBatterySettings
+                )
             }
         }
     }
 }
 
 @Composable
-private fun ReadyContent(
-    rules: List<TargetAppRuleEntity>,
-    installedPackages: Set<String>,
-    selectedMode: InterventionMode
+private fun ReadyBentoContent(
+    selectedCount: Int,
+    isAccessibilityActive: Boolean,
+    scheduleSummary: String
 ) {
     val colors = OutloopTheme.colors
-    val selectedList = rules.filter {
-        it.enabled && (it.packageName in installedPackages || !it.isBuiltIn)
-    }
-    val names = selectedList.joinToString(", ") { it.displayName }.ifEmpty { "None yet" }
 
-    OutloopStaggeredEntrance(index = 0) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Spacer(modifier = Modifier.height(6.dp))
-            Box(modifier = Modifier.size(96.dp)) {
-                Box(
-                    modifier = Modifier
-                        .size(96.dp)
-                        .clip(CircleShape)
-                        .background(colors.surfaceCard)
-                        .border(1.dp, colors.hairlineBorder, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    OutloopMark(size = 50.dp, color = colors.primaryTint)
-                }
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .offset(x = 2.dp, y = (-2).dp)
-                        .size(30.dp)
-                        .clip(CircleShape)
-                        .background(colors.switchOn),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Check,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-
-            Text(
-                text = "Outloop is ready.",
-                style = MaterialTheme.typography.headlineLarge,
-                color = colors.ink,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Text(
-                text = "Protection is on for ${selectedList.size} app${if (selectedList.size == 1) "" else "s"}. You can pause any time from Home.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = colors.secondaryInk,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutloopStatusPill(
-                text = "Service connected",
-                tone = PillTone.SUCCESS,
-                leadingIcon = Icons.Rounded.Check
-            )
-        }
-    }
-
-    OutloopStaggeredEntrance(index = 1) {
-        OutloopTonalCard(cornerRadius = OutloopMetrics.CardCornerRadius, contentPadding = PaddingValues(0.dp)) {
-            ReadySummaryRow("Apps", names)
-            OutloopHairlineDivider()
-            ReadySummaryRow("When a feed opens", selectedMode.shortLabel)
-            OutloopHairlineDivider()
-            ReadySummaryRow("Pause", "5 min, 15 min or 1 hour from Home")
-            OutloopHairlineDivider()
-            ReadySummaryRow("Privacy", "Detection stays on your device")
-        }
-    }
-}
-
-@Composable
-private fun ReadySummaryRow(label: String, value: String) {
-    val colors = OutloopTheme.colors
-    Column(
+    // Top dark-forest hero card with sage check ring
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = OutloopMetrics.ListRowPaddingHorizontal, vertical = 10.dp)
+            .height(210.dp)
+            .clip(RoundedCornerShape(28.dp))
+            .background(colors.heroSurface),
+        contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = colors.secondaryInk
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleSmall,
-            color = colors.ink
-        )
+        Box(
+            modifier = Modifier.size(116.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                drawCircle(
+                    color = colors.heroAccent,
+                    style = Stroke(width = 13.dp.toPx())
+                )
+            }
+            Icon(
+                imageVector = Icons.Rounded.Check,
+                contentDescription = null,
+                tint = colors.onHeroSurface,
+                modifier = Modifier.size(54.dp)
+            )
+        }
     }
-}
 
-@Composable
-private fun InfoPointRow(
-    icon: ImageVector,
-    title: String,
-    body: String
-) {
-    val colors = OutloopTheme.colors
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        OutloopIconBadge(icon = icon)
-        Column(modifier = Modifier.weight(1f)) {
+    Text(
+        text = "You\u2019re all set",
+        style = MaterialTheme.typography.displayLarge.copy(fontSize = 33.sp),
+        color = colors.ink
+    )
+    Text(
+        text = "Guard is on for $selectedCount app${if (selectedCount == 1) "" else "s"}. The loop is closed, and your useful apps stay open.",
+        style = MaterialTheme.typography.bodyLarge,
+        color = colors.secondaryInk
+    )
+
+    OutloopBentoCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
+        ReadySummaryRow(label = "Guarded apps") {
             Text(
-                text = title,
+                text = selectedCount.toString(),
+                style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = "tnum"),
+                color = colors.ink
+            )
+        }
+        OutloopHairlineDivider()
+        ReadySummaryRow(label = "Accessibility") {
+            OutloopStatusPill(
+                text = if (isAccessibilityActive) "Active" else "Setup pending",
+                tone = if (isAccessibilityActive) PillTone.SUCCESS else PillTone.WARNING
+            )
+        }
+        OutloopHairlineDivider()
+        ReadySummaryRow(label = "Schedule") {
+            Text(
+                text = scheduleSummary,
                 style = MaterialTheme.typography.titleSmall,
                 color = colors.ink
             )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = body,
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.secondaryInk
-            )
         }
+    }
+
+    OutloopBentoCard(
+        cornerRadius = 20.dp,
+        containerColor = colors.peachBg,
+        borderColor = null,
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp)
+    ) {
+        Text(
+            text = "Need a break? Pause Guard for 15 minutes from Home.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.peachInk
+        )
+    }
+}
+
+@Composable
+private fun ReadySummaryRow(
+    label: String,
+    trailing: @Composable () -> Unit
+) {
+    val colors = OutloopTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 52.dp)
+            .padding(horizontal = 18.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            color = colors.secondaryInk
+        )
+        trailing()
     }
 }
 
 @Composable
 private fun NumberedStepRow(
     number: String,
-    title: String,
-    body: String
+    title: String
 ) {
     val colors = OutloopTheme.colors
     Row(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Top
+        verticalAlignment = Alignment.CenterVertically
     ) {
         OutloopStepCircleBadge(label = number)
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                color = colors.ink
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = body,
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.secondaryInk
-            )
-        }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = colors.ink
+        )
     }
+}
+
+private fun appFeedSummary(rule: TargetAppRuleEntity): String = when (rule.packageName) {
+    "com.instagram.android" -> "Reels, Explore"
+    "com.google.android.youtube" -> "Shorts"
+    "com.facebook.katana" -> "Reels, Feed"
+    "com.snapchat.android" -> "Spotlight"
+    "com.reddit.frontpage" -> "Watch"
+    else -> rule.feedLabel
 }

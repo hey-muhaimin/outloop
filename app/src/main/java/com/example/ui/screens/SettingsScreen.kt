@@ -9,7 +9,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,8 +26,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccessibilityNew
+import androidx.compose.material.icons.outlined.CheckCircleOutline
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -47,36 +53,37 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.BuildConfig
 import com.example.R
 import com.example.data.local.AppPreferences
 import com.example.data.local.AppearanceMode
 import com.example.data.model.InterventionMode
+import com.example.data.model.ProtectionStatus
 import com.example.data.repository.OutloopBackupPreview
 import com.example.ui.MainUiState
+import com.example.ui.components.OutloopBentoCard
+import com.example.ui.components.OutloopBentoHeader
 import com.example.ui.components.OutloopHairlineDivider
+import com.example.ui.components.OutloopIconBadge
 import com.example.ui.components.OutloopListNavRow
 import com.example.ui.components.OutloopModalSheet
+import com.example.ui.components.OutloopPauseGuardDialog
 import com.example.ui.components.OutloopPrimaryButton
 import com.example.ui.components.OutloopRadioOptionCard
 import com.example.ui.components.OutloopSecondaryButton
-import com.example.ui.components.OutloopSectionHeader
 import com.example.ui.components.OutloopSegmentedControl
-import com.example.ui.components.OutloopStaggeredEntrance
 import com.example.ui.components.OutloopStatusPill
 import com.example.ui.components.OutloopSwitch
-import com.example.ui.components.OutloopTabHeader
-import com.example.ui.components.OutloopTonalCard
 import com.example.ui.components.PillTone
-import com.example.ui.components.outloopPressScale
 import com.example.ui.components.rememberOutloopHaptic
-import com.example.ui.theme.OutloopMetrics
 import com.example.ui.theme.OutloopTheme
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -97,24 +104,29 @@ fun SettingsScreen(
     onShowToast: (String) -> Unit,
     onSetQuietHours: (Boolean, Int, Int) -> Unit = { _, _, _ -> },
     onSetDailyBudget: (Int) -> Unit = {},
+    onSetStrictModeEnabled: (Boolean) -> Unit = {},
+    onToggleGlobalPause: (Boolean) -> Unit = {},
+    onPauseForMinutes: (Int) -> Unit = {},
+    onStatusClick: () -> Unit = {},
     onExportBackupUri: (Uri, (String) -> Unit) -> Unit = { _, cb -> cb("Backup exported cleanly.") },
     onInspectBackupUri: (Uri, (OutloopBackupPreview?, String?, String?) -> Unit) -> Unit = { _, cb ->
         cb(null, null, "Backup unavailable")
     },
     onRestoreBackupJson: (String, (String) -> Unit) -> Unit = { _, cb -> cb("Backup restored.") },
-    onAcceptDisclosure: () -> Unit = {},
-    bottomContentPadding: Dp = OutloopMetrics.BottomNavContentPadding
+    bottomContentPadding: Dp = 116.dp
 ) {
     val context = LocalContext.current
     val colors = OutloopTheme.colors
     val haptic = rememberOutloopHaptic()
     val privacyPolicyUrl = stringResource(R.string.privacy_policy_url)
 
-    var showDefaultResponseSheet by rememberSaveable { mutableStateOf(false) }
     var showQuietHoursSheet by rememberSaveable { mutableStateOf(false) }
+    var showAlwaysOpenSheet by rememberSaveable { mutableStateOf(false) }
     var showDailyBudgetSheet by rememberSaveable { mutableStateOf(false) }
+    var showThemeSheet by rememberSaveable { mutableStateOf(false) }
+    var showAboutSheet by rememberSaveable { mutableStateOf(false) }
     var showClearHistorySheet by rememberSaveable { mutableStateOf(false) }
-    var showAccessibilityDisclosureSheet by rememberSaveable { mutableStateOf(false) }
+    var showStrictPauseDialog by rememberSaveable { mutableStateOf(false) }
     var pendingBackupPreview by remember { mutableStateOf<OutloopBackupPreview?>(null) }
     var pendingBackupJson by remember { mutableStateOf<String?>(null) }
 
@@ -141,6 +153,15 @@ fun SettingsScreen(
         }
     }
 
+    val statusPill = when (uiState.protectionStatus) {
+        ProtectionStatus.OPERATIONAL -> "Guard on" to PillTone.SUCCESS
+        ProtectionStatus.PAUSED -> "Paused" to PillTone.WARNING
+        ProtectionStatus.QUIET_HOURS -> "Quiet hours" to PillTone.NEUTRAL
+        ProtectionStatus.NO_APPS_ACTIVE -> "Guard off" to PillTone.NEUTRAL
+        ProtectionStatus.PERMISSION_NEEDED -> "Setup needed" to PillTone.WARNING
+        ProtectionStatus.SERVICE_DISCONNECTED -> "Needs attention" to PillTone.WARNING
+    }
+
     val selectedSeconds = when (uiState.preferences.reclaimedSecondsPerCut) {
         in 0..90 -> 60
         in 91..150 -> 120
@@ -148,10 +169,10 @@ fun SettingsScreen(
         else -> 300
     }
 
-    val quietHoursValueText = if (uiState.preferences.quietHoursEnabled) {
-        "${AppPreferences.formatMinutesOfDay(uiState.preferences.quietStartMinutes)} \u2013 ${AppPreferences.formatMinutesOfDay(uiState.preferences.quietEndMinutes)}"
+    val scheduleSubtitle = if (uiState.preferences.quietHoursEnabled) {
+        "Rest ${AppPreferences.formatMinutesOfDay(uiState.preferences.quietStartMinutes)} to ${AppPreferences.formatMinutesOfDay(uiState.preferences.quietEndMinutes)}"
     } else {
-        "Off"
+        "All day \u00B7 Tap to schedule rest"
     }
 
     val dailyTargetValueText = if (uiState.preferences.dailyBudgetCuts > 0) {
@@ -167,341 +188,159 @@ fun SettingsScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .widthIn(max = OutloopMetrics.MaxContentWidth)
+                .widthIn(max = 600.dp)
                 .testTag("settings_list"),
             contentPadding = PaddingValues(
-                start = OutloopMetrics.ScreenHorizontalPadding,
-                end = OutloopMetrics.ScreenHorizontalPadding,
-                top = OutloopMetrics.ScreenTopPadding,
+                start = 20.dp,
+                end = 20.dp,
+                top = 18.dp,
                 bottom = bottomContentPadding
             ),
-            verticalArrangement = Arrangement.spacedBy(OutloopMetrics.SectionSpacing)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
-                OutloopTabHeader(title = "Settings")
+                OutloopBentoHeader(
+                    title = "Settings",
+                    statusText = statusPill.first,
+                    statusTone = statusPill.second,
+                    onStatusClick = onStatusClick
+                )
             }
 
-            // Group 1: Protection
+            // Card 1: Guard
             item {
-                OutloopStaggeredEntrance(index = 0) {
-                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        OutloopSectionHeader(text = "Protection")
-                        OutloopTonalCard(
-                            cornerRadius = OutloopMetrics.CardCornerRadius,
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = OutloopMetrics.NavRowMinHeight)
-                                    .padding(
-                                        horizontal = OutloopMetrics.ListRowPaddingHorizontal,
-                                        vertical = OutloopMetrics.ListRowPaddingVertical
-                                    ),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "Accessibility service",
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        fontWeight = FontWeight.Normal
-                                    ),
-                                    color = colors.ink
-                                )
-                                when {
-                                    uiState.isAccessibilityEnabled && uiState.isServiceConnected -> {
-                                        OutloopStatusPill(
-                                            text = "Connected",
-                                            tone = PillTone.SUCCESS,
-                                            leadingIcon = Icons.Rounded.Check
-                                        )
-                                    }
-                                    uiState.isAccessibilityEnabled -> {
-                                        OutloopStatusPill(
-                                            text = "Disconnected",
-                                            tone = PillTone.WARNING
-                                        )
-                                    }
-                                    else -> {
-                                        OutloopStatusPill(
-                                            text = "Not enabled",
-                                            tone = PillTone.WARNING
-                                        )
-                                    }
-                                }
+                OutloopBentoCard(
+                    cornerRadius = 24.dp,
+                    contentPadding = PaddingValues(top = 16.dp, bottom = 10.dp)
+                ) {
+                    SettingsCardTitle("Guard")
+                    SettingsSwitchRow(
+                        icon = Icons.Outlined.Shield,
+                        title = "Guard",
+                        subtitle = "Blocks feeds in guarded apps",
+                        checked = !uiState.isGloballyPaused,
+                        onCheckedChange = { turnOn ->
+                            if (!turnOn && uiState.preferences.strictModeEnabled) {
+                                showStrictPauseDialog = true
+                            } else {
+                                onToggleGlobalPause(!turnOn)
                             }
-                            OutloopHairlineDivider()
-                            OutloopListNavRow(
-                                title = "Protected apps",
-                                valueText = uiState.activeInstalledCount.toString(),
-                                onClick = onOpenManageApps,
-                                modifier = Modifier.testTag("settings_protected_apps")
-                            )
-                            OutloopHairlineDivider()
-                            OutloopListNavRow(
-                                title = "Default response",
-                                valueText = uiState.preferences.defaultInterventionMode.shortLabel,
-                                onClick = { showDefaultResponseSheet = true },
-                                modifier = Modifier.testTag("settings_default_response")
-                            )
-                            OutloopHairlineDivider()
-                            OutloopListNavRow(
-                                title = "Quiet hours",
-                                valueText = quietHoursValueText,
-                                onClick = { showQuietHoursSheet = true },
-                                modifier = Modifier.testTag("settings_quiet_hours")
-                            )
-                            OutloopHairlineDivider()
-                            OutloopListNavRow(
-                                title = "Daily pause target",
-                                valueText = dailyTargetValueText,
-                                onClick = { showDailyBudgetSheet = true },
-                                modifier = Modifier.testTag("settings_daily_budget")
-                            )
-                        }
-                    }
+                        },
+                        switchTestTag = "settings_guard_switch"
+                    )
+                    SettingsSwitchRow(
+                        icon = Icons.Outlined.Lock,
+                        title = "Strict mode",
+                        subtitle = "Wait 10 s before pausing",
+                        checked = uiState.preferences.strictModeEnabled,
+                        onCheckedChange = onSetStrictModeEnabled,
+                        switchTestTag = "settings_strict_mode_switch"
+                    )
+                    OutloopListNavRow(
+                        leadingIcon = Icons.Outlined.Schedule,
+                        title = "Schedule",
+                        subtitle = scheduleSubtitle,
+                        onClick = { showQuietHoursSheet = true },
+                        modifier = Modifier.testTag("settings_quiet_hours")
+                    )
                 }
             }
 
-            // Group 2: Appearance & Preferences
+            // Card 2: Apps and access
             item {
-                OutloopStaggeredEntrance(index = 1) {
-                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        OutloopSectionHeader(text = "Appearance")
-                        OutloopTonalCard(
-                            cornerRadius = OutloopMetrics.CardCornerRadius,
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                            ) {
-                                OutloopSegmentedControl(
-                                    options = listOf(
-                                        AppearanceMode.LIGHT to AppearanceMode.LIGHT.label,
-                                        AppearanceMode.DARK to AppearanceMode.DARK.label,
-                                        AppearanceMode.SYSTEM to AppearanceMode.SYSTEM.label
-                                    ),
-                                    selected = uiState.preferences.appearanceMode,
-                                    onSelect = onSelectAppearanceMode,
-                                    modifier = Modifier.testTag("settings_appearance_selector")
+                OutloopBentoCard(
+                    cornerRadius = 24.dp,
+                    contentPadding = PaddingValues(top = 16.dp, bottom = 10.dp)
+                ) {
+                    SettingsCardTitle("Apps and access")
+                    OutloopListNavRow(
+                        leadingIcon = Icons.Outlined.GridView,
+                        title = "Guarded apps",
+                        subtitle = "${uiState.activeInstalledCount} app${if (uiState.activeInstalledCount == 1) "" else "s"}",
+                        onClick = onOpenManageApps,
+                        modifier = Modifier.testTag("settings_protected_apps")
+                    )
+                    OutloopListNavRow(
+                        leadingIcon = Icons.Outlined.CheckCircleOutline,
+                        title = "Always open",
+                        subtitle = "Messages, DMs, Search \u00B7 ${uiState.preferences.defaultInterventionMode.shortLabel}",
+                        onClick = { showAlwaysOpenSheet = true },
+                        modifier = Modifier.testTag("settings_always_open")
+                    )
+                    OutloopListNavRow(
+                        leadingIcon = Icons.Outlined.AccessibilityNew,
+                        title = "Accessibility service",
+                        subtitle = "Needed to spot feeds",
+                        trailingBadge = {
+                            when {
+                                uiState.isAccessibilityEnabled && uiState.isServiceConnected -> {
+                                    OutloopStatusPill(text = "Active", tone = PillTone.SUCCESS)
+                                }
+                                uiState.isAccessibilityEnabled -> {
+                                    OutloopStatusPill(text = "Waiting", tone = PillTone.WARNING)
+                                }
+                                else -> {
+                                    OutloopStatusPill(text = "Off", tone = PillTone.WARNING)
+                                }
+                            }
+                        },
+                        onClick = {
+                            runCatching {
+                                context.startActivity(
+                                    Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
                                 )
                             }
-                            OutloopHairlineDivider()
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Text(
-                                    text = "Time estimate per interruption",
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        fontWeight = FontWeight.Normal
-                                    ),
-                                    color = colors.ink,
-                                    modifier = Modifier.padding(horizontal = 2.dp)
-                                )
-                                OutloopSegmentedControl(
-                                    options = listOf(
-                                        60 to "1 min",
-                                        120 to "2 min",
-                                        180 to "3 min",
-                                        300 to "5 min"
-                                    ),
-                                    selected = selectedSeconds,
-                                    onSelect = onSetReclaimedSeconds,
-                                    modifier = Modifier.testTag("settings_estimate_selector")
-                                )
-                            }
-                            OutloopHairlineDivider()
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = OutloopMetrics.NavRowMinHeight)
-                                    .padding(horizontal = OutloopMetrics.ListRowPaddingHorizontal, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "Haptic feedback",
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        fontWeight = FontWeight.Normal
-                                    ),
-                                    color = colors.ink
-                                )
-                                OutloopSwitch(
-                                    checked = uiState.preferences.hapticFeedbackEnabled,
-                                    onCheckedChange = onSetHapticFeedback,
-                                    contentDescription = "Haptic feedback",
-                                    modifier = Modifier.testTag("settings_haptics_switch")
-                                )
-                            }
-                            OutloopHairlineDivider()
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = OutloopMetrics.NavRowMinHeight)
-                                    .padding(horizontal = OutloopMetrics.ListRowPaddingHorizontal, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "Notifications",
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        fontWeight = FontWeight.Normal
-                                    ),
-                                    color = colors.ink
-                                )
-                                OutloopSwitch(
-                                    checked = uiState.preferences.showInterventionBanner,
-                                    onCheckedChange = onSetShowBanner,
-                                    contentDescription = "Notifications",
-                                    modifier = Modifier.testTag("settings_notifications_switch")
-                                )
-                            }
-                        }
-                    }
+                        },
+                        modifier = Modifier.testTag("settings_accessibility_row")
+                    )
                 }
             }
 
-            // Group 3: Privacy and permissions
+            // Card 3: General
             item {
-                OutloopStaggeredEntrance(index = 2) {
-                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        OutloopSectionHeader(text = "Privacy and permissions")
-                        OutloopTonalCard(
-                            cornerRadius = OutloopMetrics.CardCornerRadius,
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            OutloopListNavRow(
-                                title = "Accessibility permission",
-                                trailingBadge = if (!uiState.isAccessibilityEnabled) {
-                                    {
-                                        OutloopStatusPill(text = "Needed", tone = PillTone.WARNING)
-                                    }
-                                } else {
-                                    null
-                                },
-                                onClick = {
-                                    if (uiState.preferences.disclosureAccepted || uiState.isAccessibilityEnabled) {
-                                        runCatching {
-                                            context.startActivity(
-                                                Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                }
-                                            )
-                                        }
-                                    } else {
-                                        showAccessibilityDisclosureSheet = true
-                                    }
-                                },
-                                modifier = Modifier.testTag("settings_accessibility_permission")
-                            )
-                            OutloopHairlineDivider()
-                            OutloopListNavRow(
-                                title = "How detection works",
-                                onClick = onOpenPrivacy,
-                                modifier = Modifier.testTag("settings_privacy")
-                            )
-                            OutloopHairlineDivider()
-                            OutloopListNavRow(
-                                title = "Privacy policy",
-                                onClick = {
-                                    val opened = runCatching {
-                                        context.startActivity(
-                                            Intent(Intent.ACTION_VIEW, Uri.parse(privacyPolicyUrl)).apply {
-                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                            }
-                                        )
-                                        true
-                                    }.getOrDefault(false)
-                                    if (!opened) {
-                                        onShowToast("No browser available. See How detection works for our full local privacy guarantee.")
-                                    }
-                                }
-                            )
-                            OutloopHairlineDivider()
-                            OutloopListNavRow(
-                                title = "Diagnostics",
-                                onClick = onOpenDiagnostics,
-                                modifier = Modifier.testTag("settings_diagnostics")
-                            )
-                            OutloopHairlineDivider()
-                            OutloopListNavRow(
-                                title = "About Outloop",
-                                valueText = BuildConfig.VERSION_NAME,
-                                onClick = {
-                                    onShowToast("Outloop ${BuildConfig.VERSION_NAME} \u00B7 On-device digital wellbeing")
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Group 4: Data & Local Backups
-            item {
-                OutloopStaggeredEntrance(index = 3) {
-                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        OutloopSectionHeader(text = "Data")
-                        OutloopTonalCard(
-                            cornerRadius = OutloopMetrics.CardCornerRadius,
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            OutloopListNavRow(
-                                title = "Export local backup",
-                                valueText = "JSON",
-                                onClick = {
-                                    haptic()
-                                    val dateStamp = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-                                    exportBackupLauncher.launch("outloop-backup-$dateStamp.json")
-                                },
-                                modifier = Modifier.testTag("settings_export_backup")
-                            )
-                            OutloopHairlineDivider()
-                            OutloopListNavRow(
-                                title = "Restore from backup",
-                                onClick = {
-                                    haptic()
-                                    importBackupLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
-                                },
-                                modifier = Modifier.testTag("settings_restore_backup")
-                            )
-                            OutloopHairlineDivider()
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = OutloopMetrics.NavRowMinHeight)
-                                    .clickable {
-                                        haptic()
-                                        showClearHistorySheet = true
-                                    }
-                                    .testTag("settings_clear_history_button"),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "Clear activity history",
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        fontWeight = FontWeight.Normal
-                                    ),
-                                    color = colors.destructive
-                                )
-                            }
-                        }
-                    }
+                OutloopBentoCard(
+                    cornerRadius = 24.dp,
+                    contentPadding = PaddingValues(top = 16.dp, bottom = 10.dp)
+                ) {
+                    SettingsCardTitle("General")
+                    OutloopListNavRow(
+                        leadingIcon = Icons.Outlined.WbSunny,
+                        title = "Theme",
+                        subtitle = uiState.preferences.appearanceMode.label,
+                        onClick = { showThemeSheet = true },
+                        modifier = Modifier.testTag("settings_theme_row")
+                    )
+                    OutloopListNavRow(
+                        leadingIcon = Icons.Outlined.Info,
+                        title = "About Outloop",
+                        subtitle = "Version ${BuildConfig.VERSION_NAME}",
+                        onClick = { showAboutSheet = true },
+                        modifier = Modifier.testTag("settings_about_row")
+                    )
                 }
             }
         }
     }
 
-    if (showDefaultResponseSheet) {
+    if (showAlwaysOpenSheet) {
         OutloopModalSheet(
-            title = "Default response",
-            onDismiss = { showDefaultResponseSheet = false }
+            title = "Guard behavior",
+            onDismiss = { showAlwaysOpenSheet = false }
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(OutloopMetrics.ItemSpacing)) {
+            Text(
+                text = "Messages, Search, and other useful screens stay open. Customize how Outloop responds when a guarded feed appears.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.secondaryInk
+            )
+
+            Text(
+                text = "Default response",
+                style = MaterialTheme.typography.labelLarge,
+                color = colors.secondaryInk
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(
                     InterventionMode.OVERLAY,
                     InterventionMode.BACK,
@@ -515,11 +354,205 @@ fun SettingsScreen(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Time estimate per loop",
+                style = MaterialTheme.typography.labelLarge,
+                color = colors.secondaryInk
+            )
+            OutloopSegmentedControl(
+                options = listOf(
+                    60 to "1 min",
+                    120 to "2 min",
+                    180 to "3 min",
+                    300 to "5 min"
+                ),
+                selected = selectedSeconds,
+                onSelect = onSetReclaimedSeconds,
+                modifier = Modifier.testTag("settings_estimate_selector")
+            )
+
+            OutloopBentoCard(
+                cornerRadius = 20.dp,
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                OutloopListNavRow(
+                    title = "Daily pause target",
+                    valueText = dailyTargetValueText,
+                    onClick = {
+                        showAlwaysOpenSheet = false
+                        showDailyBudgetSheet = true
+                    },
+                    modifier = Modifier.testTag("settings_daily_budget")
+                )
+                OutloopHairlineDivider()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 52.dp)
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Haptic feedback",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Normal),
+                        color = colors.ink
+                    )
+                    OutloopSwitch(
+                        checked = uiState.preferences.hapticFeedbackEnabled,
+                        onCheckedChange = onSetHapticFeedback,
+                        contentDescription = "Haptic feedback",
+                        modifier = Modifier.testTag("settings_haptics_switch")
+                    )
+                }
+                OutloopHairlineDivider()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 52.dp)
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Quick-pass banner",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Normal),
+                        color = colors.ink
+                    )
+                    OutloopSwitch(
+                        checked = uiState.preferences.showInterventionBanner,
+                        onCheckedChange = onSetShowBanner,
+                        contentDescription = "Notifications",
+                        modifier = Modifier.testTag("settings_notifications_switch")
+                    )
+                }
+            }
+
+            OutloopPrimaryButton(
+                text = "Done",
+                onClick = { showAlwaysOpenSheet = false }
+            )
+        }
+    }
+
+    if (showThemeSheet) {
+        OutloopModalSheet(
+            title = "Theme",
+            onDismiss = { showThemeSheet = false }
+        ) {
+            Text(
+                text = "Choose how Outloop looks on this device.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.secondaryInk
+            )
+            OutloopSegmentedControl(
+                options = listOf(
+                    AppearanceMode.LIGHT to AppearanceMode.LIGHT.label,
+                    AppearanceMode.DARK to AppearanceMode.DARK.label,
+                    AppearanceMode.SYSTEM to AppearanceMode.SYSTEM.label
+                ),
+                selected = uiState.preferences.appearanceMode,
+                onSelect = onSelectAppearanceMode,
+                modifier = Modifier.testTag("settings_appearance_selector")
+            )
             Spacer(modifier = Modifier.height(4.dp))
             OutloopPrimaryButton(
                 text = "Done",
-                onClick = { showDefaultResponseSheet = false }
+                onClick = { showThemeSheet = false }
             )
+        }
+    }
+
+    if (showAboutSheet) {
+        OutloopModalSheet(
+            title = "About Outloop",
+            onDismiss = { showAboutSheet = false }
+        ) {
+            Text(
+                text = "Outloop ${BuildConfig.VERSION_NAME} \u00B7 On-device feed guard. Everything runs locally on your phone.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.secondaryInk
+            )
+
+            OutloopBentoCard(cornerRadius = 20.dp, contentPadding = PaddingValues(0.dp)) {
+                OutloopListNavRow(
+                    title = "How detection works",
+                    onClick = {
+                        showAboutSheet = false
+                        onOpenPrivacy()
+                    },
+                    modifier = Modifier.testTag("settings_privacy")
+                )
+                OutloopHairlineDivider()
+                OutloopListNavRow(
+                    title = "Privacy policy",
+                    onClick = {
+                        val opened = runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse(privacyPolicyUrl)).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                            )
+                            true
+                        }.getOrDefault(false)
+                        if (!opened) {
+                            onShowToast("No browser available. See How detection works for our full local privacy guarantee.")
+                        }
+                    }
+                )
+                OutloopHairlineDivider()
+                OutloopListNavRow(
+                    title = "Diagnostics",
+                    onClick = {
+                        showAboutSheet = false
+                        onOpenDiagnostics()
+                    },
+                    modifier = Modifier.testTag("settings_diagnostics")
+                )
+            }
+
+            OutloopBentoCard(cornerRadius = 20.dp, contentPadding = PaddingValues(0.dp)) {
+                OutloopListNavRow(
+                    title = "Export local backup",
+                    valueText = "JSON",
+                    onClick = {
+                        haptic()
+                        val dateStamp = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                        exportBackupLauncher.launch("outloop-backup-$dateStamp.json")
+                    },
+                    modifier = Modifier.testTag("settings_export_backup")
+                )
+                OutloopHairlineDivider()
+                OutloopListNavRow(
+                    title = "Restore from backup",
+                    onClick = {
+                        haptic()
+                        importBackupLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+                    },
+                    modifier = Modifier.testTag("settings_restore_backup")
+                )
+                OutloopHairlineDivider()
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 54.dp)
+                        .clickable {
+                            haptic()
+                            showAboutSheet = false
+                            showClearHistorySheet = true
+                        }
+                        .testTag("settings_clear_history_button"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Clear activity history",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
+                        color = colors.destructive
+                    )
+                }
+            }
         }
     }
 
@@ -605,7 +638,6 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodyLarge,
                 color = colors.secondaryInk
             )
-            val destructiveInteraction = remember { MutableInteractionSource() }
             Button(
                 onClick = {
                     haptic()
@@ -613,16 +645,14 @@ fun SettingsScreen(
                     showClearHistorySheet = false
                     onShowToast("Activity history cleared.")
                 },
-                interactionSource = destructiveInteraction,
                 shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = colors.destructive,
                     contentColor = Color.White
                 ),
                 modifier = Modifier
-                    .outloopPressScale(destructiveInteraction)
                     .fillMaxWidth()
-                    .heightIn(min = OutloopMetrics.ButtonMinHeight)
+                    .heightIn(min = 54.dp)
                     .testTag("confirm_clear_history_button")
             ) {
                 Text(
@@ -637,77 +667,71 @@ fun SettingsScreen(
         }
     }
 
-    if (showAccessibilityDisclosureSheet) {
-        OutloopModalSheet(
-            title = "Accessibility disclosure",
-            onDismiss = { showAccessibilityDisclosureSheet = false }
-        ) {
+    if (showStrictPauseDialog) {
+        OutloopPauseGuardDialog(
+            initialMinutes = 15,
+            onKeepGuarding = { showStrictPauseDialog = false },
+            onConfirmPause = { minutes ->
+                showStrictPauseDialog = false
+                onPauseForMinutes(minutes)
+                onShowToast("Guard paused for $minutes minutes.")
+            },
+            onDismiss = { showStrictPauseDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun SettingsCardTitle(title: String) {
+    val colors = OutloopTheme.colors
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelLarge.copy(
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 14.sp
+        ),
+        color = colors.secondaryInk,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+    )
+}
+
+@Composable
+private fun SettingsSwitchRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    switchTestTag: String
+) {
+    val colors = OutloopTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        OutloopIconBadge(icon = icon)
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "Outloop uses Android\u2019s Accessibility Service to recognise technical screen labels and view IDs in the apps you choose so it can step in when a Shorts, Reels, or Watch feed opens.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = colors.secondaryInk
+                text = title,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
+                color = colors.ink
             )
             Text(
-                text = "It never reads your messages, passwords, or videos. Detection runs strictly on your phone\u2014no personal or screen data is collected off-device or shared with third parties.",
-                style = MaterialTheme.typography.bodyMedium,
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
                 color = colors.secondaryInk
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(
-                    text = "How detection works",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = colors.textAction,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable {
-                            showAccessibilityDisclosureSheet = false
-                            onOpenPrivacy()
-                        }
-                        .padding(vertical = 4.dp)
-                )
-                Text(
-                    text = "Privacy policy",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = colors.textAction,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable {
-                            val opened = runCatching {
-                                context.startActivity(
-                                    Intent(Intent.ACTION_VIEW, Uri.parse(privacyPolicyUrl)).apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
-                                )
-                                true
-                            }.getOrDefault(false)
-                            if (!opened) {
-                                onShowToast("No browser available. See How detection works for our full local privacy guarantee.")
-                            }
-                        }
-                        .padding(vertical = 4.dp)
-                )
-            }
-            OutloopPrimaryButton(
-                text = "Agree and continue",
-                onClick = {
-                    onAcceptDisclosure()
-                    showAccessibilityDisclosureSheet = false
-                    runCatching {
-                        context.startActivity(
-                            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                        )
-                    }
-                },
-                modifier = Modifier.testTag("settings_disclosure_agree")
-            )
-            OutloopSecondaryButton(
-                text = "Not now",
-                onClick = { showAccessibilityDisclosureSheet = false },
-                modifier = Modifier.testTag("settings_disclosure_decline")
             )
         }
+        OutloopSwitch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            contentDescription = title,
+            modifier = Modifier.testTag(switchTestTag)
+        )
     }
 }
 
@@ -725,7 +749,7 @@ private fun QuietHoursSheet(
     var endMinutes by rememberSaveable { mutableIntStateOf(initialEndMinutes) }
 
     OutloopModalSheet(
-        title = "Quiet hours",
+        title = "Schedule",
         onDismiss = onDismiss
     ) {
         Text(
@@ -734,9 +758,9 @@ private fun QuietHoursSheet(
             color = colors.secondaryInk
         )
 
-        OutloopTonalCard(
-            cornerRadius = OutloopMetrics.SubCardCornerRadius,
-            contentPadding = PaddingValues(horizontal = OutloopMetrics.ListRowPaddingHorizontal, vertical = 6.dp)
+        OutloopBentoCard(
+            cornerRadius = 20.dp,
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -770,11 +794,11 @@ private fun QuietHoursSheet(
                     val active = startMinutes == range.first && endMinutes == range.second
                     Surface(
                         shape = CircleShape,
-                        color = if (active) colors.primaryTint else colors.surfaceElevated,
-                        border = BorderStroke(1.dp, colors.hairlineBorder),
+                        color = if (active) colors.primaryTint else colors.cardSurfaceElevated,
+                        border = BorderStroke(1.dp, colors.cardBorder),
                         modifier = Modifier
                             .weight(1f)
-                            .heightIn(min = 48.dp)
+                            .heightIn(min = 44.dp)
                             .clip(CircleShape)
                             .clickable {
                                 startMinutes = range.first
@@ -823,10 +847,10 @@ private fun TimeStepperRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(OutloopMetrics.SubCardCornerRadius))
-            .background(colors.surfaceCard)
-            .border(1.dp, colors.hairlineBorder, RoundedCornerShape(OutloopMetrics.SubCardCornerRadius))
-            .padding(horizontal = OutloopMetrics.ListRowPaddingHorizontal, vertical = 6.dp),
+            .clip(RoundedCornerShape(18.dp))
+            .background(colors.cardSurface)
+            .border(1.dp, colors.cardBorder, RoundedCornerShape(18.dp))
+            .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -842,7 +866,7 @@ private fun TimeStepperRow(
                 color = colors.ink
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StepCircleIconButton(
                 icon = Icons.Rounded.Remove,
                 contentDescription = "Earlier $label",
@@ -859,43 +883,30 @@ private fun TimeStepperRow(
 
 @Composable
 private fun StepCircleIconButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     contentDescription: String,
     onClick: () -> Unit
 ) {
     val colors = OutloopTheme.colors
     val haptic = rememberOutloopHaptic()
-    val interactionSource = remember { MutableInteractionSource() }
-    // Keeps 48dp minimum touch target with a compact 36dp visual button circle
     Box(
         modifier = Modifier
-            .outloopPressScale(interactionSource, 0.92f)
             .size(48.dp)
             .clip(CircleShape)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null
-            ) {
+            .background(colors.cardSurfaceElevated)
+            .border(1.dp, colors.cardBorder, CircleShape)
+            .clickable {
                 haptic()
                 onClick()
             },
         contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(colors.surfaceElevated)
-                .border(1.dp, colors.hairlineBorder, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                tint = colors.ink,
-                modifier = Modifier.size(18.dp)
-            )
-        }
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = colors.ink,
+            modifier = Modifier.size(20.dp)
+        )
     }
 }
 
@@ -911,11 +922,11 @@ private fun DailyBudgetSheet(
         onDismiss = onDismiss
     ) {
         Text(
-            text = "Track your mindful redirections each day with a calm goal ring on Home.",
+            text = "Track your mindful redirections each day with your goal ring on Home.",
             style = MaterialTheme.typography.bodyMedium,
             color = colors.secondaryInk
         )
-        Column(verticalArrangement = Arrangement.spacedBy(OutloopMetrics.ItemSpacing)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(
                 0 to ("Off" to "Count pauses without a daily target."),
                 5 to ("5 pauses" to "Light daily awareness."),

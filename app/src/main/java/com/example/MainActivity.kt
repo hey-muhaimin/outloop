@@ -68,8 +68,8 @@ import com.example.ui.components.InterventionBanner
 import com.example.ui.components.LocalAnimatedVisibilityScope
 import com.example.ui.components.LocalSharedTransitionScope
 import com.example.ui.components.NavAlertBadges
-import com.example.ui.components.OutloopCanvas
-import com.example.ui.components.OutloopSideRail
+import com.example.ui.components.ObsidianSideRail
+import com.example.ui.components.OutloopBentoCanvas
 import com.example.ui.components.OutloopToastPill
 import com.example.ui.screens.AppDetailScreen
 import com.example.ui.screens.DiagnosticsScreen
@@ -152,7 +152,7 @@ fun FeedSurgeonRoot(
         hapticsEnabled = uiState.preferences.hapticFeedbackEnabled
     ) {
         if (uiState.isInitialLoading) {
-            OutloopCanvas {
+            OutloopBentoCanvas {
                 Box(modifier = Modifier.fillMaxSize())
             }
             return@FeedSurgeonTheme
@@ -180,11 +180,9 @@ fun FeedSurgeonRoot(
             onClearEventLog = viewModel::clearEventLog,
             onShareEventLog = {
                 viewModel.createShareLogIntent()?.let { shareIntent ->
-                    runCatching {
-                        context.startActivity(
-                            Intent.createChooser(shareIntent, "Share diagnostic log")
-                        )
-                    }
+                    context.startActivity(
+                        Intent.createChooser(shareIntent, "Share diagnostic log")
+                    )
                 }
             },
             onSetReclaimedSeconds = viewModel::setReclaimedSecondsPerCut,
@@ -200,6 +198,7 @@ fun FeedSurgeonRoot(
             onSetQuietHours = viewModel::setQuietHours,
             onResumeQuietHoursEarly = viewModel::resumeFromQuietHoursEarly,
             onSetDailyBudget = viewModel::setDailyBudgetCuts,
+            onSetStrictModeEnabled = viewModel::setStrictModeEnabled,
             onSaveCustomRule = viewModel::upsertCustomRule,
             onDeleteCustomRule = viewModel::deleteCustomRule,
             onExportBackupUri = { uri, cb -> viewModel.exportBackupToUri(context, uri, cb) },
@@ -243,6 +242,7 @@ fun OutloopNavigationHost(
     onSetQuietHours: (Boolean, Int, Int) -> Unit = { _, _, _ -> },
     onResumeQuietHoursEarly: () -> Unit = {},
     onSetDailyBudget: (Int) -> Unit = {},
+    onSetStrictModeEnabled: (Boolean) -> Unit = {},
     onSaveCustomRule: (String, String, String, List<String>, String, String, InterventionMode) -> Unit = { _, _, _, _, _, _, _ -> },
     onDeleteCustomRule: (String) -> Unit = {},
     onExportBackupUri: (Uri, (String) -> Unit) -> Unit = { _, _ -> },
@@ -292,15 +292,9 @@ fun OutloopNavigationHost(
             BottomTab.INSIGHTS -> Routes.INSIGHTS
             BottomTab.SETTINGS -> Routes.SETTINGS
         }
-        val hasHomeInBackStack = runCatching {
-            navController.getBackStackEntry(Routes.HOME)
-            true
-        }.getOrDefault(false)
         navController.navigate(route) {
-            if (hasHomeInBackStack) {
-                popUpTo(Routes.HOME) { saveState = true }
-            } else {
-                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
             }
             launchSingleTop = true
             restoreState = true
@@ -323,20 +317,17 @@ fun OutloopNavigationHost(
 
     val m3StandardEasing = remember { CubicBezierEasing(0.2f, 0f, 0f, 1f) }
 
-    OutloopCanvas {
+    OutloopBentoCanvas {
         SharedTransitionLayout {
             CompositionLocalProvider(LocalSharedTransitionScope provides this) {
                 BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                     val isWideScreen = maxWidth >= 600.dp
-                    val bottomContentPadding = if (!isWideScreen && selectedBottomTab != null) {
-                        com.example.ui.theme.OutloopMetrics.BottomNavContentPadding
-                    } else {
-                        28.dp
-                    }
+                    val bottomContentPadding = if (!isWideScreen && selectedBottomTab != null) 96.dp else 32.dp
+                    val floatingBottomOffset = if (!isWideScreen && selectedBottomTab != null) 82.dp else 20.dp
 
                     Row(modifier = Modifier.fillMaxSize()) {
                         if (isWideScreen && selectedBottomTab != null) {
-                            OutloopSideRail(
+                            ObsidianSideRail(
                                 selectedTab = selectedBottomTab,
                                 onTabSelected = ::navigateToTopLevel,
                                 alerts = navAlerts
@@ -404,16 +395,13 @@ fun OutloopNavigationHost(
                                         OnboardingScreen(
                                             rules = uiState.rules,
                                             installedPackages = uiState.installedPackages,
-                                            defaultMode = uiState.preferences.defaultInterventionMode,
+                                            preferences = uiState.preferences,
                                             isAccessibilityEnabled = uiState.isAccessibilityEnabled,
                                             isServiceConnected = uiState.isServiceConnected,
                                             isBatteryOptimizationIgnored = uiState.isBatteryOptimizationIgnored,
                                             isNotificationPermissionGranted = uiState.isNotificationPermissionGranted,
                                             onRefreshProtectionHealth = onRefreshProtectionHealth,
                                             onToggleApp = onToggleApp,
-                                            onSelectDefaultMode = { mode ->
-                                                onSelectDefaultMode(mode, true)
-                                            },
                                             onAcceptDisclosure = onAcceptDisclosure,
                                             onDeclineDisclosure = {
                                                 onDeclineDisclosure()
@@ -425,14 +413,21 @@ fun OutloopNavigationHost(
                                             onCompleteOnboarding = {
                                                 onCompleteOnboarding()
                                                 navigateToHomeClearingOnboarding()
-                                            },
-                                            onGoToSettings = {
-                                                onCompleteOnboarding()
-                                                navigateToHomeClearingOnboarding()
-                                                navigateToTopLevel(BottomTab.SETTINGS)
-                                            },
-                                            hasScannedInstalledApps = uiState.hasScannedInstalledApps
+                                            }
                                         )
+                                    }
+                                }
+
+                                val handleStatusClick: () -> Unit = {
+                                    when (uiState.protectionStatus) {
+                                        ProtectionStatus.PERMISSION_NEEDED ->
+                                            navController.navigate(Routes.ONBOARDING)
+                                        ProtectionStatus.SERVICE_DISCONNECTED ->
+                                            navController.navigate(Routes.DIAGNOSTICS)
+                                        ProtectionStatus.NO_APPS_ACTIVE ->
+                                            navController.navigate(Routes.MANAGE_APPS)
+                                        else ->
+                                            navigateToTopLevel(BottomTab.SETTINGS)
                                     }
                                 }
 
@@ -440,18 +435,7 @@ fun OutloopNavigationHost(
                                     CompositionLocalProvider(LocalAnimatedVisibilityScope provides this) {
                                         HomeScreen(
                                             uiState = uiState,
-                                            onStatusClick = {
-                                                when (uiState.protectionStatus) {
-                                                    ProtectionStatus.PERMISSION_NEEDED ->
-                                                        navController.navigate(Routes.ONBOARDING)
-                                                    ProtectionStatus.SERVICE_DISCONNECTED ->
-                                                        navController.navigate(Routes.DIAGNOSTICS)
-                                                    ProtectionStatus.NO_APPS_ACTIVE ->
-                                                        navController.navigate(Routes.MANAGE_APPS)
-                                                    else ->
-                                                        navigateToTopLevel(BottomTab.SETTINGS)
-                                                }
-                                            },
+                                            onStatusClick = handleStatusClick,
                                             onSetupClick = {
                                                 if (uiState.isAccessibilityEnabled && !uiState.isServiceConnected) {
                                                     navController.navigate(Routes.DIAGNOSTICS)
@@ -474,7 +458,8 @@ fun OutloopNavigationHost(
                                             onShowEstimateToast = { msg -> uiToastMessage = msg },
                                             onResumeQuietHoursEarly = onResumeQuietHoursEarly,
                                             onRefreshProtectionHealth = onRefreshProtectionHealth,
-                                            bottomContentPadding = bottomContentPadding
+                                            bottomContentPadding = bottomContentPadding,
+                                            floatingBottomOffset = floatingBottomOffset
                                         )
                                     }
                                 }
@@ -483,6 +468,7 @@ fun OutloopNavigationHost(
                                     CompositionLocalProvider(LocalAnimatedVisibilityScope provides this) {
                                         InsightsScreen(
                                             uiState = uiState,
+                                            onStatusClick = handleStatusClick,
                                             bottomContentPadding = bottomContentPadding
                                         )
                                     }
@@ -512,10 +498,13 @@ fun OutloopNavigationHost(
                                             onShowToast = { msg -> uiToastMessage = msg },
                                             onSetQuietHours = onSetQuietHours,
                                             onSetDailyBudget = onSetDailyBudget,
+                                            onSetStrictModeEnabled = onSetStrictModeEnabled,
+                                            onToggleGlobalPause = onToggleGlobalPause,
+                                            onPauseForMinutes = onPauseForMinutes,
+                                            onStatusClick = handleStatusClick,
                                             onExportBackupUri = onExportBackupUri,
                                             onInspectBackupUri = onInspectBackupUri,
                                             onRestoreBackupJson = onRestoreBackupJson,
-                                            onAcceptDisclosure = onAcceptDisclosure,
                                             bottomContentPadding = bottomContentPadding
                                         )
                                     }
@@ -531,8 +520,7 @@ fun OutloopNavigationHost(
                                             launchableApps = uiState.launchableApps,
                                             onSaveCustomRule = onSaveCustomRule,
                                             onDeleteCustomRule = onDeleteCustomRule,
-                                            onShowToast = { msg -> uiToastMessage = msg },
-                                            hasScannedInstalledApps = uiState.hasScannedInstalledApps
+                                            onShowToast = { msg -> uiToastMessage = msg }
                                         )
                                     }
                                 }
@@ -576,7 +564,10 @@ fun OutloopNavigationHost(
                                             onSnoozeMinutes = { minutes -> onSnoozeMinutes(pkg, minutes) },
                                             onResumeSnooze = { onAppSnoozeExpired(pkg) },
                                             onShowToast = { msg -> uiToastMessage = msg },
-                                            currentTimeMs = uiState.currentTimeMs
+                                            loopsToday = uiState.todayCutsCount,
+                                            timeKeptText = uiState.todayReclaimedText,
+                                            streakDays = uiState.streakDays,
+                                            strictModeEnabled = uiState.preferences.strictModeEnabled
                                         )
                                     }
                                 }
@@ -587,9 +578,9 @@ fun OutloopNavigationHost(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
                                     .fillMaxWidth()
-                                    .widthIn(max = com.example.ui.theme.OutloopMetrics.MaxContentWidth - 20.dp)
+                                    .widthIn(max = 560.dp)
                                     .then(
-                                        if (isWideScreen) Modifier.padding(bottom = 12.dp) else Modifier
+                                        if (isWideScreen) Modifier.padding(bottom = 16.dp) else Modifier
                                     ),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {

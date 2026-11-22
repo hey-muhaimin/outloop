@@ -12,10 +12,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.rounded.CheckCircleOutline
@@ -34,17 +39,15 @@ import com.example.BuildConfig
 import com.example.data.local.AppPreferences
 import com.example.data.model.ProtectionStatus
 import com.example.ui.MainUiState
+import com.example.ui.components.OutloopBackButton
+import com.example.ui.components.OutloopBentoCard
 import com.example.ui.components.OutloopHairlineDivider
 import com.example.ui.components.OutloopPrimaryButton
 import com.example.ui.components.OutloopSecondaryButton
 import com.example.ui.components.OutloopSectionHeader
-import com.example.ui.components.OutloopStaggeredEntrance
 import com.example.ui.components.OutloopStatusBannerCard
-import com.example.ui.components.OutloopSubScreenScaffold
 import com.example.ui.components.OutloopSwitch
-import com.example.ui.components.OutloopTonalCard
 import com.example.ui.components.StatusBannerTone
-import com.example.ui.theme.OutloopMetrics
 import com.example.ui.theme.OutloopTheme
 
 @Composable
@@ -62,7 +65,6 @@ fun DiagnosticsScreen(
     BackHandler(onBack = onBack)
     val context = LocalContext.current
     val colors = OutloopTheme.colors
-    val nowMs = uiState.currentTimeMs
 
     val accessibilityStatusLabel = when {
         uiState.isAccessibilityEnabled && uiState.isServiceConnected -> "Connected"
@@ -72,7 +74,7 @@ fun DiagnosticsScreen(
 
     val lastConnectionLabel = when {
         uiState.lastConnectedAtMs > 0L -> {
-            val minsAgo = ((nowMs - uiState.lastConnectedAtMs) / 60_000L).coerceAtLeast(0L)
+            val minsAgo = ((System.currentTimeMillis() - uiState.lastConnectedAtMs) / 60_000L).coerceAtLeast(0L)
             if (minsAgo == 0L) "Just now" else "$minsAgo min ago"
         }
         uiState.isServiceConnected -> "Just now"
@@ -89,7 +91,7 @@ fun DiagnosticsScreen(
     }
 
     val lastRulesCheckLabel = if (uiState.preferences.lastRulesetCheckMs > 0L) {
-        val minsAgo = ((nowMs - uiState.preferences.lastRulesetCheckMs) / 60_000L).coerceAtLeast(0L)
+        val minsAgo = ((System.currentTimeMillis() - uiState.preferences.lastRulesetCheckMs) / 60_000L).coerceAtLeast(0L)
         when {
             minsAgo == 0L -> "Just now"
             minsAgo < 60L -> "$minsAgo min ago"
@@ -105,133 +107,117 @@ fun DiagnosticsScreen(
         "Off"
     }
 
-    OutloopSubScreenScaffold(
-        onBack = onBack,
-        bottomBar = {
-            OutloopPrimaryButton(
-                text = "Check again",
-                onClick = {
-                    onRefreshHealth()
-                    val msg = when {
-                        uiState.isAccessibilityEnabled && uiState.isServiceConnected ->
-                            "Service connected."
-                        uiState.isAccessibilityEnabled ->
-                            "Accessibility enabled, waiting for Android binding."
-                        else ->
-                            "Still waiting for Accessibility permission."
-                    }
-                    onShowToast(msg)
-                }
-            )
-            OutloopSecondaryButton(
-                text = if (uiState.isSyncingRules) "Checking feed rules\u2026" else "Check feed rules now",
-                onClick = onCheckRulesNow,
-                enabled = !uiState.isSyncingRules
-            )
-        }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .navigationBarsPadding(),
+        contentAlignment = Alignment.TopCenter
     ) {
-        OutloopStaggeredEntrance(index = 0) {
-            Text(
-                text = "Diagnostics",
-                style = MaterialTheme.typography.displayLarge,
-                color = colors.ink
-            )
-        }
-
-        OutloopStaggeredEntrance(index = 1) {
-            OutloopTonalCard(
-                cornerRadius = OutloopMetrics.CardCornerRadius,
-                contentPadding = PaddingValues(0.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .widthIn(max = 600.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 20.dp, top = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                DiagnosticRow("Accessibility service", accessibilityStatusLabel)
-                OutloopHairlineDivider()
-                DiagnosticRow("Last connection", lastConnectionLabel)
-                OutloopHairlineDivider()
-                DiagnosticRow("Protected apps", uiState.activeInstalledCount.toString())
-                OutloopHairlineDivider()
-                DiagnosticRow("Protection", protectionLabel)
-                OutloopHairlineDivider()
-                DiagnosticRow("Foreground monitor", uiState.foregroundAppSummary)
-                OutloopHairlineDivider()
-                DiagnosticRow("Last detection", uiState.lastDetectionSummary)
-                OutloopHairlineDivider()
-                DiagnosticRow("Last intervention", uiState.lastInterventionOutcomeSummary)
-                OutloopHairlineDivider()
-                DiagnosticRow(
-                    "Battery optimization",
-                    if (uiState.isBatteryOptimizationIgnored) "Unrestricted" else "Restricted"
-                )
-                OutloopHairlineDivider()
-                DiagnosticRow("Quiet hours", quietHoursSummary)
-                OutloopHairlineDivider()
-                DiagnosticRow("Ruleset version", uiState.preferences.rulesetVersion)
-                OutloopHairlineDivider()
-                DiagnosticRow("Last rules check", lastRulesCheckLabel)
-                OutloopHairlineDivider()
-                DiagnosticRow("App version", BuildConfig.VERSION_NAME)
+                OutloopBackButton(onClick = onBack)
             }
-        }
 
-        OutloopStaggeredEntrance(index = 2) {
-            if (uiState.isAccessibilityEnabled && uiState.isServiceConnected) {
-                OutloopStatusBannerCard(
-                    tone = StatusBannerTone.SUCCESS,
-                    icon = Icons.Rounded.CheckCircleOutline,
-                    title = "Everything looks connected",
-                    body = "Android reports an active Accessibility service connection."
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    text = "Diagnostics",
+                    style = MaterialTheme.typography.displayLarge,
+                    color = colors.ink
                 )
-            } else {
-                OutloopStatusBannerCard(
-                    tone = StatusBannerTone.WARNING,
-                    icon = Icons.Outlined.WarningAmber,
-                    title = if (uiState.isAccessibilityEnabled) {
-                        "Service waiting to bind"
-                    } else {
-                        "Setup isn\u2019t finished"
-                    },
-                    body = "Turn on Outloop in Android\u2019s Accessibility settings, then check again."
-                )
-            }
-        }
 
-        if (!uiState.isBatteryOptimizationIgnored) {
-            OutloopStaggeredEntrance(index = 2) {
-                OutloopSecondaryButton(
-                    text = "Allow unrestricted background activity",
-                    onClick = {
-                        runCatching {
-                            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                val pm = context.getSystemService(PowerManager::class.java)
-                                if (pm?.isIgnoringBatteryOptimizations(context.packageName) == false) {
-                                    Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                        data = Uri.parse("package:${context.packageName}")
+                OutloopBentoCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
+                    DiagnosticRow("Accessibility service", accessibilityStatusLabel)
+                    OutloopHairlineDivider()
+                    DiagnosticRow("Last connection", lastConnectionLabel)
+                    OutloopHairlineDivider()
+                    DiagnosticRow("Protected apps", uiState.activeInstalledCount.toString())
+                    OutloopHairlineDivider()
+                    DiagnosticRow("Protection", protectionLabel)
+                    OutloopHairlineDivider()
+                    DiagnosticRow("Last detection", uiState.lastDetectionSummary)
+                    OutloopHairlineDivider()
+                    DiagnosticRow("Last intervention", uiState.lastInterventionOutcomeSummary)
+                    OutloopHairlineDivider()
+                    DiagnosticRow(
+                        "Battery optimization",
+                        if (uiState.isBatteryOptimizationIgnored) "Unrestricted" else "Restricted"
+                    )
+                    OutloopHairlineDivider()
+                    DiagnosticRow("Quiet hours", quietHoursSummary)
+                    OutloopHairlineDivider()
+                    DiagnosticRow("Ruleset version", uiState.preferences.rulesetVersion)
+                    OutloopHairlineDivider()
+                    DiagnosticRow("Last rules check", lastRulesCheckLabel)
+                    OutloopHairlineDivider()
+                    DiagnosticRow("App version", BuildConfig.VERSION_NAME)
+                }
+
+                if (uiState.isAccessibilityEnabled && uiState.isServiceConnected) {
+                    OutloopStatusBannerCard(
+                        tone = StatusBannerTone.SUCCESS,
+                        icon = Icons.Rounded.CheckCircleOutline,
+                        title = "Everything looks connected",
+                        body = "Android reports an active Accessibility service connection."
+                    )
+                } else {
+                    OutloopStatusBannerCard(
+                        tone = StatusBannerTone.WARNING,
+                        icon = Icons.Outlined.WarningAmber,
+                        title = if (uiState.isAccessibilityEnabled) {
+                            "Service waiting to bind"
+                        } else {
+                            "Setup isn\u2019t finished"
+                        },
+                        body = "Turn on Outloop in Android\u2019s Accessibility settings, then check again."
+                    )
+                }
+
+                if (!uiState.isBatteryOptimizationIgnored) {
+                    OutloopSecondaryButton(
+                        text = "Allow unrestricted background activity",
+                        onClick = {
+                            runCatching {
+                                val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                    val pm = context.getSystemService(PowerManager::class.java)
+                                    if (pm?.isIgnoringBatteryOptimizations(context.packageName) == false) {
+                                        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                            data = Uri.parse("package:${context.packageName}")
+                                        }
+                                    } else {
+                                        Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
                                     }
                                 } else {
-                                    Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                    Intent(Settings.ACTION_SETTINGS)
                                 }
-                            } else {
-                                Intent(Settings.ACTION_SETTINGS)
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                context.startActivity(intent)
                             }
-                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            context.startActivity(intent)
                         }
-                    }
-                )
-            }
-        }
+                    )
+                }
 
-        OutloopStaggeredEntrance(index = 3) {
-            Column(verticalArrangement = Arrangement.spacedBy(OutloopMetrics.ItemSpacing)) {
                 OutloopSectionHeader(text = "Feed rules & logging")
-                OutloopTonalCard(
-                    cornerRadius = OutloopMetrics.CardCornerRadius,
-                    contentPadding = PaddingValues(0.dp)
-                ) {
+                OutloopBentoCard(cornerRadius = 24.dp, contentPadding = PaddingValues(0.dp)) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = OutloopMetrics.NavRowMinHeight)
-                            .padding(horizontal = OutloopMetrics.ListRowPaddingHorizontal, vertical = 4.dp),
+                            .heightIn(min = 52.dp)
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -250,8 +236,8 @@ fun DiagnosticsScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = OutloopMetrics.NavRowMinHeight)
-                            .padding(horizontal = OutloopMetrics.ListRowPaddingHorizontal, vertical = 4.dp),
+                            .heightIn(min = 52.dp)
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -274,52 +260,75 @@ fun DiagnosticsScreen(
                         )
                     }
                 }
-            }
-        }
 
-        if (uiState.preferences.eventCaptureEnabled || uiState.eventLogSizeBytes > 0L) {
-            OutloopStaggeredEntrance(index = 4) {
-                OutloopTonalCard(
-                    cornerRadius = OutloopMetrics.CardCornerRadius,
-                    contentPadding = OutloopMetrics.CompactCardPadding
-                ) {
-                    Text(
-                        text = "Local event log (${uiState.eventLogSizeBytes} bytes)",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = colors.secondaryInk
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = uiState.eventLogPreview.ifBlank { "No events recorded yet." },
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        lineHeight = 16.sp,
-                        color = colors.ink
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            OutloopSecondaryButton(
-                                text = "Share log",
-                                onClick = onShareEventLog
-                            )
-                        }
-                        Box(modifier = Modifier.weight(1f)) {
-                            OutloopSecondaryButton(
-                                text = "Clear log",
-                                onClick = onClearEventLog
-                            )
+                if (uiState.preferences.eventCaptureEnabled || uiState.eventLogSizeBytes > 0L) {
+                    OutloopBentoCard(cornerRadius = 22.dp, contentPadding = PaddingValues(16.dp)) {
+                        Text(
+                            text = "Local event log (${uiState.eventLogSizeBytes} bytes)",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = colors.secondaryInk
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = uiState.eventLogPreview.ifBlank { "No events recorded yet." },
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp,
+                            color = colors.ink
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                OutloopSecondaryButton(
+                                    text = "Share log",
+                                    onClick = onShareEventLog
+                                )
+                            }
+                            Box(modifier = Modifier.weight(1f)) {
+                                OutloopSecondaryButton(
+                                    text = "Clear log",
+                                    onClick = onClearEventLog
+                                )
+                            }
                         }
                     }
                 }
+
+                Text(
+                    text = "Raw screen content is never shown or transmitted.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.secondaryInk
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutloopPrimaryButton(
+                    text = "Check again",
+                    onClick = {
+                        onRefreshHealth()
+                        val msg = when {
+                            uiState.isAccessibilityEnabled && uiState.isServiceConnected ->
+                                "Service connected."
+                            uiState.isAccessibilityEnabled ->
+                                "Accessibility enabled, waiting for Android binding."
+                            else ->
+                                "Still waiting for Accessibility permission."
+                        }
+                        onShowToast(msg)
+                    }
+                )
+                OutloopSecondaryButton(
+                    text = if (uiState.isSyncingRules) "Checking feed rules\u2026" else "Check feed rules now",
+                    onClick = onCheckRulesNow,
+                    enabled = !uiState.isSyncingRules
+                )
             }
         }
-
-        Text(
-            text = "Raw screen content is never shown or transmitted.",
-            style = MaterialTheme.typography.bodySmall,
-            color = colors.secondaryInk
-        )
     }
 }
 
@@ -332,10 +341,10 @@ private fun DiagnosticRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 44.dp)
-            .padding(horizontal = OutloopMetrics.ListRowPaddingHorizontal, vertical = 8.dp),
+            .heightIn(min = 50.dp)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
             text = label,

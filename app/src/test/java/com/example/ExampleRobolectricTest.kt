@@ -696,6 +696,7 @@ class ExampleRobolectricTest {
         settings.setAppearanceMode(AppearanceMode.DARK)
         settings.setQuietHours(enabled = true, startMinutes = 22 * 60, endMinutes = 7 * 60)
         settings.setDailyBudgetCuts(15)
+        settings.setStrictModeEnabled(true)
 
         val json = backupManager.exportToJson()
         val preview = backupManager.inspectBackupJson(json)
@@ -710,6 +711,7 @@ class ExampleRobolectricTest {
         settings.setAppearanceMode(AppearanceMode.LIGHT)
         settings.setQuietHours(enabled = false, startMinutes = 0, endMinutes = 0)
         settings.setDailyBudgetCuts(0)
+        settings.setStrictModeEnabled(false)
 
         val invalidResult = backupManager.restoreFromJson("{invalid json")
         assertTrue(invalidResult is BackupRestoreResult.Error)
@@ -729,12 +731,14 @@ class ExampleRobolectricTest {
         assertEquals(AppearanceMode.DARK, restoredPrefs.appearanceMode)
         assertTrue(restoredPrefs.quietHoursEnabled)
         assertEquals(15, restoredPrefs.dailyBudgetCuts)
+        assertTrue(restoredPrefs.strictModeEnabled)
 
         // Clean up test mutations so shared Robolectric DB/DataStore remains pristine for other tests
         dao.deleteCustomRule("com.custom.shortapp")
         dao.clearAllEvents()
         settings.setQuietHours(enabled = false, startMinutes = 22 * 60, endMinutes = 7 * 60)
         settings.setDailyBudgetCuts(0)
+        settings.setStrictModeEnabled(false)
         settings.setAppearanceMode(AppearanceMode.SYSTEM)
     }
 
