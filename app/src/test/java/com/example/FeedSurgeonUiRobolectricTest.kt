@@ -266,6 +266,12 @@ class FeedSurgeonUiRobolectricTest {
         composeRule.onNodeWithText("Loop\nbroken").assertIsDisplayed()
         composeRule.onNodeWithText("12 min").assertIsDisplayed()
         composeRule.onNodeWithText("3 days").assertIsDisplayed()
+        composeRule.onNodeWithTag("sim_home_button").assertIsDisplayed()
+        composeRule.onNodeWithTag("sim_exit_button").assertIsDisplayed()
+        composeRule.onNodeWithTag("sim_snooze_button").assertIsDisplayed()
+        composeRule.onNodeWithText("Home").assertIsDisplayed()
+        composeRule.onNodeWithText("Exit").assertIsDisplayed()
+        composeRule.onNodeWithText("Pause for 15 min").assertIsDisplayed()
     }
 
     @Test

@@ -572,6 +572,25 @@ class FeedSurgeonService : AccessibilityService() {
         }
     }
 
+    private fun getPackageWindowRoots(pkg: String): List<AccessibilityNodeInfo> {
+        val roots = mutableListOf<AccessibilityNodeInfo>()
+        val activeRoot = runCatching { rootInActiveWindow }.getOrNull()
+        if (SelectorMatcher.matchesTargetPackage(activeRoot, pkg) && activeRoot != null) {
+            roots.add(activeRoot)
+        }
+        val windowRoots = try {
+            windows?.mapNotNull { it.root } ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
+        }
+        windowRoots.forEach { winRoot ->
+            if (SelectorMatcher.matchesTargetPackage(winRoot, pkg) && roots.none { it === winRoot }) {
+                roots.add(winRoot)
+            }
+        }
+        return roots
+    }
+
     private fun resolveTargetRootNode(pkg: String): AccessibilityNodeInfo? {
         val windowRoots = try {
             windows?.map { it.root } ?: emptyList()
@@ -586,22 +605,117 @@ class FeedSurgeonService : AccessibilityService() {
         )
     }
 
+    private fun isTargetAppActiveForBack(pkg: String): Boolean {
+        val activePkg = runCatching { rootInActiveWindow?.packageName?.toString() }.getOrNull()
+        if (activePkg == packageName) return false
+        return activePkg == pkg || (activePkg == null && resolveTargetRootNode(pkg) != null)
+    }
+
+    private fun tryClickAppHomeTab(
+        rootNode: AccessibilityNodeInfo?,
+        rule: TargetAppRuleEntity
+    ): Boolean {
+        val packageRoots = getPackageWindowRoots(rule.packageName)
+        val primaryRoot = packageRoots.firstOrNull()
+            ?: rootNode?.takeIf { SelectorMatcher.matchesTargetPackage(it, rule.packageName) }
+            ?: return false
+        return SelectorMatcher.findHomeTabNode(
+            root = primaryRoot,
+            homeTabLabel = rule.homeTabLabel,
+            packageName = rule.packageName,
+            additionalRoots = packageRoots
+        )?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
+    }
+
     private fun executeHomeTabThenBackFallback(
         rootNode: AccessibilityNodeInfo?,
         rule: TargetAppRuleEntity
-    ) {
-        val clickedHome = rootNode?.let {
-            SelectorMatcher.findHomeTabNode(it, rule.homeTabLabel)
+    ): Boolean {
+        val clickedHome = tryClickAppHomeTab(rootNode, rule)
+        if (clickedHome) return true
+
+        val targetRoot = resolveTargetRootNode(rule.packageName)
+            ?: rootNode?.takeIf { SelectorMatcher.matchesTargetPackage(it, rule.packageName) }
+        val clickedInAppBack = targetRoot?.let {
+            SelectorMatcher.findInAppBackNode(it, rule.packageName)
                 ?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
         } == true
-        if (!clickedHome) {
+        if (!clickedInAppBack && isTargetAppActiveForBack(rule.packageName)) {
             performGlobalAction(GLOBAL_ACTION_BACK)
         }
+        return false
+    }
+
+    internal fun exitCompleteAppToDeviceHome(): Boolean {
+        val activePkg = sessionTracker.activePackage()
+        if (activePkg != null) {
+            val nowElapsed = SystemClock.elapsedRealtime()
+            val nowMs = System.currentTimeMillis()
+            flushSessionSlicesAsync(
+                sessionTracker.onPackageExited(
+                    expectedPackage = activePkg,
+                    nowElapsedMs = nowElapsed,
+                    nowWallMs = nowMs
+                )
+            )
+            stopUsageTicker()
+            DiagnosticsBridge.clearForegroundMonitoredApp(activePkg)
+        }
+        return performGlobalAction(GLOBAL_ACTION_HOME)
     }
 
     private fun isStillOnMatchedFeed(rule: TargetAppRuleEntity): Boolean {
         val verifyRoot = resolveTargetRootNode(rule.packageName) ?: return false
         return SelectorMatcher.findMatchingSelector(verifyRoot, rule) != null
+    }
+
+    private suspend fun navigateToAppHomeTabFromOverlayAndVerify(
+        initialRoot: AccessibilityNodeInfo?,
+        rule: TargetAppRuleEntity,
+        eventId: Long?
+    ) {
+        // Allow WindowManager a moment after synchronous overlay removal to restore active focus to the guarded app
+        delay(60L)
+        val hostApp = app
+        val settledRoot = resolveTargetRootNode(rule.packageName) ?: initialRoot
+        val clickedHomeImmediately = tryClickAppHomeTab(settledRoot, rule)
+
+        if (clickedHomeImmediately) {
+            delay(320L)
+            if (isStillOnMatchedFeed(rule)) {
+                val retryRoot = resolveTargetRootNode(rule.packageName)
+                if (tryClickAppHomeTab(retryRoot, rule)) {
+                    delay(280L)
+                }
+            }
+        } else {
+            // Full-screen Reels/Shorts viewer may hide the tab bar: exit the viewer once inside the target app,
+            // then click the revealed Home tab instead of ever issuing a second BACK that could leave the app.
+            val targetRoot = resolveTargetRootNode(rule.packageName) ?: settledRoot
+            val clickedInAppBack = targetRoot?.takeIf {
+                SelectorMatcher.matchesTargetPackage(it, rule.packageName)
+            }?.let {
+                SelectorMatcher.findInAppBackNode(it, rule.packageName)
+                    ?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            } == true
+            if (!clickedInAppBack && isTargetAppActiveForBack(rule.packageName)) {
+                performGlobalAction(GLOBAL_ACTION_BACK)
+            }
+            delay(380L)
+            val postBackRoot = resolveTargetRootNode(rule.packageName)
+            if (postBackRoot != null && tryClickAppHomeTab(postBackRoot, rule)) {
+                delay(280L)
+            }
+        }
+
+        lastBlockTimestamps[rule.packageName] = SystemClock.elapsedRealtime()
+        val cleared = !isStillOnMatchedFeed(rule)
+        if (eventId != null && hostApp != null) {
+            hostApp.interventionRepository.updateInterventionOutcome(
+                eventId,
+                if (cleared) InterventionOutcome.CONFIRMED else InterventionOutcome.FAILED
+            )
+        }
     }
 
     private suspend fun verifyInterventionAndFallbackIfNeeded(
@@ -621,8 +735,17 @@ class FeedSurgeonService : AccessibilityService() {
         }
 
         if (rule.interventionMode == InterventionMode.HOME_TAB || rule.interventionMode == InterventionMode.OVERLAY) {
-            performGlobalAction(GLOBAL_ACTION_BACK)
-            delay(300L)
+            val postRoot = resolveTargetRootNode(rule.packageName)
+            val clickedHome = tryClickAppHomeTab(postRoot, rule)
+            if (!clickedHome && isTargetAppActiveForBack(rule.packageName)) {
+                performGlobalAction(GLOBAL_ACTION_BACK)
+            }
+            delay(320L)
+            val afterBackRoot = resolveTargetRootNode(rule.packageName)
+            if (afterBackRoot != null && isStillOnMatchedFeed(rule)) {
+                tryClickAppHomeTab(afterBackRoot, rule)
+                delay(250L)
+            }
             val cleared = !isStillOnMatchedFeed(rule)
             if (eventId != null && hostApp != null) {
                 hostApp.interventionRepository.updateInterventionOutcome(
@@ -658,7 +781,7 @@ class FeedSurgeonService : AccessibilityService() {
             rule.interventionMode == InterventionMode.OVERLAY ||
                 triggerMode == OverlayTriggerMode.DAILY_LIMIT_REACHED
             )
-        if (shouldShowDimOverlay && shield != null) {
+        if (shouldShowDimOverlay) {
             val eventIdDeferred = CompletableDeferred<Long?>()
             serviceScope.launch {
                 val eventId = if (shouldRecord && hostApp != null) {
@@ -693,30 +816,28 @@ class FeedSurgeonService : AccessibilityService() {
                 triggerMode = triggerMode,
                 dailyUsedSeconds = dailyUsedSeconds,
                 dailyLimitMinutes = rule.dailyLimitMinutes,
-                onExitFeed = {
+                onGoHome = {
                     lastBlockTimestamps[rule.packageName] = SystemClock.elapsedRealtime()
-                    val freshRoot = resolveTargetRootNode(rule.packageName) ?: rootNode
-                    executeHomeTabThenBackFallback(freshRoot, rule)
                     serviceScope.launch {
                         try {
                             val eventId = eventIdDeferred.await()
-                            verifyInterventionAndFallbackIfNeeded(rule, eventId)
+                            navigateToAppHomeTabFromOverlayAndVerify(rootNode, rule, eventId)
                         } finally {
                             inFlightVerifications.remove(rule.packageName)
                         }
                     }
                 },
-                onAllowOnce = {
+                onExitApp = {
                     lastBlockTimestamps[rule.packageName] = SystemClock.elapsedRealtime()
+                    exitCompleteAppToDeviceHome()
                     serviceScope.launch {
                         try {
                             val eventId = eventIdDeferred.await()
-                            if (hostApp != null) {
-                                if (eventId != null) {
-                                    hostApp.interventionRepository.allowOnceForEvent(eventId, rule.packageName)
-                                } else {
-                                    hostApp.interventionRepository.allowOnceTemporary(rule.packageName)
-                                }
+                            if (eventId != null && hostApp != null) {
+                                hostApp.interventionRepository.updateInterventionOutcome(
+                                    eventId,
+                                    InterventionOutcome.CONFIRMED
+                                )
                             }
                         } finally {
                             inFlightVerifications.remove(rule.packageName)

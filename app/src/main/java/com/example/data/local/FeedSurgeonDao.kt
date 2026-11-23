@@ -32,6 +32,9 @@ interface FeedSurgeonDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertRules(rules: List<TargetAppRuleEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertRulesIfMissing(rules: List<TargetAppRuleEntity>)
+
     @Update
     suspend fun updateRule(rule: TargetAppRuleEntity)
 

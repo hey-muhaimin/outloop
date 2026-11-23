@@ -1,12 +1,13 @@
 # Outloop R8 / ProGuard Rules
 
--keepattributes Signature,InnerClasses,EnclosingMethod,RuntimeVisibleAnnotations,RuntimeVisibleParameterAnnotations
+-keepattributes SourceFile,LineNumberTable,Signature,InnerClasses,EnclosingMethod,RuntimeVisibleAnnotations,RuntimeVisibleParameterAnnotations
 
 # Keep Android entry points registered in AndroidManifest.xml
 -keep class com.example.FeedSurgeonApp { *; }
 -keep class com.example.MainActivity { *; }
 -keep class com.example.service.FeedSurgeonService { *; }
 -keep class com.example.service.ProtectionActionReceiver { *; }
+-keep class com.example.service.TransparentPauseDimOverlay { *; }
 -keep class com.example.worker.RulesetSyncWorker { *; }
 
 # Moshi reflection/codegen adapters & JSON DTOs

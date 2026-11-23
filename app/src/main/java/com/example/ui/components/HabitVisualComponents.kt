@@ -10,9 +10,11 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,14 +26,15 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ExitToApp
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -48,9 +52,11 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -448,6 +454,7 @@ fun OutloopSimulationOverlay(
     streakDays: Int = 0
 ) {
     val colors = OutloopTheme.colors
+    val haptic = rememberOutloopHaptic()
     val cardEnter = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         cardEnter.animateTo(
@@ -473,7 +480,7 @@ fun OutloopSimulationOverlay(
                 .fillMaxSize()
                 .background(Color(0xFF111214).copy(alpha = scrimAlpha))
                 .clickable(onClick = onDismiss)
-                .padding(horizontal = 20.dp),
+                .padding(horizontal = 18.dp),
             contentAlignment = Alignment.Center
         ) {
             Column(
@@ -486,19 +493,19 @@ fun OutloopSimulationOverlay(
                         scaleX = 0.94f + 0.06f * v
                         scaleY = 0.94f + 0.06f * v
                     }
-                    .clip(RoundedCornerShape(28.dp))
+                    .clip(RoundedCornerShape(OutloopMetrics.SheetCornerRadius))
                     .background(colors.surfaceCard)
-                    .border(1.dp, colors.hairlineBorder, RoundedCornerShape(28.dp))
+                    .border(1.dp, colors.hairlineBorder, RoundedCornerShape(OutloopMetrics.SheetCornerRadius))
                     .clickable(enabled = false, onClick = {})
-                    .padding(18.dp)
+                    .padding(OutloopMetrics.CardPadding)
                     .testTag("simulation_pause_dialog")
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(22.dp))
+                        .clip(RoundedCornerShape(OutloopMetrics.HeroCornerRadius))
                         .background(colors.heroDark)
-                        .padding(18.dp),
+                        .padding(horizontal = 20.dp, vertical = 18.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -526,7 +533,7 @@ fun OutloopSimulationOverlay(
                         )
                     }
                     OutloopMark(
-                        size = 72.dp,
+                        size = 74.dp,
                         color = if (limitReached) colors.warnBg else colors.sageAccent,
                         strokeWidth = 9.5.dp
                     )
@@ -535,9 +542,9 @@ fun OutloopSimulationOverlay(
                 Spacer(modifier = Modifier.height(14.dp))
                 Text(
                     text = if (limitReached) {
-                        "You reached your ${dailyLimitMinutes}m daily budget for $appName ($usedText used). Feed dimmed (Preview mode)."
+                        "You reached your ${dailyLimitMinutes}m daily budget for $appName ($usedText used). Return to Home or exit $appName (Preview mode)."
                     } else {
-                        "$feedLabel is dimmed and guarded. Useful parts stay open (Preview mode)."
+                        "$feedLabel is dimmed and guarded. Return to Home or exit $appName (Preview mode)."
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.secondaryInk
@@ -561,7 +568,7 @@ fun OutloopSimulationOverlay(
                         )
                         OutloopBentoStatTile(
                             value = timeKeptText,
-                            label = "reclaimed today",
+                            label = "time kept",
                             containerColor = colors.surfaceSubtle,
                             modifier = Modifier
                                 .weight(1f)
@@ -570,7 +577,7 @@ fun OutloopSimulationOverlay(
                     } else {
                         OutloopBentoStatTile(
                             value = timeKeptText,
-                            label = "reclaimed today",
+                            label = "time kept",
                             containerColor = colors.canvas,
                             modifier = Modifier
                                 .weight(1f)
@@ -588,46 +595,136 @@ fun OutloopSimulationOverlay(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                OutloopPrimaryButton(
-                    text = if (limitReached) "Leave $appName" else primaryActionLabel,
-                    onClick = {
-                        onActionFeedback("Preview: exited $feedLabel.")
-                        onDismiss()
-                    },
-                    modifier = Modifier.testTag("sim_return_button")
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                Button(
-                    onClick = {
-                        onActionFeedback("Preview: allowed once for 5 minutes.")
-                        onDismiss()
-                    },
-                    shape = CircleShape,
-                    border = BorderStroke(1.dp, colors.hairlineBorder),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = colors.surfaceSubtle,
-                        contentColor = colors.ink
-                    ),
+
+                // Row 1: Nav-dock-style inline Home | Exit bar matching FloatingPillNavBar
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 52.dp)
-                        .testTag("sim_allow_button")
+                        .height(OutloopMetrics.DockHeight)
+                        .shadow(
+                            elevation = 8.dp,
+                            shape = CircleShape,
+                            ambientColor = colors.dockShadow,
+                            spotColor = colors.dockShadow
+                        )
+                        .clip(CircleShape)
+                        .background(colors.surfaceCard)
+                        .border(1.dp, colors.hairlineBorder, CircleShape)
+                        .padding(4.dp)
                 ) {
-                    Text(
-                        text = secondaryActionLabel,
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                            .background(colors.surfaceSubtle)
+                            .padding(3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val homeInteraction = remember { MutableInteractionSource() }
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .outloopPressScale(homeInteraction, pressedScale = 0.96f)
+                                .shadow(
+                                    elevation = 2.dp,
+                                    shape = CircleShape,
+                                    ambientColor = colors.dockShadow,
+                                    spotColor = colors.dockShadow
+                                )
+                                .clip(CircleShape)
+                                .background(colors.surfaceElevated)
+                                .border(0.75.dp, colors.hairlineBorder, CircleShape)
+                                .clickable(
+                                    role = Role.Button,
+                                    interactionSource = homeInteraction,
+                                    indication = LocalIndication.current
+                                ) {
+                                    haptic()
+                                    onActionFeedback("Preview: returned to $appName Home ($primaryActionLabel).")
+                                    onDismiss()
+                                }
+                                .semantics {
+                                    contentDescription = "Return to Home in $appName"
+                                }
+                                .testTag("sim_home_button"),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Home,
+                                contentDescription = null,
+                                tint = colors.ink,
+                                modifier = Modifier.size(19.dp)
+                            )
+                            Spacer(modifier = Modifier.height(1.dp))
+                            Text(
+                                text = "Home",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.15.sp
+                                ),
+                                color = colors.ink,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        val exitInteraction = remember { MutableInteractionSource() }
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .outloopPressScale(exitInteraction, pressedScale = 0.96f)
+                                .clip(CircleShape)
+                                .clickable(
+                                    role = Role.Button,
+                                    interactionSource = exitInteraction,
+                                    indication = LocalIndication.current
+                                ) {
+                                    haptic()
+                                    onActionFeedback("Preview: minimized $appName ($secondaryActionLabel).")
+                                    onDismiss()
+                                }
+                                .semantics {
+                                    contentDescription = "Exit and minimize $appName"
+                                }
+                                .testTag("sim_exit_button"),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ExitToApp,
+                                contentDescription = null,
+                                tint = colors.ink,
+                                modifier = Modifier.size(19.dp)
+                            )
+                            Spacer(modifier = Modifier.height(1.dp))
+                            Text(
+                                text = "Exit",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.15.sp
+                                ),
+                                color = colors.ink,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
-                OutloopTextButton(
-                    text = "Pause for 15 min",
+
+                Spacer(modifier = Modifier.height(OutloopMetrics.BentoGap))
+
+                // Row 2: Full-width Pause button
+                OutloopPrimaryButton(
+                    text = if (limitReached) "Extend limit \u00B7 15 min" else "Pause for 15 min",
                     onClick = {
                         onActionFeedback("Preview: paused for 15 minutes.")
                         onDismiss()
                     },
-                    color = colors.secondaryInk,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("sim_snooze_button")
+                    modifier = Modifier.testTag("sim_snooze_button")
                 )
             }
         }

@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.PixelFormat
 import android.graphics.RectF
 import android.graphics.Typeface
@@ -11,6 +12,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.text.TextUtils
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
@@ -58,7 +60,9 @@ data class OverlayPresentationConfig(
 /**
  * Transparent UI overlay component triggered by [FeedSurgeonService] via [TYPE_ACCESSIBILITY_OVERLAY].
  * Draws an animated translucent dim scrim over the underlying short-form video feed while presenting
- * the Light Tonal Bento Pause Guard card (supporting both feed-scroll and daily-limit triggers).
+ * the Monochrome Editorial Tonal Bento Pause Guard card matching [OutloopMetrics] and [FloatingPillNavBar]:
+ *  - Row 1: Nav-dock-style inline Home | Exit pill row with icons (64dp pill dock)
+ *  - Row 2: Full-width Pause pill button (52dp height)
  */
 class TransparentPauseDimOverlay(private val context: Context) {
 
@@ -71,8 +75,8 @@ class TransparentPauseDimOverlay(private val context: Context) {
 
     fun show(
         config: OverlayPresentationConfig,
-        onExitFeed: () -> Unit,
-        onAllowOnce: () -> Unit,
+        onGoHome: () -> Unit,
+        onExitApp: () -> Unit,
         onSnoozeMinutes: (Int) -> Unit = {},
         onAttachmentFailed: () -> Unit = {}
     ) {
@@ -82,8 +86,8 @@ class TransparentPauseDimOverlay(private val context: Context) {
             val built = buildOverlayViews(
                 config = config,
                 onDismissRequest = { dismiss() },
-                onExitFeed = onExitFeed,
-                onAllowOnce = onAllowOnce,
+                onGoHome = onGoHome,
+                onExitApp = onExitApp,
                 onSnoozeMinutes = onSnoozeMinutes
             )
 
@@ -140,8 +144,8 @@ class TransparentPauseDimOverlay(private val context: Context) {
     internal fun buildOverlayViews(
         config: OverlayPresentationConfig,
         onDismissRequest: () -> Unit,
-        onExitFeed: () -> Unit,
-        onAllowOnce: () -> Unit,
+        onGoHome: () -> Unit,
+        onExitApp: () -> Unit,
         onSnoozeMinutes: (Int) -> Unit
     ): OverlayViewHandles {
         val density = context.resources.displayMetrics.density
@@ -160,19 +164,21 @@ class TransparentPauseDimOverlay(private val context: Context) {
         val scrimColor = Color.argb(dimAlphaInt, 0x11, 0x12, 0x14)
 
         val isDark = config.useDarkTheme
+        val canvasColor = if (isDark) Color.parseColor("#111214") else Color.parseColor("#F2F2EF")
         val modalBg = if (isDark) Color.parseColor("#1A1B1E") else Color.parseColor("#FAFAF8")
+        val elevatedBg = if (isDark) Color.parseColor("#232529") else Color.parseColor("#FFFFFF")
         val modalStroke = if (isDark) Color.parseColor("#1AFAFAF8") else Color.parseColor("#14111214")
         val darkHeroBg = Color.parseColor("#1C1D1F")
         val darkPillBg = Color.parseColor("#2B2D30")
         val sageAccent = Color.parseColor("#D5DCD7")
         val heroTrack = Color.parseColor("#34363A")
-        val mintTileBg = if (isDark) Color.parseColor("#26282C") else Color.parseColor("#E7E7E3")
-        val peachTileBg = if (isDark) Color.parseColor("#2F2821") else Color.parseColor("#EFE9E1")
+        val subtleTrackBg = if (isDark) Color.parseColor("#26282C") else Color.parseColor("#E7E7E3")
+        val warnBg = if (isDark) Color.parseColor("#2F2821") else Color.parseColor("#EFE9E1")
+        val warnTextColor = if (isDark) Color.parseColor("#E8D8C6") else Color.parseColor("#7A4E27")
         val inkPrimary = if (isDark) Color.parseColor("#FAFAF8") else Color.parseColor("#111214")
         val inkSecondary = if (isDark) Color.parseColor("#A7AAB0") else Color.parseColor("#5B5E63")
         val ivoryInk = Color.parseColor("#FAFAF8")
-        val warnTextColor = Color.parseColor("#7A4E27")
-        val outlineStroke = if (isDark) Color.parseColor("#33FAFAF8") else Color.parseColor("#24111214")
+        val outlineStroke = if (isDark) Color.parseColor("#33FAFAF8") else Color.parseColor("#14111214")
 
         val root = FrameLayout(context).apply {
             tag = TAG_OVERLAY_ROOT
@@ -190,7 +196,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
             setOnKeyListener { _, keyCode, event ->
                 if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
                     onDismissRequest()
-                    onExitFeed()
+                    onGoHome()
                     true
                 } else {
                     false
@@ -222,7 +228,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
         val modalCard = LinearLayout(context).apply {
             tag = TAG_MODAL_CARD
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(18), dp(18), dp(16))
+            setPadding(dp(18), dp(18), dp(18), dp(18))
             background = GradientDrawable().apply {
                 setColor(modalBg)
                 cornerRadius = dpF(28f)
@@ -231,6 +237,136 @@ class TransparentPauseDimOverlay(private val context: Context) {
         }
 
         lateinit var buildPauseGuardFn: (isDailyLimitPause: Boolean) -> View
+
+        fun createDockIconView(isHomeIcon: Boolean, tintColor: Int): View {
+            return object : View(context) {
+                private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    style = Paint.Style.STROKE
+                    strokeCap = Paint.Cap.ROUND
+                    strokeJoin = Paint.Join.ROUND
+                    color = tintColor
+                }
+                private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    style = Paint.Style.FILL
+                    color = tintColor
+                }
+
+                override fun onDraw(canvas: Canvas) {
+                    super.onDraw(canvas)
+                    val w = width.toFloat()
+                    val h = height.toFloat()
+                    if (w <= 0f || h <= 0f) return
+                    val sw = dpF(1.9f)
+                    strokePaint.strokeWidth = sw
+
+                    if (isHomeIcon) {
+                        // Crisp rounded house glyph matching Icons.Rounded.Home
+                        val roofPath = Path().apply {
+                            moveTo(w * 0.16f, h * 0.46f)
+                            lineTo(w * 0.50f, h * 0.17f)
+                            lineTo(w * 0.84f, h * 0.46f)
+                        }
+                        canvas.drawPath(roofPath, strokePaint)
+
+                        val houseBody = Path().apply {
+                            moveTo(w * 0.24f, h * 0.44f)
+                            lineTo(w * 0.24f, h * 0.82f)
+                            lineTo(w * 0.42f, h * 0.82f)
+                            lineTo(w * 0.42f, h * 0.60f)
+                            lineTo(w * 0.58f, h * 0.60f)
+                            lineTo(w * 0.58f, h * 0.82f)
+                            lineTo(w * 0.76f, h * 0.82f)
+                            lineTo(w * 0.76f, h * 0.44f)
+                        }
+                        canvas.drawPath(houseBody, strokePaint)
+                    } else {
+                        // Crisp exit-app door + right arrow glyph matching ExitToApp
+                        val framePath = Path().apply {
+                            moveTo(w * 0.56f, h * 0.24f)
+                            lineTo(w * 0.56f, h * 0.18f)
+                            lineTo(w * 0.22f, h * 0.18f)
+                            lineTo(w * 0.22f, h * 0.82f)
+                            lineTo(w * 0.56f, h * 0.82f)
+                            lineTo(w * 0.56f, h * 0.76f)
+                        }
+                        canvas.drawPath(framePath, strokePaint)
+
+                        // Arrow shaft
+                        canvas.drawLine(w * 0.44f, h * 0.50f, w * 0.82f, h * 0.50f, strokePaint)
+
+                        // Arrow head
+                        val headPath = Path().apply {
+                            moveTo(w * 0.68f, h * 0.35f)
+                            lineTo(w * 0.83f, h * 0.50f)
+                            lineTo(w * 0.68f, h * 0.65f)
+                        }
+                        canvas.drawPath(headPath, strokePaint)
+                    }
+                }
+            }.apply {
+                layoutParams = LinearLayout.LayoutParams(dp(19), dp(19))
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }
+        }
+
+        fun buildDockActionItem(
+            tagName: String,
+            label: String,
+            accessibilityDescription: String,
+            isHomeIcon: Boolean,
+            isElevatedPill: Boolean,
+            onClick: () -> Unit
+        ): LinearLayout {
+            return LinearLayout(context).apply {
+                tag = tagName
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                isClickable = true
+                isFocusable = true
+                contentDescription = accessibilityDescription
+                minimumHeight = dp(48)
+                background = if (isElevatedPill) {
+                    GradientDrawable().apply {
+                        setColor(elevatedBg)
+                        cornerRadius = dpF(100f)
+                        setStroke(dp(1), modalStroke)
+                    }
+                } else {
+                    null
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    1f
+                ).apply {
+                    if (!isHomeIcon) marginStart = dp(4)
+                }
+
+                addView(createDockIconView(isHomeIcon = isHomeIcon, tintColor = inkPrimary))
+
+                addView(TextView(context).apply {
+                    text = label
+                    textSize = 11.5f
+                    maxLines = 1
+                    ellipsize = TextUtils.TruncateAt.END
+                    typeface = Typeface.create(
+                        bodyTypeface,
+                        if (isElevatedPill) Typeface.BOLD else Typeface.BOLD
+                    )
+                    setTextColor(inkPrimary)
+                    gravity = Gravity.CENTER
+                    setPadding(dp(4), dp(1), dp(4), 0)
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                })
+
+                setOnClickListener { view ->
+                    if (config.hapticsEnabled) {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    }
+                    onClick()
+                }
+            }
+        }
 
         fun buildFeedBlockedContent(): View {
             val container = LinearLayout(context).apply {
@@ -246,10 +382,10 @@ class TransparentPauseDimOverlay(private val context: Context) {
             val heroRow = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(18), dp(18), dp(18), dp(18))
+                setPadding(dp(20), dp(18), dp(20), dp(18))
                 background = GradientDrawable().apply {
                     setColor(darkHeroBg)
-                    cornerRadius = dpF(22f)
+                    cornerRadius = dpF(26f)
                 }
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
@@ -280,7 +416,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 )
                 setPadding(dp(12), dp(5), dp(12), dp(5))
                 background = GradientDrawable().apply {
-                    setColor(if (isLimitReached) Color.parseColor("#EFE9E1") else darkPillBg)
+                    setColor(if (isLimitReached) warnBg else darkPillBg)
                     cornerRadius = dpF(100f)
                 }
                 layoutParams = LinearLayout.LayoutParams(
@@ -295,7 +431,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 lineHeight = dp(31)
                 typeface = Typeface.create(headingTypeface, Typeface.BOLD)
                 setTextColor(ivoryInk)
-                setPadding(0, dp(12), 0, 0)
+                setPadding(0, dp(10), 0, 0)
                 isFocusable = true
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
             }
@@ -307,12 +443,12 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     style = Paint.Style.STROKE
                     strokeCap = Paint.Cap.ROUND
-                    color = if (isLimitReached) Color.parseColor("#EFE9E1") else sageAccent
+                    color = if (isLimitReached) warnBg else sageAccent
                 }
 
                 override fun onDraw(canvas: Canvas) {
                     super.onDraw(canvas)
-                    val strokeW = dpF(10f)
+                    val strokeW = dpF(9.5f)
                     paint.strokeWidth = strokeW
                     val inset = strokeW / 2f + dp(4)
                     val rect = RectF(inset, inset, width - inset, height - inset)
@@ -335,9 +471,9 @@ class TransparentPauseDimOverlay(private val context: Context) {
             val usedCompact = InterventionRepository.formatDurationCompact(config.dailyUsedSeconds)
 
             val bodyCopy = if (isLimitReached && config.dailyLimitMinutes > 0) {
-                "You reached your ${config.dailyLimitMinutes}m daily budget for ${config.appName} ($usedCompact used today). Step out to keep your focus."
+                "You reached your ${config.dailyLimitMinutes}m daily budget for ${config.appName} ($usedCompact used today). Return to Home or exit ${config.appName}."
             } else {
-                "${config.feedLabel} is dimmed and guarded, and that is $loopsWord broken today. ${config.usefulPartsSummary}"
+                "${config.feedLabel} is dimmed and guarded ($loopsWord broken today). ${config.usefulPartsSummary}"
             }
 
             val bodyView = TextView(context).apply {
@@ -346,7 +482,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 lineHeight = dp(21)
                 typeface = bodyTypeface
                 setTextColor(inkSecondary)
-                setPadding(dp(2), dp(16), dp(2), dp(14))
+                setPadding(dp(2), dp(14), dp(2), dp(14))
             }
             container.addView(bodyView)
 
@@ -362,15 +498,18 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 bgColor: Int,
                 valueText: String,
                 labelText: String,
+                valueColor: Int,
+                labelColor: Int,
                 marginEndDp: Int,
                 marginStartDp: Int
             ): LinearLayout {
                 return LinearLayout(context).apply {
                     orientation = LinearLayout.VERTICAL
-                    setPadding(dp(14), dp(13), dp(14), dp(13))
+                    setPadding(dp(18), dp(16), dp(18), dp(16))
                     background = GradientDrawable().apply {
                         setColor(bgColor)
-                        cornerRadius = dpF(18f)
+                        cornerRadius = dpF(22f)
+                        setStroke(dp(1), modalStroke)
                     }
                     layoutParams = LinearLayout.LayoutParams(
                         0,
@@ -382,15 +521,15 @@ class TransparentPauseDimOverlay(private val context: Context) {
                     }
                     addView(TextView(context).apply {
                         text = valueText
-                        textSize = 20f
+                        textSize = 23f
                         typeface = Typeface.create(headingTypeface, Typeface.BOLD)
-                        setTextColor(inkPrimary)
+                        setTextColor(valueColor)
                     })
                     addView(TextView(context).apply {
                         text = labelText
                         textSize = 12f
                         typeface = bodyTypeface
-                        setTextColor(inkSecondary)
+                        setTextColor(labelColor)
                         setPadding(0, dp(2), 0, 0)
                     })
                 }
@@ -398,25 +537,126 @@ class TransparentPauseDimOverlay(private val context: Context) {
 
             if (config.dailyLimitMinutes > 0) {
                 val limitText = "$usedCompact / ${config.dailyLimitMinutes}m"
-                tilesRow.addView(createStatTile(peachTileBg, limitText, "used today", 5, 0))
-                tilesRow.addView(createStatTile(mintTileBg, config.timeKeptText, "time kept", 0, 5))
+                tilesRow.addView(
+                    createStatTile(
+                        bgColor = if (isLimitReached) warnBg else canvasColor,
+                        valueText = limitText,
+                        labelText = "used today",
+                        valueColor = if (isLimitReached) warnTextColor else inkPrimary,
+                        labelColor = if (isLimitReached) warnTextColor else inkSecondary,
+                        marginEndDp = 5,
+                        marginStartDp = 0
+                    )
+                )
+                tilesRow.addView(
+                    createStatTile(
+                        bgColor = subtleTrackBg,
+                        valueText = config.timeKeptText,
+                        labelText = "time kept",
+                        valueColor = inkPrimary,
+                        labelColor = inkSecondary,
+                        marginEndDp = 0,
+                        marginStartDp = 5
+                    )
+                )
             } else {
                 val streakLabel = if (config.streakDays == 1) "1 day" else "${config.streakDays} days"
-                tilesRow.addView(createStatTile(Color.parseColor(if (isDark) "#232529" else "#F2F2EF"), config.timeKeptText, "time kept", 5, 0))
-                tilesRow.addView(createStatTile(mintTileBg, streakLabel, "streak", 0, 5))
+                tilesRow.addView(
+                    createStatTile(
+                        bgColor = canvasColor,
+                        valueText = config.timeKeptText,
+                        labelText = "time kept",
+                        valueColor = inkPrimary,
+                        labelColor = inkSecondary,
+                        marginEndDp = 5,
+                        marginStartDp = 0
+                    )
+                )
+                tilesRow.addView(
+                    createStatTile(
+                        bgColor = subtleTrackBg,
+                        valueText = streakLabel,
+                        labelText = "streak",
+                        valueColor = inkPrimary,
+                        labelColor = inkSecondary,
+                        marginEndDp = 0,
+                        marginStartDp = 5
+                    )
+                )
             }
             container.addView(tilesRow)
 
-            // Primary dark pill button ("Open DMs" or "Leave Instagram")
-            val primaryLabel = if (isLimitReached) {
-                "Leave ${config.appName}"
-            } else {
-                config.primaryUsefulActionLabel
+            // Row 1: Nav-dock-style inline Home | Exit bar (64dp pill dock matching FloatingPillNavBar)
+            val dockOuterFrame = FrameLayout(context).apply {
+                tag = TAG_ACTION_DOCK
+                setPadding(dp(4), dp(4), dp(4), dp(4))
+                background = GradientDrawable().apply {
+                    setColor(modalBg)
+                    cornerRadius = dpF(100f)
+                    setStroke(dp(1), modalStroke)
+                }
+                elevation = dpF(4f)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(64)
+                ).apply {
+                    topMargin = dp(16)
+                }
             }
-            val primaryBtn = Button(context).apply {
-                tag = TAG_PRIMARY_EXIT_BTN
-                text = primaryLabel
-                contentDescription = "$primaryLabel and leave ${config.appName} ${config.feedLabel}"
+
+            val dockInnerTrack = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(3), dp(3), dp(3), dp(3))
+                background = GradientDrawable().apply {
+                    setColor(subtleTrackBg)
+                    cornerRadius = dpF(100f)
+                }
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            }
+
+            val homeDockBtn = buildDockActionItem(
+                tagName = TAG_HOME_ACTION_BTN,
+                label = "Home",
+                accessibilityDescription = "Return to Home in ${config.appName}",
+                isHomeIcon = true,
+                isElevatedPill = true,
+                onClick = {
+                    onDismissRequest()
+                    onGoHome()
+                }
+            )
+
+            val exitDockBtn = buildDockActionItem(
+                tagName = TAG_EXIT_ACTION_BTN,
+                label = "Exit",
+                accessibilityDescription = "Exit and minimize ${config.appName}",
+                isHomeIcon = false,
+                isElevatedPill = false,
+                onClick = {
+                    onDismissRequest()
+                    onExitApp()
+                }
+            )
+
+            dockInnerTrack.addView(homeDockBtn)
+            dockInnerTrack.addView(exitDockBtn)
+            dockOuterFrame.addView(dockInnerTrack)
+            container.addView(dockOuterFrame)
+
+            // Row 2: Full-width Pause button (52dp pill matching OutloopPrimaryButton)
+            val pauseBtnLabel = if (isLimitReached) {
+                "Extend limit \u00B7 ${config.preferredPauseMinutes} min"
+            } else {
+                "Pause for ${config.preferredPauseMinutes} min"
+            }
+            val pauseBtn = Button(context).apply {
+                tag = TAG_PAUSE_GUARD_BTN
+                text = pauseBtnLabel
+                contentDescription = "Open Pause Guard options for ${config.preferredPauseMinutes} minutes"
                 isAllCaps = false
                 textSize = 15f
                 typeface = Typeface.create(headingTypeface, Typeface.BOLD)
@@ -429,67 +669,9 @@ class TransparentPauseDimOverlay(private val context: Context) {
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     dp(52)
                 ).apply {
-                    topMargin = dp(16)
+                    topMargin = dp(10)
                 }
                 minimumHeight = dp(52)
-                setOnClickListener { view ->
-                    if (config.hapticsEnabled) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                    onDismissRequest()
-                    onExitFeed()
-                }
-            }
-            container.addView(primaryBtn)
-
-            if (!isLimitReached) {
-                val secondaryBtn = Button(context).apply {
-                    tag = TAG_SECONDARY_ALLOW_BTN
-                    text = config.secondaryUsefulActionLabel
-                    contentDescription = "${config.secondaryUsefulActionLabel} in ${config.appName}"
-                    isAllCaps = false
-                    textSize = 15f
-                    typeface = Typeface.create(headingTypeface, Typeface.BOLD)
-                    setTextColor(inkPrimary)
-                    background = GradientDrawable().apply {
-                        setColor(mintTileBg)
-                        cornerRadius = dpF(100f)
-                    }
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        dp(52)
-                    ).apply {
-                        topMargin = dp(10)
-                    }
-                    minimumHeight = dp(52)
-                    setOnClickListener { view ->
-                        if (config.hapticsEnabled) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        onDismissRequest()
-                        onAllowOnce()
-                    }
-                }
-                container.addView(secondaryBtn)
-            }
-
-            val pauseBtnLabel = if (isLimitReached) {
-                "Extend limit for ${config.preferredPauseMinutes} min"
-            } else {
-                "Pause for ${config.preferredPauseMinutes} min"
-            }
-            val pauseBtn = Button(context).apply {
-                tag = TAG_PAUSE_GUARD_BTN
-                text = pauseBtnLabel
-                contentDescription = "Open Pause Guard options for ${config.preferredPauseMinutes} minutes"
-                isAllCaps = false
-                textSize = 14f
-                typeface = Typeface.create(bodyTypeface, Typeface.BOLD)
-                setTextColor(inkSecondary)
-                background = null
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    dp(48)
-                ).apply {
-                    topMargin = dp(6)
-                }
-                minimumHeight = dp(48)
                 setOnClickListener { view ->
                     if (config.hapticsEnabled) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     if (config.strictModeEnabled) {
@@ -520,10 +702,10 @@ class TransparentPauseDimOverlay(private val context: Context) {
 
             val heroBox = LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(18), dp(16), dp(18), dp(22))
+                setPadding(dp(20), dp(18), dp(20), dp(22))
                 background = GradientDrawable().apply {
                     setColor(darkHeroBg)
-                    cornerRadius = dpF(22f)
+                    cornerRadius = dpF(26f)
                 }
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
@@ -565,7 +747,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 private val progressPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     style = Paint.Style.STROKE
                     strokeCap = Paint.Cap.ROUND
-                    color = if (isDailyLimitPause) Color.parseColor("#EFE9E1") else sageAccent
+                    color = if (isDailyLimitPause) warnBg else sageAccent
                 }
 
                 override fun onDraw(canvas: Canvas) {
@@ -624,7 +806,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 textSize = 23f
                 typeface = Typeface.create(headingTypeface, Typeface.BOLD)
                 setTextColor(inkPrimary)
-                setPadding(dp(2), dp(18), dp(2), dp(6))
+                setPadding(dp(2), dp(16), dp(2), dp(6))
             })
             container.addView(TextView(context).apply {
                 text = "Strict mode asks you to wait 10 seconds first. Still want a break?"
@@ -632,7 +814,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 lineHeight = dp(21)
                 typeface = bodyTypeface
                 setTextColor(inkSecondary)
-                setPadding(dp(2), 0, dp(2), dp(16))
+                setPadding(dp(2), 0, dp(2), dp(14))
             })
 
             val segRow = LinearLayout(context).apply {
@@ -660,7 +842,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                     btn.typeface = Typeface.create(bodyTypeface, if (isSel) Typeface.BOLD else Typeface.NORMAL)
                     btn.background = if (isSel) {
                         GradientDrawable().apply {
-                            setColor(mintTileBg)
+                            setColor(subtleTrackBg)
                             cornerRadius = dpF(100f)
                         }
                     } else {
@@ -715,7 +897,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 setOnClickListener { view ->
                     if (config.hapticsEnabled) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     onDismissRequest()
-                    onExitFeed()
+                    onGoHome()
                 }
             }
             container.addView(keepGuardingBtn)
@@ -763,7 +945,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                             confirmPauseBtn.isEnabled = true
                             confirmPauseBtn.setTextColor(inkPrimary)
                             confirmPauseBtn.background = GradientDrawable().apply {
-                                setColor(mintTileBg)
+                                setColor(subtleTrackBg)
                                 cornerRadius = dpF(100f)
                                 setStroke(dp(1), outlineStroke)
                             }
@@ -808,16 +990,24 @@ class TransparentPauseDimOverlay(private val context: Context) {
     }
 
     fun dismiss() {
-        mainHandler.post {
+        val removeNow = {
             activeCountdownRunnable?.let { mainHandler.removeCallbacks(it) }
             activeCountdownRunnable = null
-            val view = overlayView ?: return@post
-            try {
-                windowManager.removeView(view)
-            } catch (_: Exception) {
-            } finally {
-                overlayView = null
+            val view = overlayView
+            if (view != null) {
+                try {
+                    windowManager.removeViewImmediate(view)
+                } catch (_: Exception) {
+                    runCatching { windowManager.removeView(view) }
+                } finally {
+                    overlayView = null
+                }
             }
+        }
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            removeNow()
+        } else {
+            mainHandler.post(removeNow)
         }
     }
 
@@ -825,8 +1015,9 @@ class TransparentPauseDimOverlay(private val context: Context) {
         const val TAG_OVERLAY_ROOT = "outloop_dim_overlay_root"
         const val TAG_DIM_SCRIM = "outloop_dim_scrim"
         const val TAG_MODAL_CARD = "outloop_pause_guard_card"
-        const val TAG_PRIMARY_EXIT_BTN = "outloop_overlay_primary_exit"
-        const val TAG_SECONDARY_ALLOW_BTN = "outloop_overlay_secondary_allow"
+        const val TAG_ACTION_DOCK = "outloop_overlay_action_dock"
+        const val TAG_HOME_ACTION_BTN = "outloop_overlay_home_action"
+        const val TAG_EXIT_ACTION_BTN = "outloop_overlay_exit_action"
         const val TAG_PAUSE_GUARD_BTN = "outloop_overlay_pause_guard"
     }
 }

@@ -220,7 +220,7 @@ abstract class FeedSurgeonDatabase : RoomDatabase() {
                             super.onCreate(db)
                             CoroutineScope(Dispatchers.IO).launch {
                                 runCatching {
-                                    getInstance(appContext).feedSurgeonDao().upsertRules(defaultBuiltInRules())
+                                    getInstance(appContext).feedSurgeonDao().insertRulesIfMissing(defaultBuiltInRules())
                                 }.onFailure { err ->
                                     android.util.Log.e("FeedSurgeonDatabase", "Failed to seed built-in rules", err)
                                 }

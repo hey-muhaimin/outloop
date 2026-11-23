@@ -1120,8 +1120,9 @@ class ExampleRobolectricTest {
     fun `transparent pause dim overlay renders translucent scrim and handles daily limit mode`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val overlay = TransparentPauseDimOverlay(context)
-        var exitClicked = false
-        var allowClicked = false
+        var goHomeClicked = false
+        var exitAppClicked = false
+        var snoozeMinutesRequested: Int? = null
 
         val handles = overlay.buildOverlayViews(
             config = OverlayPresentationConfig(
@@ -1130,26 +1131,94 @@ class ExampleRobolectricTest {
                 triggerMode = OverlayTriggerMode.DAILY_LIMIT_REACHED,
                 dimAlpha = 0.80f,
                 dailyUsedSeconds = 1860L,
-                dailyLimitMinutes = 30
+                dailyLimitMinutes = 30,
+                preferredPauseMinutes = 15
             ),
             onDismissRequest = {},
-            onExitFeed = { exitClicked = true },
-            onAllowOnce = { allowClicked = true },
-            onSnoozeMinutes = {}
+            onGoHome = { goHomeClicked = true },
+            onExitApp = { exitAppClicked = true },
+            onSnoozeMinutes = { snoozeMinutesRequested = it }
         )
 
         val scrimBg = handles.dimScrim.background as ColorDrawable
         assertTrue(Color.alpha(scrimBg.color) in 180..220)
         assertTrue(handles.root.contentDescription.toString().contains("Daily limit reached"))
 
-        val primaryExitBtn = handles.modalCard.findViewWithTag<android.widget.Button>(
-            TransparentPauseDimOverlay.TAG_PRIMARY_EXIT_BTN
+        val actionDock = handles.modalCard.findViewWithTag<android.view.View>(
+            TransparentPauseDimOverlay.TAG_ACTION_DOCK
         )
-        assertNotNull(primaryExitBtn)
-        assertEquals("Leave Instagram", primaryExitBtn.text.toString())
-        primaryExitBtn.performClick()
-        assertTrue(exitClicked)
-        assertFalse(allowClicked)
+        val homeBtn = handles.modalCard.findViewWithTag<android.view.View>(
+            TransparentPauseDimOverlay.TAG_HOME_ACTION_BTN
+        )
+        val exitBtn = handles.modalCard.findViewWithTag<android.view.View>(
+            TransparentPauseDimOverlay.TAG_EXIT_ACTION_BTN
+        )
+        val pauseBtn = handles.modalCard.findViewWithTag<android.widget.Button>(
+            TransparentPauseDimOverlay.TAG_PAUSE_GUARD_BTN
+        )
+        assertNotNull(actionDock)
+        assertNotNull(homeBtn)
+        assertNotNull(exitBtn)
+        assertNotNull(pauseBtn)
+        assertEquals("Extend limit \u00B7 15 min", pauseBtn.text.toString())
+
+        homeBtn.performClick()
+        assertTrue(goHomeClicked)
+        assertFalse(exitAppClicked)
+
+        exitBtn.performClick()
+        assertTrue(exitAppClicked)
+        assertNull(snoozeMinutesRequested)
+    }
+
+    @Test
+    fun `transparent pause dim overlay supports feed guard pause flow and strict mode countdown`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val overlay = TransparentPauseDimOverlay(context)
+        var snoozeMinutesRequested: Int? = null
+
+        val instantHandles = overlay.buildOverlayViews(
+            config = OverlayPresentationConfig(
+                appName = "YouTube",
+                feedLabel = "Shorts",
+                triggerMode = OverlayTriggerMode.FEED_GUARD,
+                strictModeEnabled = false,
+                preferredPauseMinutes = 15
+            ),
+            onDismissRequest = {},
+            onGoHome = {},
+            onExitApp = {},
+            onSnoozeMinutes = { snoozeMinutesRequested = it }
+        )
+        val instantPauseBtn = instantHandles.modalCard.findViewWithTag<android.widget.Button>(
+            TransparentPauseDimOverlay.TAG_PAUSE_GUARD_BTN
+        )
+        assertEquals("Pause for 15 min", instantPauseBtn.text.toString())
+        instantPauseBtn.performClick()
+        assertEquals(15, snoozeMinutesRequested)
+
+        val strictHandles = overlay.buildOverlayViews(
+            config = OverlayPresentationConfig(
+                appName = "YouTube",
+                feedLabel = "Shorts",
+                triggerMode = OverlayTriggerMode.FEED_GUARD,
+                strictModeEnabled = true,
+                preferredPauseMinutes = 15
+            ),
+            onDismissRequest = {},
+            onGoHome = {},
+            onExitApp = {},
+            onSnoozeMinutes = {}
+        )
+        val strictPauseBtn = strictHandles.modalCard.findViewWithTag<android.widget.Button>(
+            TransparentPauseDimOverlay.TAG_PAUSE_GUARD_BTN
+        )
+        strictPauseBtn.performClick()
+        assertNull(
+            strictHandles.modalCard.findViewWithTag<android.view.View>(
+                TransparentPauseDimOverlay.TAG_ACTION_DOCK
+            )
+        )
     }
 
     @Test
@@ -1167,6 +1236,140 @@ class ExampleRobolectricTest {
         service.seedTrackedUsageForTesting("com.instagram.android", 900L)
         assertTrue(service.isDailyLimitReached(limitedRule))
 
+        assertTrue(service.exitCompleteAppToDeviceHome())
+        val shadowService = org.robolectric.Shadows.shadowOf(service)
+        assertTrue(
+            shadowService.globalActionsPerformed.contains(
+                android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME
+            )
+        )
+
         controller.unbind().destroy()
+    }
+
+    @Test
+    fun `SelectorMatcher findHomeTabNode selects target app Home tab over feed captions and ignores Outloop window`() {
+        fun makeNode(
+            pkg: String,
+            cls: String = "android.view.View",
+            viewId: String? = null,
+            desc: String? = null,
+            text: String? = null,
+            clickable: Boolean = false,
+            selected: Boolean = false
+        ): AccessibilityNodeInfo = AccessibilityNodeInfo().apply {
+            packageName = pkg
+            className = cls
+            viewIdResourceName = viewId
+            contentDescription = desc
+            this.text = text
+            isClickable = clickable
+            isSelected = selected
+            isVisibleToUser = true
+        }
+
+        val ytRoot = makeNode("com.google.android.youtube", "android.widget.FrameLayout")
+        val feedCaptionHome = makeNode(
+            pkg = "com.google.android.youtube",
+            cls = "android.widget.TextView",
+            text = "Home",
+            clickable = true
+        )
+        val pivotBar = makeNode(
+            pkg = "com.google.android.youtube",
+            cls = "android.widget.LinearLayout",
+            viewId = "com.google.android.youtube:id/pivot_bar"
+        )
+        val ytHomeTab = makeNode(
+            pkg = "com.google.android.youtube",
+            cls = "android.widget.Button",
+            viewId = "com.google.android.youtube:id/tab_home",
+            desc = "Home, tab 1 of 4",
+            clickable = true,
+            selected = false
+        )
+        val ytShortsTab = makeNode(
+            pkg = "com.google.android.youtube",
+            cls = "android.widget.Button",
+            desc = "Shorts, tab 2 of 4",
+            clickable = true,
+            selected = true
+        )
+        org.robolectric.Shadows.shadowOf(pivotBar).addChild(ytHomeTab)
+        org.robolectric.Shadows.shadowOf(pivotBar).addChild(ytShortsTab)
+        org.robolectric.Shadows.shadowOf(ytRoot).addChild(feedCaptionHome)
+        // Add >650 feed nodes before pivotBar to ensure deep feed trees still reach bottom tabs
+        val feedContainer = makeNode("com.google.android.youtube", "androidx.recyclerview.widget.RecyclerView")
+        repeat(650) {
+            org.robolectric.Shadows.shadowOf(feedContainer)
+                .addChild(makeNode("com.google.android.youtube", "android.widget.FrameLayout"))
+        }
+        org.robolectric.Shadows.shadowOf(ytRoot).addChild(feedContainer)
+        org.robolectric.Shadows.shadowOf(ytRoot).addChild(pivotBar)
+
+        val outloopWindow = makeNode("com.suprbuild.outloop", "android.widget.FrameLayout")
+        val outloopHomeTab = makeNode(
+            pkg = "com.suprbuild.outloop",
+            desc = "Home",
+            clickable = true
+        )
+        org.robolectric.Shadows.shadowOf(outloopWindow).addChild(outloopHomeTab)
+
+        val matchedYtHome = SelectorMatcher.findHomeTabNode(
+            root = ytRoot,
+            homeTabLabel = "Home",
+            packageName = "com.google.android.youtube",
+            additionalRoots = listOf(outloopWindow)
+        )
+        assertNotNull(matchedYtHome)
+        assertEquals(ytHomeTab.viewIdResourceName, matchedYtHome?.viewIdResourceName)
+        assertEquals(ytHomeTab.contentDescription, matchedYtHome?.contentDescription)
+
+        val fbWindow = makeNode("com.facebook.katana", "android.widget.FrameLayout")
+        val fbTabBar = makeNode("com.facebook.katana", "android.widget.TabWidget")
+        val fbNewsFeedTab = makeNode(
+            pkg = "com.facebook.katana",
+            desc = "News Feed, tab 1 of 6",
+            clickable = true
+        )
+        val fbReelsTab = makeNode(
+            pkg = "com.facebook.katana",
+            desc = "Reels, tab 2 of 6",
+            clickable = true,
+            selected = true
+        )
+        org.robolectric.Shadows.shadowOf(fbTabBar).addChild(fbNewsFeedTab)
+        org.robolectric.Shadows.shadowOf(fbTabBar).addChild(fbReelsTab)
+        org.robolectric.Shadows.shadowOf(fbWindow).addChild(fbTabBar)
+
+        val matchedFbHome = SelectorMatcher.findHomeTabNode(
+            root = fbWindow,
+            homeTabLabel = "Home",
+            packageName = "com.facebook.katana",
+            additionalRoots = listOf(outloopWindow)
+        )
+        assertNotNull(matchedFbHome)
+        assertEquals(fbNewsFeedTab.contentDescription, matchedFbHome?.contentDescription)
+        assertEquals("com.facebook.katana", matchedFbHome?.packageName?.toString())
+
+        // Ensure Outloop's own window is never matched when searching for Facebook's Home tab
+        assertNull(
+            SelectorMatcher.findHomeTabNode(
+                root = outloopWindow,
+                homeTabLabel = "Home",
+                packageName = "com.facebook.katana"
+            )
+        )
+
+        val fbReelsFullscreen = makeNode("com.facebook.katana", "android.widget.FrameLayout")
+        val backIconBtn = makeNode(
+            pkg = "com.facebook.katana",
+            desc = "Navigate up",
+            clickable = true
+        )
+        org.robolectric.Shadows.shadowOf(fbReelsFullscreen).addChild(backIconBtn)
+        val matchedBack = SelectorMatcher.findInAppBackNode(fbReelsFullscreen, "com.facebook.katana")
+        assertNotNull(matchedBack)
+        assertEquals(backIconBtn.contentDescription, matchedBack?.contentDescription)
     }
 }

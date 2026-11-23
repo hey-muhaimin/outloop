@@ -45,7 +45,7 @@ class InterventionRepository(
             it.packageName !in existingPackages
         }.map { it.copy(interventionMode = defaultMode) }
         if (missingDefaults.isNotEmpty()) {
-            dao.upsertRules(missingDefaults)
+            dao.insertRulesIfMissing(missingDefaults)
         }
     }
 

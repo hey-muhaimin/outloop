@@ -29,8 +29,8 @@ class AccessibilityOverlayShield(context: Context) {
         dailyUsedSeconds: Long = 0L,
         dailyLimitMinutes: Int = 0,
         dimAlpha: Float = OverlayPresentationConfig.DEFAULT_DIM_ALPHA,
-        onExitFeed: () -> Unit,
-        onAllowOnce: () -> Unit,
+        onGoHome: () -> Unit,
+        onExitApp: () -> Unit,
         onSnoozeMinutes: (Int) -> Unit = {},
         onAttachmentFailed: () -> Unit = {}
     ) {
@@ -53,8 +53,8 @@ class AccessibilityOverlayShield(context: Context) {
                 secondaryUsefulActionLabel = secondaryUsefulActionLabel,
                 usefulPartsSummary = usefulPartsSummary
             ),
-            onExitFeed = onExitFeed,
-            onAllowOnce = onAllowOnce,
+            onGoHome = onGoHome,
+            onExitApp = onExitApp,
             onSnoozeMinutes = onSnoozeMinutes,
             onAttachmentFailed = onAttachmentFailed
         )
