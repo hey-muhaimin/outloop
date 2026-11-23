@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.data.model.InterventionMode
 import kotlinx.coroutines.flow.Flow
@@ -43,7 +44,7 @@ data class AppPreferences(
     val showInterventionBanner: Boolean = true,
     val cachedRulesetJson: String = BUNDLED_RULESET_JSON,
     val globalPauseUntilMs: Long = 0L,
-    val appearanceMode: AppearanceMode = AppearanceMode.SYSTEM,
+    val appearanceMode: AppearanceMode = AppearanceMode.LIGHT,
     val defaultInterventionMode: InterventionMode = InterventionMode.OVERLAY,
     val hapticFeedbackEnabled: Boolean = true,
     val quietHoursEnabled: Boolean = false,
@@ -51,7 +52,9 @@ data class AppPreferences(
     val quietEndMinutes: Int = DEFAULT_QUIET_END_MINUTES,
     val quietOverrideUntilMs: Long = 0L,
     val dailyBudgetCuts: Int = 0,
-    val strictModeEnabled: Boolean = false
+    val strictModeEnabled: Boolean = true,
+    val alwaysOpenApps: Set<String> = DEFAULT_ALWAYS_OPEN_APPS,
+    val preferredPauseMinutes: Int = 15
 ) {
     fun isGloballyPaused(nowMs: Long = System.currentTimeMillis()): Boolean =
         globalPauseUntilMs == Long.MAX_VALUE || globalPauseUntilMs > nowMs
@@ -79,12 +82,38 @@ data class AppPreferences(
     }
 
     companion object {
-        const val DEFAULT_RULESET_VERSION = "v2026.11.18"
+        const val DEFAULT_RULESET_VERSION = "v2026.11.21"
         const val DEFAULT_GIST_URL =
             "https://gist.githubusercontent.com/hey-muhaimin/1ebadd94effdba1255d42661ef218fc9/raw/ruleset.json"
         const val AUTO_SYNC_INTERVAL_MS = 6L * 60L * 60L * 1000L
         const val DEFAULT_QUIET_START_MINUTES = 22 * 60
         const val DEFAULT_QUIET_END_MINUTES = 7 * 60
+
+        val DEFAULT_ALWAYS_OPEN_APPS = setOf(
+            "com.google.android.apps.messaging",
+            "com.google.android.apps.maps",
+            "com.google.android.dialer",
+            "com.google.android.calendar",
+            "com.google.android.GoogleCamera",
+            "com.google.android.deskclock"
+        )
+
+        val ALWAYS_OPEN_FRIENDLY_NAMES: Map<String, String> = mapOf(
+            "com.google.android.apps.messaging" to "Messages",
+            "com.android.messaging" to "Messages",
+            "com.samsung.android.messaging" to "Messages",
+            "com.google.android.apps.maps" to "Maps",
+            "com.google.android.dialer" to "Phone",
+            "com.android.dialer" to "Phone",
+            "com.samsung.android.dialer" to "Phone",
+            "com.google.android.calendar" to "Calendar",
+            "com.android.calendar" to "Calendar",
+            "com.google.android.GoogleCamera" to "Camera",
+            "com.android.camera" to "Camera",
+            "com.sec.android.app.camera" to "Camera",
+            "com.google.android.deskclock" to "Clock",
+            "com.android.deskclock" to "Clock"
+        )
 
         fun isWithinQuietWindow(
             minuteOfDay: Int,
@@ -117,9 +146,20 @@ data class AppPreferences(
 
         val BUNDLED_RULESET_JSON = """
             {
-              "version": "v2026.11.18",
-              "updatedAt": "2026-11-18",
+              "version": "v2026.11.21",
+              "updatedAt": "2026-11-21",
               "apps": [
+                {
+                  "packageName": "com.instagram.android",
+                  "displayName": "Instagram",
+                  "feedLabel": "Reels",
+                  "homeTabLabel": "Home",
+                  "viewIds": [
+                    "com.instagram.android:id/clips_viewer_view_pager",
+                    "com.instagram.android:id/clips_video_container"
+                  ],
+                  "tabContentDescription": "Reels"
+                },
                 {
                   "packageName": "com.google.android.youtube",
                   "displayName": "YouTube",
@@ -133,17 +173,6 @@ data class AppPreferences(
                   "tabContentDescription": "Shorts"
                 },
                 {
-                  "packageName": "com.instagram.android",
-                  "displayName": "Instagram",
-                  "feedLabel": "Reels",
-                  "homeTabLabel": "Home",
-                  "viewIds": [
-                    "com.instagram.android:id/clips_viewer_view_pager",
-                    "com.instagram.android:id/clips_video_container"
-                  ],
-                  "tabContentDescription": "Reels"
-                },
-                {
                   "packageName": "com.facebook.katana",
                   "displayName": "Facebook",
                   "feedLabel": "Reels",
@@ -153,6 +182,28 @@ data class AppPreferences(
                     "com.facebook.katana:id/fb_reels_container"
                   ],
                   "tabContentDescription": "Reels"
+                },
+                {
+                  "packageName": "com.zhiliaoapp.musically",
+                  "displayName": "TikTok",
+                  "feedLabel": "For You feed",
+                  "homeTabLabel": "Profile",
+                  "viewIds": [
+                    "com.zhiliaoapp.musically:id/feed_pager",
+                    "com.zhiliaoapp.musically:id/vertical_view_pager"
+                  ],
+                  "tabContentDescription": "Home"
+                },
+                {
+                  "packageName": "com.twitter.android",
+                  "displayName": "X",
+                  "feedLabel": "For You timeline",
+                  "homeTabLabel": "Messages",
+                  "viewIds": [
+                    "com.twitter.android:id/timeline_list",
+                    "com.twitter.android:id/immersive_video_player"
+                  ],
+                  "tabContentDescription": "For you"
                 },
                 {
                   "packageName": "com.snapchat.android",
@@ -206,12 +257,20 @@ class SettingsDataStore(private val context: Context) {
         val QUIET_OVERRIDE_UNTIL_MS = longPreferencesKey("quiet_override_until_ms")
         val DAILY_BUDGET_CUTS = intPreferencesKey("daily_budget_cuts")
         val STRICT_MODE_ENABLED = booleanPreferencesKey("strict_mode_enabled")
+        val ALWAYS_OPEN_APPS = stringSetPreferencesKey("always_open_apps")
+        val PREFERRED_PAUSE_MINUTES = intPreferencesKey("preferred_pause_minutes")
     }
 
     val preferencesFlow: Flow<AppPreferences> = context.feedSurgeonDataStore.data.map { prefs ->
         val rawMode = prefs[Keys.DEFAULT_INTERVENTION_MODE]
         val defaultMode = InterventionMode.entries.firstOrNull { it.name == rawMode }
             ?: InterventionMode.OVERLAY
+        val storedAppearance = prefs[Keys.APPEARANCE_MODE]
+        val appearanceMode = if (storedAppearance != null) {
+            AppearanceMode.fromStored(storedAppearance)
+        } else {
+            AppearanceMode.LIGHT
+        }
         AppPreferences(
             disclosureAccepted = prefs[Keys.DISCLOSURE_ACCEPTED] ?: false,
             onboardingCompleted = prefs[Keys.ONBOARDING_COMPLETED] ?: false,
@@ -225,7 +284,7 @@ class SettingsDataStore(private val context: Context) {
             showInterventionBanner = prefs[Keys.SHOW_INTERVENTION_BANNER] ?: true,
             cachedRulesetJson = prefs[Keys.CACHED_RULESET_JSON] ?: AppPreferences.BUNDLED_RULESET_JSON,
             globalPauseUntilMs = prefs[Keys.GLOBAL_PAUSE_UNTIL_MS] ?: 0L,
-            appearanceMode = AppearanceMode.fromStored(prefs[Keys.APPEARANCE_MODE]),
+            appearanceMode = appearanceMode,
             defaultInterventionMode = defaultMode,
             hapticFeedbackEnabled = prefs[Keys.HAPTIC_FEEDBACK_ENABLED] ?: true,
             quietHoursEnabled = prefs[Keys.QUIET_HOURS_ENABLED] ?: false,
@@ -233,7 +292,14 @@ class SettingsDataStore(private val context: Context) {
             quietEndMinutes = (prefs[Keys.QUIET_END_MINUTES] ?: AppPreferences.DEFAULT_QUIET_END_MINUTES).coerceIn(0, 1439),
             quietOverrideUntilMs = prefs[Keys.QUIET_OVERRIDE_UNTIL_MS] ?: 0L,
             dailyBudgetCuts = (prefs[Keys.DAILY_BUDGET_CUTS] ?: 0).coerceIn(0, 100),
-            strictModeEnabled = prefs[Keys.STRICT_MODE_ENABLED] ?: false
+            strictModeEnabled = prefs[Keys.STRICT_MODE_ENABLED] ?: true,
+            alwaysOpenApps = prefs[Keys.ALWAYS_OPEN_APPS] ?: AppPreferences.DEFAULT_ALWAYS_OPEN_APPS,
+            preferredPauseMinutes = (prefs[Keys.PREFERRED_PAUSE_MINUTES] ?: 15).let {
+                when (it) {
+                    5, 15, 30 -> it
+                    else -> 15
+                }
+            }
         )
     }
 
@@ -328,6 +394,21 @@ class SettingsDataStore(private val context: Context) {
         }
     }
 
+    suspend fun setAlwaysOpenApps(items: Set<String>) {
+        context.feedSurgeonDataStore.edit { prefs ->
+            prefs[Keys.ALWAYS_OPEN_APPS] = items
+        }
+    }
+
+    suspend fun setPreferredPauseMinutes(minutes: Int) {
+        context.feedSurgeonDataStore.edit { prefs ->
+            prefs[Keys.PREFERRED_PAUSE_MINUTES] = when (minutes) {
+                5, 15, 30 -> minutes
+                else -> 15
+            }
+        }
+    }
+
     suspend fun restoreBackupPreferences(
         appearanceMode: AppearanceMode,
         defaultInterventionMode: InterventionMode,
@@ -339,7 +420,9 @@ class SettingsDataStore(private val context: Context) {
         quietStartMinutes: Int,
         quietEndMinutes: Int,
         dailyBudgetCuts: Int,
-        strictModeEnabled: Boolean = false
+        strictModeEnabled: Boolean = true,
+        alwaysOpenApps: Set<String> = AppPreferences.DEFAULT_ALWAYS_OPEN_APPS,
+        preferredPauseMinutes: Int = 15
     ) {
         context.feedSurgeonDataStore.edit { prefs ->
             prefs[Keys.APPEARANCE_MODE] = appearanceMode.name
@@ -354,6 +437,11 @@ class SettingsDataStore(private val context: Context) {
             prefs[Keys.QUIET_OVERRIDE_UNTIL_MS] = 0L
             prefs[Keys.DAILY_BUDGET_CUTS] = dailyBudgetCuts.coerceIn(0, 100)
             prefs[Keys.STRICT_MODE_ENABLED] = strictModeEnabled
+            prefs[Keys.ALWAYS_OPEN_APPS] = alwaysOpenApps
+            prefs[Keys.PREFERRED_PAUSE_MINUTES] = when (preferredPauseMinutes) {
+                5, 15, 30 -> preferredPauseMinutes
+                else -> 15
+            }
         }
     }
 

@@ -30,15 +30,22 @@ import com.example.data.model.InterventionOutcome
 import com.example.data.model.LiveTreeSnapshot
 import com.example.data.model.ProtectionStatus
 import com.example.data.repository.BackupRestoreResult
+import com.example.data.repository.ControlledAppsRepository
 import com.example.data.repository.InterventionRepository
 import com.example.data.repository.LocalBackupManager
 import com.example.data.repository.RulesetRepository
 import com.example.data.repository.RulesetSyncResult
 import com.example.service.AccessibilityEventLogger
+import com.example.service.AppSessionTimeTracker
 import com.example.service.ForegroundProtectionNotifier
 import com.example.service.InstalledAppDetector
+import com.example.service.OverlayPresentationConfig
+import com.example.service.OverlayTriggerMode
 import com.example.service.ProtectionActionReceiver
 import com.example.service.SelectorMatcher
+import com.example.service.TransparentPauseDimOverlay
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import com.example.ui.MainUiState
@@ -77,16 +84,15 @@ import java.io.File
 class ExampleRobolectricTest {
 
     @Test
-    fun `read app name and privacy url from context`() {
+    fun `read app name from context`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         assertEquals("Outloop", context.getString(R.string.app_name))
-        assertEquals("https://suprbuild.com/privacy", context.getString(R.string.privacy_policy_url))
     }
 
     @Test
     fun `default built-in rules use overlay shield mode`() {
         val defaults = FeedSurgeonDatabase.defaultBuiltInRules()
-        assertEquals(5, defaults.size)
+        assertEquals(7, defaults.size)
         assertTrue(defaults.all { it.interventionMode == InterventionMode.OVERLAY })
     }
 
@@ -122,7 +128,7 @@ class ExampleRobolectricTest {
     }
 
     @Test
-    fun `ruleset repository parses all five bundled apps and seeds local cache`() = runTest {
+    fun `ruleset repository parses all seven bundled apps and seeds local cache`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val db = FeedSurgeonDatabase.getInstance(context)
         val settings = SettingsDataStore(context)
@@ -130,10 +136,10 @@ class ExampleRobolectricTest {
 
         val parsed = repo.parseAndValidate(AppPreferences.BUNDLED_RULESET_JSON)
         assertNotNull(parsed)
-        assertEquals("v2026.11.18", parsed!!.version)
+        assertEquals("v2026.11.21", parsed!!.version)
         val packages = parsed.apps.map { it.packageName }.toSet()
         assertTrue(packages.containsAll(FeedSurgeonDatabase.BUILT_IN_PACKAGE_NAMES))
-        assertEquals(5, packages.size)
+        assertEquals(7, packages.size)
 
         val cacheFile = File(context.filesDir, "ruleset_cache.json")
         cacheFile.delete()
@@ -141,7 +147,7 @@ class ExampleRobolectricTest {
         assertTrue(cacheFile.exists())
         val cachedParsed = repo.parseAndValidate(cacheFile.readText())
         assertNotNull(cachedParsed)
-        assertEquals(5, cachedParsed!!.apps.size)
+        assertEquals(7, cachedParsed!!.apps.size)
     }
 
     @Test
@@ -157,7 +163,7 @@ class ExampleRobolectricTest {
         assertTrue(result is RulesetSyncResult.Success)
         val success = result as RulesetSyncResult.Success
         assertTrue(success.fromLocalCache)
-        assertEquals(5, success.updatedApps)
+        assertEquals(7, success.updatedApps)
     }
 
     @Test
@@ -325,9 +331,9 @@ class ExampleRobolectricTest {
         val success = fallback as RulesetSyncResult.Success
         assertTrue(success.revertedToHardcoded)
         assertEquals(AppPreferences.DEFAULT_RULESET_VERSION, success.version)
-        assertEquals(5, success.updatedApps)
+        assertEquals(7, success.updatedApps)
         assertEquals("", settings.preferencesFlow.first().rulesetEtag)
-        assertEquals(5, db.feedSurgeonDao().getAllRulesSnapshot().size)
+        assertEquals(7, db.feedSurgeonDao().getAllRulesSnapshot().size)
     }
 
     @Test
@@ -696,12 +702,14 @@ class ExampleRobolectricTest {
         settings.setAppearanceMode(AppearanceMode.DARK)
         settings.setQuietHours(enabled = true, startMinutes = 22 * 60, endMinutes = 7 * 60)
         settings.setDailyBudgetCuts(15)
-        settings.setStrictModeEnabled(true)
+        settings.setStrictModeEnabled(false)
+        settings.setPreferredPauseMinutes(30)
+        repo.toggleAlwaysOpenApp("Slack", true)
 
         val json = backupManager.exportToJson()
         val preview = backupManager.inspectBackupJson(json)
         assertNotNull(preview)
-        assertEquals(6, preview!!.ruleCount)
+        assertEquals(8, preview!!.ruleCount)
         assertEquals(1, preview.customRuleCount)
         assertEquals(1, preview.eventCount)
 
@@ -711,7 +719,9 @@ class ExampleRobolectricTest {
         settings.setAppearanceMode(AppearanceMode.LIGHT)
         settings.setQuietHours(enabled = false, startMinutes = 0, endMinutes = 0)
         settings.setDailyBudgetCuts(0)
-        settings.setStrictModeEnabled(false)
+        settings.setStrictModeEnabled(true)
+        settings.setPreferredPauseMinutes(15)
+        repo.toggleAlwaysOpenApp("Slack", false)
 
         val invalidResult = backupManager.restoreFromJson("{invalid json")
         assertTrue(invalidResult is BackupRestoreResult.Error)
@@ -719,7 +729,7 @@ class ExampleRobolectricTest {
         val restored = backupManager.restoreFromJson(json)
         assertTrue(restored is BackupRestoreResult.Success)
         val success = restored as BackupRestoreResult.Success
-        assertEquals(6, success.restoredRules)
+        assertEquals(8, success.restoredRules)
         assertEquals(1, success.restoredEvents)
 
         val restoredCustom = dao.getRuleByPackage("com.custom.shortapp")
@@ -731,15 +741,19 @@ class ExampleRobolectricTest {
         assertEquals(AppearanceMode.DARK, restoredPrefs.appearanceMode)
         assertTrue(restoredPrefs.quietHoursEnabled)
         assertEquals(15, restoredPrefs.dailyBudgetCuts)
-        assertTrue(restoredPrefs.strictModeEnabled)
+        assertFalse(restoredPrefs.strictModeEnabled)
+        assertEquals(30, restoredPrefs.preferredPauseMinutes)
+        assertTrue("Slack" in restoredPrefs.alwaysOpenApps)
 
         // Clean up test mutations so shared Robolectric DB/DataStore remains pristine for other tests
         dao.deleteCustomRule("com.custom.shortapp")
         dao.clearAllEvents()
         settings.setQuietHours(enabled = false, startMinutes = 22 * 60, endMinutes = 7 * 60)
         settings.setDailyBudgetCuts(0)
-        settings.setStrictModeEnabled(false)
-        settings.setAppearanceMode(AppearanceMode.SYSTEM)
+        settings.setStrictModeEnabled(true)
+        settings.setPreferredPauseMinutes(15)
+        repo.toggleAlwaysOpenApp("Slack", false)
+        settings.setAppearanceMode(AppearanceMode.LIGHT)
     }
 
     @Test
@@ -914,6 +928,244 @@ class ExampleRobolectricTest {
         }
         service.onAccessibilityEvent(exitEvent)
         assertNull(DiagnosticsBridge.foregroundMonitoredAppLabel.value)
+
+        controller.unbind().destroy()
+    }
+
+    @Test
+    fun `controlled apps repository seeds observes and toggles controlled packages in Room`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = FeedSurgeonDatabase.getInstance(context)
+        val settings = SettingsDataStore(context)
+        val repo: ControlledAppsRepository = InterventionRepository(db.feedSurgeonDao(), settings)
+
+        repo.ensureDefaultRulesSeeded()
+        val all = repo.allRules.first()
+        assertTrue(all.size >= 7)
+        assertTrue(repo.isControlledPackage("com.google.android.youtube"))
+        assertTrue(repo.isControlledPackage("com.zhiliaoapp.musically"))
+        assertFalse(repo.isControlledPackage("com.android.calculator2"))
+
+        repo.setRuleEnabled("com.google.android.youtube", false)
+        assertFalse(repo.getRule("com.google.android.youtube")!!.enabled)
+        assertFalse(repo.activeRules.first().any { it.packageName == "com.google.android.youtube" })
+
+        repo.setRuleEnabled("com.google.android.youtube", true)
+        assertTrue(repo.activeRules.first().any { it.packageName == "com.google.android.youtube" })
+
+        repo.upsertCustomRule(
+            packageName = "com.custom.reelsapp",
+            displayName = "ReelsApp",
+            feedLabel = "Clips",
+            viewIds = listOf("com.custom.reelsapp:id/clips_pager"),
+            tabFallbackLabel = "Clips",
+            homeTabLabel = "Home",
+            interventionMode = InterventionMode.OVERLAY
+        )
+        assertTrue(repo.isControlledPackage("com.custom.reelsapp"))
+        repo.deleteCustomRule("com.custom.reelsapp")
+        assertFalse(repo.isControlledPackage("com.custom.reelsapp"))
+    }
+
+    @Suppress("DEPRECATION")
+    @Test
+    fun `FeedSurgeonService recognizes short-form packages and scroll monitoring events`() {
+        val controller = Robolectric.buildService(FeedSurgeonService::class.java)
+        val service = controller.create().get()
+
+        assertTrue(service.isControlledPackage("com.instagram.android"))
+        assertTrue(service.isControlledPackage("com.google.android.youtube"))
+        assertTrue(service.isControlledPackage("com.zhiliaoapp.musically"))
+        assertTrue(service.isControlledPackage("com.twitter.android"))
+        assertFalse(service.isControlledPackage("com.android.settings"))
+
+        assertTrue(service.isScrollMonitoringEvent(AccessibilityEvent.TYPE_VIEW_SCROLLED))
+        assertFalse(service.isScrollMonitoringEvent(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED))
+
+        val scrollEvent = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_VIEW_SCROLLED).apply {
+            packageName = "com.zhiliaoapp.musically"
+            className = "androidx.recyclerview.widget.RecyclerView"
+        }
+        service.onAccessibilityEvent(scrollEvent)
+
+        controller.unbind().destroy()
+    }
+
+    @Test
+    fun `migration 3 to 4 adds dailyLimitMinutes column and creates app_daily_usage table`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val dbName = "migration_3_4_test.db"
+        context.deleteDatabase(dbName)
+        val callback = object : SupportSQLiteOpenHelper.Callback(3) {
+            override fun onCreate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS target_app_rules (
+                        packageName TEXT NOT NULL PRIMARY KEY,
+                        displayName TEXT NOT NULL,
+                        feedLabel TEXT NOT NULL,
+                        enabled INTEGER NOT NULL,
+                        interventionMode TEXT NOT NULL,
+                        cooldownMs INTEGER NOT NULL,
+                        homeTabLabel TEXT NOT NULL,
+                        viewIdsRaw TEXT NOT NULL,
+                        tabFallbackLabel TEXT NOT NULL,
+                        snoozeUntilMs INTEGER NOT NULL,
+                        allowOnceUntilMs INTEGER NOT NULL,
+                        isBuiltIn INTEGER NOT NULL,
+                        matchedSelectorCount INTEGER NOT NULL,
+                        totalSelectorCount INTEGER NOT NULL,
+                        isOutdated INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS intervention_events (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        packageName TEXT NOT NULL,
+                        appName TEXT NOT NULL,
+                        feedLabel TEXT NOT NULL,
+                        matchedSelector TEXT NOT NULL,
+                        actionTaken TEXT NOT NULL,
+                        timestampMs INTEGER NOT NULL,
+                        reclaimedSeconds INTEGER NOT NULL,
+                        wasAllowedOnce INTEGER NOT NULL,
+                        outcome TEXT NOT NULL DEFAULT 'CONFIRMED'
+                    )
+                    """.trimIndent()
+                )
+            }
+
+            override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+        }
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(dbName)
+                .callback(callback)
+                .build()
+        )
+        val db = helper.writableDatabase
+        FeedSurgeonDatabase.MIGRATION_3_4.migrate(db)
+
+        val ruleCursor = db.query("PRAGMA table_info(target_app_rules)")
+        var foundDailyLimitColumn = false
+        while (ruleCursor.moveToNext()) {
+            if (ruleCursor.getString(1) == "dailyLimitMinutes") {
+                foundDailyLimitColumn = true
+            }
+        }
+        ruleCursor.close()
+        assertTrue(foundDailyLimitColumn)
+
+        val usageCursor = db.query("PRAGMA table_info(app_daily_usage)")
+        val usageColumns = mutableSetOf<String>()
+        while (usageCursor.moveToNext()) {
+            usageColumns.add(usageCursor.getString(1))
+        }
+        usageCursor.close()
+        assertTrue(usageColumns.containsAll(listOf("packageName", "dateKey", "trackedSeconds", "lastUpdatedMs")))
+        helper.close()
+        context.deleteDatabase(dbName)
+    }
+
+    @Test
+    fun `controlled apps repository tracks daily usage seconds and configures per-app daily limits`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = FeedSurgeonDatabase.getInstance(context)
+        val settings = SettingsDataStore(context)
+        val repo: ControlledAppsRepository = InterventionRepository(db.feedSurgeonDao(), settings)
+
+        repo.ensureDefaultRulesSeeded()
+        repo.setDailyLimitMinutes("com.google.android.youtube", 25)
+        assertEquals(25, repo.getRule("com.google.android.youtube")!!.dailyLimitMinutes)
+
+        val dateKey = InterventionRepository.dateKeyForMs(System.currentTimeMillis())
+        val initial = repo.getTodayUsageSeconds("com.google.android.youtube", dateKey)
+        repo.addTrackedUsageSeconds("com.google.android.youtube", dateKey, 90L)
+        repo.addTrackedUsageSeconds("com.google.android.youtube", dateKey, 45L)
+        assertEquals(initial + 135L, repo.getTodayUsageSeconds("com.google.android.youtube", dateKey))
+
+        val rows = repo.observeDailyUsageForDate(dateKey).first()
+        assertTrue(rows.any { it.packageName == "com.google.android.youtube" && it.trackedSeconds >= 135L })
+
+        repo.setDailyLimitMinutes("com.google.android.youtube", 0)
+        assertEquals(0, repo.getRule("com.google.android.youtube")!!.dailyLimitMinutes)
+    }
+
+    @Test
+    fun `app session time tracker accumulates foreground duration and handles app switches`() {
+        val tracker = AppSessionTimeTracker()
+        val nowWall = System.currentTimeMillis()
+
+        assertTrue(tracker.onPackageEntered("com.instagram.android", nowElapsedMs = 1_000L, nowWallMs = nowWall).isEmpty())
+        assertEquals("com.instagram.android", tracker.activePackage())
+        assertEquals(15L, tracker.getPendingSeconds("com.instagram.android", nowElapsedMs = 16_500L))
+
+        // Switching to YouTube flushes whole seconds (15s) for Instagram and retains anchor cleanly
+        val switchSlices = tracker.onPackageEntered("com.google.android.youtube", nowElapsedMs = 16_500L, nowWallMs = nowWall + 15_500L)
+        assertEquals(1, switchSlices.size)
+        assertEquals("com.instagram.android", switchSlices.first().packageName)
+        assertEquals(15L, switchSlices.first().deltaSeconds)
+        assertEquals("com.google.android.youtube", tracker.activePackage())
+
+        val exitSlices = tracker.onPackageExited("com.google.android.youtube", nowElapsedMs = 46_800L, nowWallMs = nowWall + 45_800L)
+        assertEquals(1, exitSlices.size)
+        assertEquals("com.google.android.youtube", exitSlices.first().packageName)
+        assertEquals(30L, exitSlices.first().deltaSeconds)
+        assertNull(tracker.activePackage())
+    }
+
+    @Test
+    fun `transparent pause dim overlay renders translucent scrim and handles daily limit mode`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val overlay = TransparentPauseDimOverlay(context)
+        var exitClicked = false
+        var allowClicked = false
+
+        val handles = overlay.buildOverlayViews(
+            config = OverlayPresentationConfig(
+                appName = "Instagram",
+                feedLabel = "Reels",
+                triggerMode = OverlayTriggerMode.DAILY_LIMIT_REACHED,
+                dimAlpha = 0.80f,
+                dailyUsedSeconds = 1860L,
+                dailyLimitMinutes = 30
+            ),
+            onDismissRequest = {},
+            onExitFeed = { exitClicked = true },
+            onAllowOnce = { allowClicked = true },
+            onSnoozeMinutes = {}
+        )
+
+        val scrimBg = handles.dimScrim.background as ColorDrawable
+        assertTrue(Color.alpha(scrimBg.color) in 180..220)
+        assertTrue(handles.root.contentDescription.toString().contains("Daily limit reached"))
+
+        val primaryExitBtn = handles.modalCard.findViewWithTag<android.widget.Button>(
+            TransparentPauseDimOverlay.TAG_PRIMARY_EXIT_BTN
+        )
+        assertNotNull(primaryExitBtn)
+        assertEquals("Leave Instagram", primaryExitBtn.text.toString())
+        primaryExitBtn.performClick()
+        assertTrue(exitClicked)
+        assertFalse(allowClicked)
+    }
+
+    @Test
+    fun `FeedSurgeonService evaluates per-app daily limit against tracked usage`() {
+        val controller = Robolectric.buildService(FeedSurgeonService::class.java)
+        val service = controller.create().get()
+        val limitedRule = FeedSurgeonDatabase.defaultBuiltInRules()
+            .first { it.packageName == "com.instagram.android" }
+            .copy(dailyLimitMinutes = 15)
+
+        service.seedTrackedUsageForTesting("com.instagram.android", 600L)
+        assertEquals(600L, service.getTodayTrackedSeconds("com.instagram.android"))
+        assertFalse(service.isDailyLimitReached(limitedRule))
+
+        service.seedTrackedUsageForTesting("com.instagram.android", 900L)
+        assertTrue(service.isDailyLimitReached(limitedRule))
 
         controller.unbind().destroy()
     }

@@ -1,19 +1,26 @@
 package com.example.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,20 +28,16 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,18 +46,19 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.data.repository.InterventionRepository
+import com.example.ui.DayBarStat
+import com.example.ui.theme.OutloopMetrics
 import com.example.ui.theme.OutloopTheme
-import kotlinx.coroutines.delay
 
 data class ChartColumnData(
     val shortLabel: String,
@@ -64,110 +68,78 @@ data class ChartColumnData(
 )
 
 /**
- * Deep Forest bento hero card shown on Today: giant ivory tabular count + "loops broken"
- * on the left and a bold sage open-loop ring on the right.
+ * Monochrome Editorial Home summary bento card:
+ * Top row: circular Graphite arc around today's count + reclaimed-time estimate.
+ * Middle 2-up nested bento wells: daily intention/target + streak.
+ * Bottom inset well: 7-day M-S rhythm strip.
  */
 @Composable
-fun OutloopTodayHeroCard(
+fun OutloopHomeProgressCard(
     count: Int,
+    reclaimedText: String,
+    dayBars: List<DayBarStat>,
     dailyBudgetCuts: Int = 0,
-    subtitleOverride: String? = null,
+    streakDays: Int = 0,
+    onReclaimedInfoClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val colors = OutloopTheme.colors
-    val targetFraction = if (dailyBudgetCuts > 0) {
-        (count.toFloat() / dailyBudgetCuts.toFloat()).coerceIn(0f, 1f)
-    } else {
-        1f
+    val animatedCount by animateIntAsState(
+        targetValue = count,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "homeProgressCount"
+    )
+    val targetFraction = when {
+        count <= 0 -> 0f
+        dailyBudgetCuts > 0 -> (count.toFloat() / dailyBudgetCuts.toFloat()).coerceIn(0.08f, 1f)
+        else -> (count.toFloat() / 5.5f).coerceIn(0.18f, 0.88f)
     }
     val animatedFraction by animateFloatAsState(
         targetValue = targetFraction,
-        animationSpec = spring(stiffness = Spring.StiffnessLow),
-        label = "todayHeroRingProgress"
+        animationSpec = tween(durationMillis = 450),
+        label = "homeProgressSweep"
     )
 
-    OutloopBentoCard(
-        modifier = modifier.fillMaxWidth(),
-        cornerRadius = 28.dp,
-        containerColor = colors.heroSurface,
-        borderColor = null,
-        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 22.dp)
+    OutloopTonalCard(
+        cornerRadius = OutloopMetrics.CardCornerRadius,
+        contentPadding = PaddingValues(18.dp),
+        modifier = modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Text(
-                    text = count.toString(),
-                    fontSize = 52.sp,
-                    lineHeight = 56.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-1.5).sp,
-                    color = colors.onHeroSurface,
-                    style = MaterialTheme.typography.displayLarge.copy(fontFeatureSettings = "tnum")
-                )
-                Text(
-                    text = subtitleOverride ?: "loops broken",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 15.sp
-                    ),
-                    color = colors.onHeroSurface.copy(alpha = 0.86f)
-                )
-                if (dailyBudgetCuts > 0) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    val budgetText = if (count >= dailyBudgetCuts) {
-                        "Daily intention reached ($dailyBudgetCuts)"
-                    } else {
-                        "$count of $dailyBudgetCuts daily target"
-                    }
-                    Text(
-                        text = budgetText,
-                        style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
-                        color = colors.heroAccent
-                    )
-                }
-            }
-
             Box(
-                modifier = Modifier.size(92.dp),
+                modifier = Modifier
+                    .size(OutloopMetrics.HeroRingSize)
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = if (count == 1) {
+                            "1 feed interrupted today"
+                        } else {
+                            "$count feeds interrupted today"
+                        }
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    val strokePx = 11.dp.toPx()
+                    val strokePx = 8.5.dp.toPx()
                     val inset = strokePx / 2f + 2.dp.toPx()
                     val diameter = (size.minDimension - inset * 2f).coerceAtLeast(1f)
-                    if (dailyBudgetCuts > 0) {
+                    drawArc(
+                        color = colors.surfaceSubtle,
+                        startAngle = 0f,
+                        sweepAngle = 360f,
+                        useCenter = false,
+                        topLeft = Offset(inset, inset),
+                        size = Size(diameter, diameter),
+                        style = Stroke(width = strokePx, cap = StrokeCap.Round)
+                    )
+                    if (animatedFraction > 0.01f) {
                         drawArc(
-                            color = colors.heroTrack,
-                            startAngle = -27f,
-                            sweepAngle = -324f,
-                            useCenter = false,
-                            topLeft = Offset(inset, inset),
-                            size = Size(diameter, diameter),
-                            style = Stroke(width = strokePx, cap = StrokeCap.Round)
-                        )
-                        if (animatedFraction > 0f) {
-                            drawArc(
-                                color = colors.heroAccent,
-                                startAngle = -27f,
-                                sweepAngle = -324f * animatedFraction,
-                                useCenter = false,
-                                topLeft = Offset(inset, inset),
-                                size = Size(diameter, diameter),
-                                style = Stroke(width = strokePx, cap = StrokeCap.Round)
-                            )
-                        }
-                    } else {
-                        drawArc(
-                            color = colors.heroAccent,
-                            startAngle = -27f,
-                            sweepAngle = -324f,
+                            color = colors.heroDark,
+                            startAngle = -90f,
+                            sweepAngle = 360f * animatedFraction,
                             useCenter = false,
                             topLeft = Offset(inset, inset),
                             size = Size(diameter, diameter),
@@ -175,63 +147,107 @@ fun OutloopTodayHeroCard(
                         )
                     }
                 }
+                Text(
+                    text = animatedCount.toString(),
+                    style = MaterialTheme.typography.headlineLarge.copy(
+                        fontSize = 28.sp,
+                        lineHeight = 32.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFeatureSettings = "tnum"
+                    ),
+                    color = colors.ink
+                )
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = if (count == 1) {
+                        "feed interrupted\ntoday"
+                    } else {
+                        "feeds interrupted\ntoday"
+                    },
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontSize = 21.sp,
+                        lineHeight = 25.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = colors.ink
+                )
+                Text(
+                    text = "~$reclaimedText est. time reclaimed",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFeatureSettings = "tnum"
+                    ),
+                    color = colors.secondaryInk,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onReclaimedInfoClick)
+                        .padding(vertical = 2.dp)
+                        .testTag("home_reclaimed_estimate_text")
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // 2-up nested bento metric row: Daily target + Streak
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Max),
+            horizontalArrangement = Arrangement.spacedBy(OutloopMetrics.BentoGap)
+        ) {
+            val targetMet = dailyBudgetCuts > 0 && count >= dailyBudgetCuts
+            val targetValue = if (dailyBudgetCuts > 0) "$count / $dailyBudgetCuts" else "Open"
+            val targetLabel = when {
+                dailyBudgetCuts <= 0 -> "No daily target"
+                targetMet -> "Daily target reached ($dailyBudgetCuts)"
+                else -> "$count of $dailyBudgetCuts daily target"
+            }
+            OutloopMetricCell(
+                value = targetValue,
+                label = targetLabel,
+                containerColor = if (targetMet) colors.okBg else colors.canvas,
+                valueColor = if (targetMet) colors.okText else colors.ink,
+                labelColor = if (targetMet) colors.okText else colors.secondaryInk,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            )
+
+            val streakValue = if (streakDays == 1) "1 day" else "$streakDays days"
+            OutloopMetricCell(
+                value = streakValue,
+                label = "current streak",
+                containerColor = colors.canvas,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            )
+        }
+
+        if (dayBars.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(OutloopMetrics.BentoGap))
+            OutloopInsetWell(
+                containerColor = colors.canvas,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
+            ) {
+                OutloopDailyRhythmStrip(dayBars = dayBars)
             }
         }
     }
 }
 
 /**
- * Reusable Mint or Peach tonal bento metric tile (used on Today, Insights, and Feed Blocked Overlay).
+ * Monochrome Editorial Insights bar chart card with a nested tonal plot well
+ * and capsule bar columns (Pewter inactive, Deep Graphite active).
  */
 @Composable
-fun OutloopBentoStatTile(
-    value: String,
-    label: String,
-    containerColor: Color,
-    contentColor: Color,
-    modifier: Modifier = Modifier,
-    compact: Boolean = false,
-    onClick: (() -> Unit)? = null
-) {
-    OutloopBentoCard(
-        modifier = modifier,
-        cornerRadius = if (compact) 20.dp else 24.dp,
-        containerColor = containerColor,
-        borderColor = null,
-        contentPadding = PaddingValues(
-            horizontal = if (compact) 16.dp else 20.dp,
-            vertical = if (compact) 14.dp else 18.dp
-        ),
-        onClick = onClick
-    ) {
-        Text(
-            text = value,
-            fontSize = if (compact) 22.sp else 28.sp,
-            lineHeight = if (compact) 26.sp else 32.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.6).sp,
-            color = contentColor,
-            style = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings = "tnum"),
-            maxLines = 1
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontSize = if (compact) 13.sp else 14.sp
-            ),
-            color = contentColor.copy(alpha = 0.85f),
-            maxLines = 1
-        )
-    }
-}
-
-/**
- * Interactive capsule bar chart rendered inside the Deep Forest Insights hero card:
- * Sage capsules for unselected columns, crisp ivory capsule for the selected/active column.
- */
-@Composable
-fun OutloopInsightsBarChart(
+fun OutloopInsightsLightChartCard(
+    title: String,
     columns: List<ChartColumnData>,
     selectedIndex: Int,
     onSelectIndex: (Int) -> Unit,
@@ -240,59 +256,173 @@ fun OutloopInsightsBarChart(
     val colors = OutloopTheme.colors
     val haptic = rememberOutloopHaptic()
     val safeSelected = selectedIndex.coerceIn(0, (columns.size - 1).coerceAtLeast(0))
+    val selectedColumn = columns.getOrNull(safeSelected)
 
-    Column(modifier = modifier.fillMaxWidth()) {
+    OutloopTonalCard(
+        cornerRadius = OutloopMetrics.CardCornerRadius,
+        contentPadding = PaddingValues(18.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(132.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.Bottom
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            columns.forEachIndexed { idx, col ->
-                val isSelected = idx == safeSelected
-                val barHeight = if (col.count == 0) {
-                    18.dp
-                } else {
-                    (28f + 72f * col.fraction.coerceIn(0f, 1f)).dp
-                }
-                Column(
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold
+                ),
+                color = colors.ink
+            )
+            if (selectedColumn != null && columns.any { it.count > 0 }) {
+                Box(
                     modifier = Modifier
-                        .weight(1f)
-                        .height(132.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable {
-                            haptic()
-                            onSelectIndex(idx)
-                        }
-                        .semantics(mergeDescendants = true) {
-                            contentDescription = "${col.detailLabel}: ${col.count} loops broken"
-                        },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Bottom
+                        .clip(CircleShape)
+                        .background(colors.surfaceSubtle)
+                        .border(1.dp, colors.hairlineBorder, CircleShape)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(0.92f)
-                            .height(barHeight)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(
-                                if (isSelected) colors.onHeroSurface else colors.heroAccent
-                            )
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = col.shortLabel,
+                        text = "${selectedColumn.detailLabel}: ${selectedColumn.count}",
                         style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            fontFeatureSettings = "tnum"
                         ),
-                        color = if (isSelected) {
-                            colors.onHeroSurface
-                        } else {
-                            colors.onHeroSurface.copy(alpha = 0.72f)
-                        },
-                        maxLines = 1
+                        color = colors.ink
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        OutloopInsetWell(
+            containerColor = colors.canvas,
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 14.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(132.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                columns.forEachIndexed { idx, col ->
+                    val isSelected = idx == safeSelected
+                    val targetHeight = if (col.count == 0) {
+                        14.dp
+                    } else {
+                        (26f + 72f * col.fraction.coerceIn(0f, 1f)).dp
+                    }
+                    val barHeight by animateDpAsState(
+                        targetValue = targetHeight,
+                        animationSpec = spring(
+                            dampingRatio = 0.80f,
+                            stiffness = Spring.StiffnessMediumLow
+                        ),
+                        label = "lightChartBar_$idx"
+                    )
+                    val barColor by animateColorAsState(
+                        targetValue = if (isSelected) colors.heroDark else Color(0xFFC5C6C8),
+                        animationSpec = tween(180),
+                        label = "lightChartBarColor_$idx"
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                haptic()
+                                onSelectIndex(idx)
+                            }
+                            .semantics(mergeDescendants = true) {
+                                contentDescription = "${col.detailLabel}: ${col.count} feeds interrupted"
+                            },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Bottom
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .widthIn(min = 20.dp, max = 30.dp)
+                                .fillMaxWidth(0.72f)
+                                .height(barHeight)
+                                .clip(CircleShape)
+                                .background(barColor)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = col.shortLabel,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            ),
+                            color = if (isSelected) colors.ink else colors.secondaryInk,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun OutloopDailyRhythmStrip(
+    dayBars: List<DayBarStat>,
+    modifier: Modifier = Modifier
+) {
+    val colors = OutloopTheme.colors
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top
+    ) {
+        dayBars.forEach { day ->
+            val accessibilityLabel = buildString {
+                append(day.dayName)
+                if (day.isToday) append(", today")
+                append(": ${day.count} feeds interrupted")
+            }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.semantics(mergeDescendants = true) {
+                    contentDescription = accessibilityLabel
+                }
+            ) {
+                Text(
+                    text = day.dayLetter,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 12.sp,
+                        fontWeight = if (day.isToday) FontWeight.Bold else FontWeight.Medium
+                    ),
+                    color = if (day.isToday) colors.ink else colors.secondaryInk
+                )
+                Box(
+                    modifier = Modifier
+                        .size(OutloopMetrics.RhythmCircleSize)
+                        .clip(CircleShape)
+                        .background(if (day.isToday) colors.heroDark else colors.surfaceElevated)
+                        .then(
+                            if (day.isToday) {
+                                Modifier
+                            } else {
+                                Modifier.border(1.dp, colors.hairlineBorder, CircleShape)
+                            }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = day.count.toString(),
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFeatureSettings = "tnum"
+                        ),
+                        color = if (day.isToday) colors.onPrimaryTint else colors.ink
                     )
                 }
             }
@@ -301,378 +431,203 @@ fun OutloopInsightsBarChart(
 }
 
 /**
- * Interactive "Loop broken" Tonal Bento overlay modal (with inline transition to Strict Mode
- * "Pause Guard?" 10-second countdown when Pause is tapped).
+ * Interactive simulation pause modal matching the AccessibilityService translucent dim scrim
+ * in the unified Monochrome Editorial palette.
  */
 @Composable
 fun OutloopSimulationOverlay(
     appName: String,
     feedLabel: String,
-    loopsToday: Int = 14,
-    timeKeptText: String = "1h 52m",
-    streakDays: Int = 6,
-    strictModeEnabled: Boolean = false,
     onActionFeedback: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    primaryActionLabel: String = "Open DMs",
+    secondaryActionLabel: String = "Go to Search",
+    dailyUsedSeconds: Long = 0L,
+    dailyLimitMinutes: Int = 0,
+    timeKeptText: String = "0 min",
+    streakDays: Int = 0
 ) {
     val colors = OutloopTheme.colors
-    var showStrictPauseStep by remember { mutableStateOf(false) }
-
-    if (showStrictPauseStep) {
-        OutloopPauseGuardDialog(
-            initialMinutes = 15,
-            onKeepGuarding = {
-                onActionFeedback("Kept guarding $appName.")
-                onDismiss()
-            },
-            onConfirmPause = { minutes ->
-                onActionFeedback("Simulation: paused guard for $minutes min.")
-                onDismiss()
-            },
-            onDismiss = onDismiss
+    val cardEnter = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        cardEnter.animateTo(
+            targetValue = 1f,
+            animationSpec = spring(
+                dampingRatio = 0.82f,
+                stiffness = Spring.StiffnessMediumLow
+            )
         )
-        return
     }
 
-    val safeActions = when {
-        appName.contains("Instagram", ignoreCase = true) -> "Open DMs" to "Go to Search"
-        appName.contains("YouTube", ignoreCase = true) -> "Go to Home" to "Go to Search"
-        appName.contains("Facebook", ignoreCase = true) -> "Open Messenger" to "Go to Home"
-        else -> "Return to app" to "Allow once"
-    }
+    val scrimAlpha = (0.80f * cardEnter.value).coerceIn(0.05f, 0.80f)
+    val usedText = InterventionRepository.formatDurationCompact(dailyUsedSeconds)
+    val limitReached = dailyLimitMinutes > 0 && dailyUsedSeconds >= dailyLimitMinutes * 60L
+    val streakValueText = if (streakDays == 1) "1 day" else "$streakDays days"
 
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF111214).copy(alpha = scrimAlpha))
+                .clickable(onClick = onDismiss)
+                .padding(horizontal = 20.dp),
             contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(0xFF141D16).copy(alpha = 0.92f))
-                    .clickable(onClick = onDismiss)
-            )
             Column(
                 modifier = Modifier
-                    .padding(horizontal = 20.dp, vertical = 24.dp)
-                    .widthIn(max = 420.dp)
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(30.dp))
-                    .background(colors.cardSurface)
-                    .pointerInput(Unit) { detectTapGestures { } }
+                    .widthIn(max = 420.dp)
+                    .graphicsLayer {
+                        val v = cardEnter.value
+                        alpha = v.coerceIn(0.1f, 1f)
+                        scaleX = 0.94f + 0.06f * v
+                        scaleY = 0.94f + 0.06f * v
+                    }
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(colors.surfaceCard)
+                    .border(1.dp, colors.hairlineBorder, RoundedCornerShape(28.dp))
+                    .clickable(enabled = false, onClick = {})
+                    .padding(18.dp)
                     .testTag("simulation_pause_dialog")
-                    .verticalScroll(rememberScrollState())
-                    .padding(18.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Top dark hero header box inside the cream overlay
-                Box(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(colors.heroSurface)
-                        .padding(horizontal = 20.dp, vertical = 20.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(colors.heroDark)
+                        .padding(18.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Box(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(if (limitReached) colors.warnBg else colors.heroChipBg)
+                                .padding(horizontal = 12.dp, vertical = 5.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                                    .background(colors.heroTrack)
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    text = "$appName \u00B7 $feedLabel",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = colors.onHeroSurface
-                                )
-                            }
                             Text(
-                                text = "Loop\nbroken",
-                                fontSize = 30.sp,
-                                lineHeight = 33.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = (-0.8).sp,
-                                color = colors.onHeroSurface
+                                text = if (limitReached) "$appName \u00B7 Daily limit" else "$appName \u00B7 $feedLabel",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = if (limitReached) colors.warnText else colors.onPrimaryTint
                             )
                         }
-                        OutloopMark(
-                            size = 64.dp,
-                            color = colors.heroAccent,
-                            strokeWidth = 9.dp
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = if (limitReached) "Daily limit\nreached" else "Loop\nbroken",
+                            style = MaterialTheme.typography.headlineLarge.copy(
+                                fontSize = 27.sp,
+                                lineHeight = 31.sp
+                            ),
+                            color = colors.onPrimaryTint
+                        )
+                    }
+                    OutloopMark(
+                        size = 72.dp,
+                        color = if (limitReached) colors.warnBg else colors.sageAccent,
+                        strokeWidth = 9.5.dp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                Text(
+                    text = if (limitReached) {
+                        "You reached your ${dailyLimitMinutes}m daily budget for $appName ($usedText used). Feed dimmed (Preview mode)."
+                    } else {
+                        "$feedLabel is dimmed and guarded. Useful parts stay open (Preview mode)."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.secondaryInk
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Max),
+                    horizontalArrangement = Arrangement.spacedBy(OutloopMetrics.BentoGap)
+                ) {
+                    if (dailyLimitMinutes > 0) {
+                        OutloopBentoStatTile(
+                            value = "$usedText / ${dailyLimitMinutes}m",
+                            label = "used today",
+                            containerColor = if (limitReached) colors.warnBg else colors.canvas,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                        )
+                        OutloopBentoStatTile(
+                            value = timeKeptText,
+                            label = "reclaimed today",
+                            containerColor = colors.surfaceSubtle,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                        )
+                    } else {
+                        OutloopBentoStatTile(
+                            value = timeKeptText,
+                            label = "reclaimed today",
+                            containerColor = colors.canvas,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                        )
+                        OutloopBentoStatTile(
+                            value = streakValueText,
+                            label = "streak",
+                            containerColor = colors.surfaceSubtle,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Text(
-                    text = "$feedLabel is guarded, and that is $loopsToday loops broken today. Messages and Search are still open.",
-                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
-                    color = colors.secondaryInk,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp)
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutloopBentoStatTile(
-                        value = timeKeptText,
-                        label = "time kept",
-                        containerColor = colors.mintBg,
-                        contentColor = colors.mintInk,
-                        compact = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    OutloopBentoStatTile(
-                        value = "$streakDays ${if (streakDays == 1) "day" else "days"}",
-                        label = "streak",
-                        containerColor = colors.peachBg,
-                        contentColor = colors.peachInk,
-                        compact = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
                 Spacer(modifier = Modifier.height(16.dp))
-
                 OutloopPrimaryButton(
-                    text = safeActions.first,
+                    text = if (limitReached) "Leave $appName" else primaryActionLabel,
                     onClick = {
-                        onActionFeedback("Simulation: opened safe area in $appName.")
+                        onActionFeedback("Preview: exited $feedLabel.")
                         onDismiss()
                     },
                     modifier = Modifier.testTag("sim_return_button")
                 )
-
                 Spacer(modifier = Modifier.height(10.dp))
-
-                OutloopTonalButton(
-                    text = safeActions.second,
+                Button(
                     onClick = {
-                        onActionFeedback("Simulation: allowed once for 5 minutes.")
+                        onActionFeedback("Preview: allowed once for 5 minutes.")
                         onDismiss()
                     },
-                    modifier = Modifier.testTag("sim_allow_button")
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
+                    shape = CircleShape,
+                    border = BorderStroke(1.dp, colors.hairlineBorder),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.surfaceSubtle,
+                        contentColor = colors.ink
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 52.dp)
+                        .testTag("sim_allow_button")
+                ) {
+                    Text(
+                        text = secondaryActionLabel,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
                 OutloopTextButton(
                     text = "Pause for 15 min",
                     onClick = {
-                        if (strictModeEnabled) {
-                            showStrictPauseStep = true
-                        } else {
-                            onActionFeedback("Simulation: paused guard for 15 minutes.")
-                            onDismiss()
-                        }
+                        onActionFeedback("Preview: paused for 15 minutes.")
+                        onDismiss()
                     },
                     color = colors.secondaryInk,
-                    modifier = Modifier.testTag("sim_snooze_button")
-                )
-            }
-        }
-    }
-}
-
-/**
- * Functional Strict Mode "Pause Guard?" 10-second countdown overlay dialog matching the mockup.
- */
-@Composable
-fun OutloopPauseGuardDialog(
-    initialMinutes: Int = 15,
-    waitSeconds: Int = 10,
-    onKeepGuarding: () -> Unit,
-    onConfirmPause: (Int) -> Unit,
-    onDismiss: () -> Unit = onKeepGuarding
-) {
-    val colors = OutloopTheme.colors
-    var selectedMinutes by rememberSaveable { mutableIntStateOf(initialMinutes) }
-    var secondsLeft by rememberSaveable { mutableIntStateOf(waitSeconds.coerceAtLeast(1)) }
-
-    LaunchedEffect(Unit) {
-        while (secondsLeft > 0) {
-            delay(1_000L)
-            secondsLeft--
-        }
-    }
-
-    val ringProgress by animateFloatAsState(
-        targetValue = (secondsLeft.toFloat() / waitSeconds.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f),
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "pauseGuardRingSweep"
-    )
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(0xFF141D16).copy(alpha = 0.92f))
-                    .clickable(onClick = onDismiss)
-            )
-            Column(
-                modifier = Modifier
-                    .padding(horizontal = 20.dp, vertical = 24.dp)
-                    .widthIn(max = 420.dp)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(30.dp))
-                    .background(colors.cardSurface)
-                    .pointerInput(Unit) { detectTapGestures { } }
-                    .testTag("pause_guard_dialog")
-                    .verticalScroll(rememberScrollState())
-                    .padding(18.dp),
-                horizontalAlignment = Alignment.Start
-            ) {
-                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(colors.heroSurface)
-                        .padding(horizontal = 18.dp, vertical = 18.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.Start)
-                                .clip(CircleShape)
-                                .background(colors.heroTrack)
-                                .padding(horizontal = 12.dp, vertical = 5.dp)
-                        ) {
-                            Text(
-                                text = "Strict mode",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = colors.onHeroSurface
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Box(
-                            modifier = Modifier.size(116.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Canvas(modifier = Modifier.fillMaxSize()) {
-                                val strokePx = 10.dp.toPx()
-                                val inset = strokePx / 2f + 2.dp.toPx()
-                                val diameter = (size.minDimension - inset * 2f).coerceAtLeast(1f)
-                                drawArc(
-                                    color = colors.heroTrack,
-                                    startAngle = -90f,
-                                    sweepAngle = 360f,
-                                    useCenter = false,
-                                    topLeft = Offset(inset, inset),
-                                    size = Size(diameter, diameter),
-                                    style = Stroke(width = strokePx, cap = StrokeCap.Round)
-                                )
-                                if (ringProgress > 0f) {
-                                    drawArc(
-                                        color = colors.heroAccent,
-                                        startAngle = -90f,
-                                        sweepAngle = 360f * ringProgress,
-                                        useCenter = false,
-                                        topLeft = Offset(inset, inset),
-                                        size = Size(diameter, diameter),
-                                        style = Stroke(width = strokePx, cap = StrokeCap.Round)
-                                    )
-                                }
-                            }
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = secondsLeft.toString(),
-                                    fontSize = 36.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = colors.onHeroSurface,
-                                    style = MaterialTheme.typography.headlineLarge.copy(
-                                        fontFeatureSettings = "tnum"
-                                    ),
-                                    modifier = Modifier.testTag("pause_guard_countdown")
-                                )
-                                Text(
-                                    text = if (secondsLeft == 1) "second" else "seconds",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.onHeroSurface.copy(alpha = 0.78f)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = "Pause Guard?",
-                    style = MaterialTheme.typography.headlineMedium.copy(
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = colors.ink
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Strict mode asks you to wait $waitSeconds seconds first. Still want a break?",
-                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
-                    color = colors.secondaryInk
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                OutloopSegmentedControl(
-                    options = listOf(
-                        5 to "5 min",
-                        15 to "15 min",
-                        30 to "30 min"
-                    ),
-                    selected = selectedMinutes,
-                    onSelect = { selectedMinutes = it },
-                    modifier = Modifier.testTag("pause_guard_duration_selector")
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                OutloopPrimaryButton(
-                    text = "Keep guarding",
-                    onClick = onKeepGuarding,
-                    modifier = Modifier.testTag("pause_guard_keep_button")
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutloopSecondaryButton(
-                    text = if (secondsLeft > 0) {
-                        "Pause in $secondsLeft s"
-                    } else {
-                        "Pause for $selectedMinutes min"
-                    },
-                    enabled = secondsLeft == 0,
-                    onClick = { onConfirmPause(selectedMinutes) },
-                    modifier = Modifier.testTag("pause_guard_confirm_button")
+                        .testTag("sim_snooze_button")
                 )
             }
         }

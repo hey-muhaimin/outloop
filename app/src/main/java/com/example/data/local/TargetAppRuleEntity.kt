@@ -20,7 +20,8 @@ data class TargetAppRuleEntity(
     val isBuiltIn: Boolean = false,
     val matchedSelectorCount: Int = 0,
     val totalSelectorCount: Int = 0,
-    val isOutdated: Boolean = false
+    val isOutdated: Boolean = false,
+    val dailyLimitMinutes: Int = 0
 ) {
     val viewIds: List<String>
         get() = viewIdsRaw.split("|").map { it.trim() }.filter { it.isNotEmpty() }
@@ -30,6 +31,11 @@ data class TargetAppRuleEntity(
             val idx = fullId.indexOf(":id/")
             if (idx >= 0) "id/" + fullId.substring(idx + 4) else fullId
         }
+
+    val dailyLimitSeconds: Long
+        get() = dailyLimitMinutes.coerceAtLeast(0) * 60L
+
+    fun hasDailyLimit(): Boolean = dailyLimitMinutes > 0
 
     fun isCurrentlySnoozed(nowMs: Long = System.currentTimeMillis()): Boolean =
         snoozeUntilMs > nowMs || allowOnceUntilMs > nowMs

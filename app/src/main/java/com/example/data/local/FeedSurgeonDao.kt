@@ -14,6 +14,9 @@ interface FeedSurgeonDao {
     @Query("SELECT * FROM target_app_rules ORDER BY isBuiltIn DESC, displayName ASC")
     fun observeAllRules(): Flow<List<TargetAppRuleEntity>>
 
+    @Query("SELECT * FROM target_app_rules WHERE enabled = 1 ORDER BY isBuiltIn DESC, displayName ASC")
+    fun observeEnabledRules(): Flow<List<TargetAppRuleEntity>>
+
     @Query("SELECT * FROM target_app_rules ORDER BY isBuiltIn DESC, displayName ASC")
     suspend fun getAllRulesSnapshot(): List<TargetAppRuleEntity>
 
@@ -64,6 +67,41 @@ interface FeedSurgeonDao {
 
     @Query("DELETE FROM intervention_events")
     suspend fun clearAllEvents()
+
+    @Query("SELECT * FROM app_daily_usage WHERE dateKey = :dateKey ORDER BY trackedSeconds DESC")
+    fun observeDailyUsageForDate(dateKey: String): Flow<List<AppDailyUsageEntity>>
+
+    @Query("SELECT * FROM app_daily_usage WHERE packageName = :packageName AND dateKey = :dateKey LIMIT 1")
+    fun observeAppDailyUsage(packageName: String, dateKey: String): Flow<AppDailyUsageEntity?>
+
+    @Query("SELECT * FROM app_daily_usage WHERE packageName = :packageName AND dateKey = :dateKey LIMIT 1")
+    suspend fun getAppDailyUsage(packageName: String, dateKey: String): AppDailyUsageEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertDailyUsage(usage: AppDailyUsageEntity)
+
+    @Transaction
+    suspend fun incrementDailyUsageSeconds(
+        packageName: String,
+        dateKey: String,
+        deltaSeconds: Long,
+        updatedAtMs: Long
+    ) {
+        if (deltaSeconds <= 0L) return
+        val existing = getAppDailyUsage(packageName, dateKey)
+        val updatedTotal = (existing?.trackedSeconds ?: 0L) + deltaSeconds
+        upsertDailyUsage(
+            AppDailyUsageEntity(
+                packageName = packageName,
+                dateKey = dateKey,
+                trackedSeconds = updatedTotal,
+                lastUpdatedMs = updatedAtMs
+            )
+        )
+    }
+
+    @Query("DELETE FROM app_daily_usage")
+    suspend fun clearAllDailyUsage()
 
     @Transaction
     suspend fun replaceAllDataForBackup(

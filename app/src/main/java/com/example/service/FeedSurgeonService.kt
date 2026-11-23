@@ -3,33 +3,43 @@ package com.example.service
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
-import android.content.res.Configuration
 import android.os.SystemClock
+import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.example.FeedSurgeonApp
 import com.example.data.local.AppPreferences
-import com.example.data.local.AppearanceMode
 import com.example.data.local.FeedSurgeonDatabase
 import com.example.data.local.TargetAppRuleEntity
 import com.example.data.model.InterventionMode
 import com.example.data.model.InterventionOutcome
+import com.example.data.model.ProtectionStatus
 import com.example.data.repository.DiagnosticsBridge
 import com.example.data.repository.InterventionRepository
 import com.example.worker.RulesetSyncWorker
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 
 class FeedSurgeonService : AccessibilityService() {
 
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val serviceScope = CoroutineScope(
+        SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { _, throwable ->
+            Log.e("FeedSurgeonService", "Unhandled service coroutine error", throwable)
+        }
+    )
     private val lastBlockTimestamps = ConcurrentHashMap<String, Long>()
     private val lastRecordedInterventionElapsed = ConcurrentHashMap<String, Long>()
     private val inFlightVerifications = ConcurrentHashMap.newKeySet<String>()
@@ -38,27 +48,35 @@ class FeedSurgeonService : AccessibilityService() {
     private val consecutiveTabFallbackCounts = ConcurrentHashMap<String, Int>()
 
     @Volatile
+    private var allRulesByPackage: Map<String, TargetAppRuleEntity> = emptyMap()
+
+    @Volatile
     private var activeRulesByPackage: Map<String, TargetAppRuleEntity> = emptyMap()
 
     @Volatile
     private var currentPrefs: AppPreferences = AppPreferences()
 
+    private val foregroundMonitor = ForegroundPackageMonitor()
+    private val sessionTracker = AppSessionTimeTracker()
+    private val persistedTodayUsageSeconds = ConcurrentHashMap<String, Long>()
+    private val observedDateKeyFlow = MutableStateFlow(InterventionRepository.dateKeyForMs())
+    private var usageTickerJob: Job? = null
     private var overlayShield: AccessibilityOverlayShield? = null
 
-    private val app: FeedSurgeonApp
-        get() = applicationContext as FeedSurgeonApp
+    private val app: FeedSurgeonApp?
+        get() = (applicationContext as? FeedSurgeonApp) ?: (application as? FeedSurgeonApp)
 
     @Volatile
     private var activeInstalledRuleCount: Int = 0
 
     @Volatile
-    private var cachedTodayLoopsCount: Int = 0
+    private var todayLoopsBrokenCount: Int = 0
 
     @Volatile
-    private var cachedTodayReclaimedText: String = "0m"
+    private var todayTimeKeptText: String = "0 min"
 
     @Volatile
-    private var cachedStreakDays: Int = 1
+    private var currentStreakDays: Int = 0
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -67,6 +85,7 @@ class FeedSurgeonService : AccessibilityService() {
 
         // Pre-seed immediately so zero accessibility events are missed before Room emits
         val defaults = FeedSurgeonDatabase.defaultBuiltInRules()
+        allRulesByPackage = defaults.associateBy { it.packageName }
         activeRulesByPackage = defaults
             .filter { it.enabled }
             .associateBy { it.packageName }
@@ -80,13 +99,16 @@ class FeedSurgeonService : AccessibilityService() {
         ForegroundProtectionNotifier.startForegroundProtection(this, activeInstalledRuleCount)
 
         // Schedule WorkManager periodic Gist sync directly from FeedSurgeonService lifecycle
-        RulesetSyncWorker.schedulePeriodicSync(this)
+        runCatching { RulesetSyncWorker.schedulePeriodicSync(this) }
+
+        val hostApp = app ?: return
 
         serviceScope.launch {
-            app.interventionRepository.ensureDefaultRulesSeeded()
-            app.rulesetRepository.ensureLocalCacheSeeded()
-            app.rulesetRepository.autoSyncIfDue(force = false)
-            app.interventionRepository.allRules.collectLatest { rules ->
+            runCatching { hostApp.controlledAppsRepository.ensureDefaultRulesSeeded() }
+            runCatching { hostApp.rulesetRepository.ensureLocalCacheSeeded() }
+            runCatching { hostApp.rulesetRepository.autoSyncIfDue(force = false) }
+            hostApp.controlledAppsRepository.allRules.collectLatest { rules ->
+                allRulesByPackage = rules.associateBy { it.packageName }
                 val enabledMap = rules.filter { it.enabled }.associateBy { it.packageName }
                 activeRulesByPackage = enabledMap
                 updateServicePackageScope(rules.map { it.packageName })
@@ -101,37 +123,54 @@ class FeedSurgeonService : AccessibilityService() {
         }
 
         serviceScope.launch {
-            app.settingsDataStore.preferencesFlow.collectLatest { prefs ->
+            hostApp.settingsDataStore.preferencesFlow.collectLatest { prefs ->
                 currentPrefs = prefs
                 refreshForegroundNotification()
-                if (prefs.autoUpdateRules) {
-                    RulesetSyncWorker.schedulePeriodicSync(this@FeedSurgeonService)
-                } else {
-                    RulesetSyncWorker.cancelPeriodicSync(this@FeedSurgeonService)
+                runCatching {
+                    if (prefs.autoUpdateRules) {
+                        RulesetSyncWorker.schedulePeriodicSync(this@FeedSurgeonService)
+                    } else {
+                        RulesetSyncWorker.cancelPeriodicSync(this@FeedSurgeonService)
+                    }
                 }
             }
         }
 
         serviceScope.launch {
-            app.interventionRepository.eventsLast30Days.collectLatest { events ->
-                val counted = events.filter { it.outcome != InterventionOutcome.FAILED }
+            InstalledAppDetector.observePackageChanges(this@FeedSurgeonService).collectLatest {
+                val trackedPackages = activeRulesByPackage.keys.ifEmpty {
+                    FeedSurgeonDatabase.BUILT_IN_PACKAGE_NAMES
+                }
+                val installedNow = InstalledAppDetector.getInstalledPackages(
+                    this@FeedSurgeonService,
+                    trackedPackages
+                )
+                activeInstalledRuleCount = activeRulesByPackage.keys.count { it in installedNow }
+                refreshForegroundNotification()
+            }
+        }
+
+        serviceScope.launch {
+            hostApp.interventionRepository.eventsLast30Days.collectLatest { events ->
                 val nowMs = System.currentTimeMillis()
+                val counted = events.filter { it.outcome != InterventionOutcome.FAILED }
                 val todayStart = InterventionRepository.startOfTodayMs(nowMs)
                 val todayEvents = counted.filter { it.timestampMs >= todayStart }
-                val todayMinutes = todayEvents.sumOf { it.reclaimedSeconds } / 60
-                cachedTodayLoopsCount = todayEvents.size
-                cachedTodayReclaimedText = when {
-                    todayMinutes <= 0 -> "0m"
-                    todayMinutes < 60 -> "${todayMinutes}m"
-                    todayMinutes % 60 == 0 -> "${todayMinutes / 60}h"
-                    else -> "${todayMinutes / 60}h ${todayMinutes % 60}m"
+                todayLoopsBrokenCount = todayEvents.size
+                val totalSeconds = todayEvents.sumOf { it.reclaimedSeconds }
+                val minutes = totalSeconds / 60
+                todayTimeKeptText = when {
+                    minutes <= 0 -> if (todayEvents.isNotEmpty()) "1 min" else "0 min"
+                    minutes < 60 -> "$minutes min"
+                    minutes % 60 == 0 -> "${minutes / 60} h"
+                    else -> "${minutes / 60} h ${minutes % 60} min"
                 }
                 var streak = 0
                 var daysAgo = 0
                 while (daysAgo < 30) {
-                    val start = InterventionRepository.startOfWeekDaysAgoMs(daysAgo, nowMs)
-                    val end = start + 24L * 60 * 60 * 1000L
-                    if (counted.any { it.timestampMs in start until end }) {
+                    val dayStart = InterventionRepository.startOfWeekDaysAgoMs(daysAgo, nowMs)
+                    val dayEnd = dayStart + 24L * 60 * 60 * 1000
+                    if (counted.any { it.timestampMs in dayStart until dayEnd }) {
                         streak++
                         daysAgo++
                     } else if (daysAgo == 0) {
@@ -140,8 +179,22 @@ class FeedSurgeonService : AccessibilityService() {
                         break
                     }
                 }
-                cachedStreakDays = streak.coerceAtLeast(1)
+                currentStreakDays = streak
             }
+        }
+
+        @OptIn(ExperimentalCoroutinesApi::class)
+        serviceScope.launch {
+            observedDateKeyFlow
+                .flatMapLatest { dateKey ->
+                    hostApp.controlledAppsRepository.observeDailyUsageForDate(dateKey)
+                }
+                .collectLatest { rows ->
+                    persistedTodayUsageSeconds.clear()
+                    rows.forEach { row ->
+                        persistedTodayUsageSeconds[row.packageName] = row.trackedSeconds
+                    }
+                }
         }
     }
 
@@ -170,20 +223,20 @@ class FeedSurgeonService : AccessibilityService() {
         ForegroundProtectionNotifier.startForegroundProtection(this, activeInstalledRuleCount)
     }
 
-    private fun updateServicePackageScope(packages: List<String>) {
+    private fun updateServicePackageScope(@Suppress("UNUSED_PARAMETER") packages: List<String>) {
         val currentInfo = serviceInfo ?: AccessibilityServiceInfo()
-        val scopedPackages = packages.distinct().ifEmpty {
-            FeedSurgeonDatabase.BUILT_IN_PACKAGE_NAMES.toList()
-        }.toTypedArray()
-
         currentInfo.apply {
             eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
-                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED or
+                AccessibilityEvent.TYPE_VIEW_SCROLLED
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
             flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS or
                 AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
             notificationTimeout = 100L
-            packageNames = scopedPackages
+            // Keep packageNames unfiltered so TYPE_WINDOW_STATE_CHANGED monitors foreground
+            // transitions into any monitored app (including custom apps) and clean exits out
+            // of them; unmonitored apps are ignored immediately before any node inspection.
+            packageNames = null
         }
         try {
             serviceInfo = currentInfo
@@ -200,8 +253,120 @@ class FeedSurgeonService : AccessibilityService() {
         val captureLogs = prefs.eventCaptureEnabled
         val eventType = event.eventType
         val eventClassName = event.className?.toString()
+        val isWindowStateChanged = eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+
+        val rulesSnapshot = allRulesByPackage.ifEmpty {
+            FeedSurgeonDatabase.defaultBuiltInRules().associateBy { it.packageName }
+        }
+        val activeRulesSnapshot = if (allRulesByPackage.isEmpty()) {
+            rulesSnapshot.filterValues { it.enabled }
+        } else {
+            activeRulesByPackage
+        }
+
+        // Fast-path exit for high-frequency scroll/content events from unmonitored apps
+        if (!isWindowStateChanged && rulesSnapshot[pkg] == null) {
+            return
+        }
+
         val nowElapsed = SystemClock.elapsedRealtime()
         val nowMs = System.currentTimeMillis()
+        val currentKey = InterventionRepository.dateKeyForMs(nowMs)
+        if (observedDateKeyFlow.value != currentKey) {
+            observedDateKeyFlow.value = currentKey
+        }
+
+        if (isWindowStateChanged) {
+            when (
+                val transition = foregroundMonitor.onWindowStateChanged(
+                    packageName = pkg,
+                    className = eventClassName,
+                    rulesByPackage = rulesSnapshot,
+                    hostPackageName = packageName,
+                    isOverlayShowing = overlayShield?.isShowing() == true
+                )
+            ) {
+                is ForegroundPackageMonitor.Transition.ExitedMonitoredApp -> {
+                    flushSessionSlicesAsync(
+                        sessionTracker.onPackageExited(
+                            expectedPackage = transition.previousPackage,
+                            nowElapsedMs = nowElapsed,
+                            nowWallMs = nowMs
+                        )
+                    )
+                    stopUsageTicker()
+                    overlayShield?.dismiss()
+                    inFlightVerifications.remove(transition.previousPackage)
+                    consecutiveTabFallbackCounts.remove(transition.previousPackage)
+                    DiagnosticsBridge.clearForegroundMonitoredApp(transition.previousPackage)
+                    return
+                }
+                is ForegroundPackageMonitor.Transition.EnteredMonitoredApp -> {
+                    flushSessionSlicesAsync(
+                        sessionTracker.onPackageEntered(
+                            packageName = pkg,
+                            nowElapsedMs = nowElapsed,
+                            nowWallMs = nowMs
+                        )
+                    )
+                    startUsageTickerIfNeeded()
+                    transition.previousPackage?.let { prev ->
+                        if (prev != transition.packageName) {
+                            overlayShield?.dismiss()
+                            inFlightVerifications.remove(prev)
+                            consecutiveTabFallbackCounts.remove(prev)
+                        }
+                    }
+                    consecutiveTabFallbackCounts[pkg] = 0
+                    DiagnosticsBridge.setForegroundMonitoredApp(pkg, transition.rule.displayName)
+                    if (captureLogs) {
+                        logEventThrottled(
+                            pkg = pkg,
+                            eventType = eventType,
+                            eventClassName = eventClassName,
+                            rootNode = null,
+                            matchedSelector = null,
+                            outcome = "FOREGROUND_ENTER:${transition.rule.displayName}",
+                            nowElapsed = nowElapsed,
+                            force = true
+                        )
+                    }
+                }
+                is ForegroundPackageMonitor.Transition.StayedInMonitoredApp -> {
+                    flushSessionSlicesAsync(
+                        sessionTracker.onPackageEntered(
+                            packageName = pkg,
+                            nowElapsedMs = nowElapsed,
+                            nowWallMs = nowMs
+                        )
+                    )
+                    startUsageTickerIfNeeded()
+                    DiagnosticsBridge.setForegroundMonitoredApp(pkg, transition.rule.displayName)
+                }
+                ForegroundPackageMonitor.Transition.IgnoredTransientWindow,
+                ForegroundPackageMonitor.Transition.UnmonitoredApp -> return
+            }
+        } else {
+            // Ensure active session tracking resumes cleanly if the service connected mid-app
+            if (sessionTracker.activePackage() == null) {
+                flushSessionSlicesAsync(
+                    sessionTracker.onPackageEntered(
+                        packageName = pkg,
+                        nowElapsedMs = nowElapsed,
+                        nowWallMs = nowMs
+                    )
+                )
+                startUsageTickerIfNeeded()
+            }
+        }
+
+        if (pkg in prefs.alwaysOpenApps) {
+            if (captureLogs) {
+                logEventThrottled(pkg, eventType, eventClassName, null, null, "SKIPPED:always_open", nowElapsed)
+            }
+            return
+        }
+
         if (prefs.isGloballyPaused(nowMs)) {
             if (captureLogs) {
                 logEventThrottled(pkg, eventType, eventClassName, null, null, "SKIPPED:global_paused", nowElapsed)
@@ -215,10 +380,10 @@ class FeedSurgeonService : AccessibilityService() {
             return
         }
 
-        val rule = activeRulesByPackage[pkg]
+        val rule = activeRulesSnapshot[pkg]
         if (rule == null) {
-            if (captureLogs) {
-                logEventThrottled(pkg, eventType, eventClassName, null, null, "SKIPPED:no_active_rule", nowElapsed)
+            if (captureLogs && rulesSnapshot[pkg] != null) {
+                logEventThrottled(pkg, eventType, eventClassName, null, null, "SKIPPED:rule_disabled", nowElapsed)
             }
             return
         }
@@ -243,7 +408,55 @@ class FeedSurgeonService : AccessibilityService() {
             return
         }
 
-        val rootNode = resolveTargetRootNode(pkg)
+        val dailyLimitReached = isDailyLimitReached(rule, nowElapsed)
+        val isScrollEvent = isScrollMonitoringEvent(eventType)
+        val scrollSource = if (isScrollEvent) {
+            runCatching { event.source }.getOrNull()
+        } else {
+            null
+        }
+        val rootNode = resolveTargetRootNode(pkg) ?: scrollSource?.takeIf {
+            SelectorMatcher.matchesTargetPackage(it, pkg)
+        }
+
+        if (dailyLimitReached) {
+            if (rule.isCurrentlySnoozed(nowMs)) {
+                if (captureLogs) {
+                    logEventThrottled(pkg, eventType, eventClassName, rootNode, "daily_limit:${rule.dailyLimitMinutes}m", "SKIPPED:snoozed", nowElapsed)
+                }
+                return
+            }
+            val lastBlock = lastBlockTimestamps[pkg] ?: 0L
+            if (nowElapsed - lastBlock < rule.cooldownMs) {
+                if (captureLogs) {
+                    logEventThrottled(pkg, eventType, eventClassName, rootNode, "daily_limit:${rule.dailyLimitMinutes}m", "SKIPPED:cooldown", nowElapsed)
+                }
+                return
+            }
+            lastBlockTimestamps[pkg] = nowElapsed
+            val limitSelector = "daily_limit:${rule.dailyLimitMinutes}m"
+            if (captureLogs) {
+                logEventThrottled(
+                    pkg = pkg,
+                    eventType = eventType,
+                    eventClassName = eventClassName,
+                    rootNode = rootNode,
+                    matchedSelector = limitSelector,
+                    outcome = "TRIGGERED_DAILY_LIMIT:${rule.interventionMode.name}",
+                    nowElapsed = nowElapsed,
+                    force = true
+                )
+            }
+            executeIntervention(
+                rootNode = rootNode,
+                rule = rule,
+                matchedSelector = limitSelector,
+                nowElapsed = nowElapsed,
+                triggerMode = OverlayTriggerMode.DAILY_LIMIT_REACHED
+            )
+            return
+        }
+
         if (rootNode == null) {
             if (captureLogs) {
                 logEventThrottled(pkg, eventType, eventClassName, null, null, "SKIPPED:no_root_window", nowElapsed)
@@ -251,7 +464,11 @@ class FeedSurgeonService : AccessibilityService() {
             return
         }
 
-        val matchedSelector = SelectorMatcher.findMatchingSelector(rootNode, rule)
+        val matchedSelector = if (isScrollEvent) {
+            SelectorMatcher.findMatchingScrollSelector(scrollSource, rootNode, rule)
+        } else {
+            SelectorMatcher.findMatchingSelector(rootNode, rule)
+        }
         if (matchedSelector == null) {
             if (captureLogs) {
                 logEventThrottled(pkg, eventType, eventClassName, rootNode, null, "NO_MATCH", nowElapsed)
@@ -259,7 +476,7 @@ class FeedSurgeonService : AccessibilityService() {
             return
         }
 
-        if (rule.isCurrentlySnoozed(System.currentTimeMillis())) {
+        if (rule.isCurrentlySnoozed(nowMs)) {
             if (captureLogs) {
                 logEventThrottled(pkg, eventType, eventClassName, rootNode, matchedSelector, "SKIPPED:snoozed", nowElapsed)
             }
@@ -276,13 +493,14 @@ class FeedSurgeonService : AccessibilityService() {
         lastBlockTimestamps[pkg] = nowElapsed
 
         if (captureLogs) {
+            val triggerPrefix = if (isScrollEvent) "TRIGGERED_SCROLL" else "TRIGGERED"
             logEventThrottled(
                 pkg,
                 eventType,
                 eventClassName,
                 rootNode,
                 matchedSelector,
-                "TRIGGERED:${rule.interventionMode.name}",
+                "$triggerPrefix:${rule.interventionMode.name}",
                 nowElapsed,
                 force = true
             )
@@ -302,20 +520,29 @@ class FeedSurgeonService : AccessibilityService() {
             consecutiveTabFallbackCounts[pkg] = missStreak
             val shouldMarkOutdated = missStreak >= 5
 
-            serviceScope.launch {
-                app.interventionRepository.updateSelectorHealth(
-                    packageName = rule.packageName,
-                    matchedCount = viewIdsMatchedCount,
-                    totalCount = rule.viewIds.size.coerceAtLeast(1),
-                    outdated = shouldMarkOutdated
-                )
-                if (shouldMarkOutdated) {
-                    app.rulesetRepository.autoSyncIfDue(force = false)
+            val hostApp = app
+            if (hostApp != null) {
+                serviceScope.launch {
+                    hostApp.interventionRepository.updateSelectorHealth(
+                        packageName = rule.packageName,
+                        matchedCount = viewIdsMatchedCount,
+                        totalCount = rule.viewIds.size.coerceAtLeast(1),
+                        outdated = shouldMarkOutdated
+                    )
+                    if (shouldMarkOutdated) {
+                        hostApp.rulesetRepository.autoSyncIfDue(force = false)
+                    }
                 }
             }
         }
 
-        executeIntervention(rootNode, rule, matchedSelector, nowElapsed)
+        executeIntervention(
+            rootNode = rootNode,
+            rule = rule,
+            matchedSelector = matchedSelector,
+            nowElapsed = nowElapsed,
+            triggerMode = OverlayTriggerMode.FEED_GUARD
+        )
     }
 
     private fun logEventThrottled(
@@ -328,12 +555,13 @@ class FeedSurgeonService : AccessibilityService() {
         nowElapsed: Long,
         force: Boolean = false
     ) {
+        val hostApp = app ?: return
         val lastLogged = lastLogTimestamps[pkg] ?: 0L
         if (!force && nowElapsed - lastLogged < 400L) return
         lastLogTimestamps[pkg] = nowElapsed
-        val snapshot = app.eventLogger.captureSnapshot(rootNode)
+        val snapshot = hostApp.eventLogger.captureSnapshot(rootNode)
         serviceScope.launch {
-            app.eventLogger.logCapturedSnapshot(
+            hostApp.eventLogger.logCapturedSnapshot(
                 packageName = pkg,
                 eventType = eventType,
                 eventClassName = eventClassName,
@@ -350,9 +578,10 @@ class FeedSurgeonService : AccessibilityService() {
         } catch (_: Exception) {
             emptyList()
         }
+        val activeRoot = runCatching { rootInActiveWindow }.getOrNull()
         return SelectorMatcher.selectTargetWindowRoot(
             targetPackage = pkg,
-            activeRoot = rootInActiveWindow,
+            activeRoot = activeRoot,
             windowRoots = windowRoots
         )
     }
@@ -380,9 +609,10 @@ class FeedSurgeonService : AccessibilityService() {
         eventId: Long?
     ) {
         delay(350L)
+        val hostApp = app
         if (!isStillOnMatchedFeed(rule)) {
-            if (eventId != null) {
-                app.interventionRepository.updateInterventionOutcome(
+            if (eventId != null && hostApp != null) {
+                hostApp.interventionRepository.updateInterventionOutcome(
                     eventId,
                     InterventionOutcome.CONFIRMED
                 )
@@ -394,14 +624,14 @@ class FeedSurgeonService : AccessibilityService() {
             performGlobalAction(GLOBAL_ACTION_BACK)
             delay(300L)
             val cleared = !isStillOnMatchedFeed(rule)
-            if (eventId != null) {
-                app.interventionRepository.updateInterventionOutcome(
+            if (eventId != null && hostApp != null) {
+                hostApp.interventionRepository.updateInterventionOutcome(
                     eventId,
                     if (cleared) InterventionOutcome.CONFIRMED else InterventionOutcome.FAILED
                 )
             }
-        } else if (eventId != null) {
-            app.interventionRepository.updateInterventionOutcome(
+        } else if (eventId != null && hostApp != null) {
+            hostApp.interventionRepository.updateInterventionOutcome(
                 eventId,
                 InterventionOutcome.FAILED
             )
@@ -409,10 +639,11 @@ class FeedSurgeonService : AccessibilityService() {
     }
 
     private fun executeIntervention(
-        rootNode: AccessibilityNodeInfo,
+        rootNode: AccessibilityNodeInfo?,
         rule: TargetAppRuleEntity,
         matchedSelector: String,
-        nowElapsed: Long
+        nowElapsed: Long,
+        triggerMode: OverlayTriggerMode = OverlayTriggerMode.FEED_GUARD
     ) {
         inFlightVerifications.add(rule.packageName)
         val lastRecorded = lastRecordedInterventionElapsed[rule.packageName] ?: 0L
@@ -421,12 +652,17 @@ class FeedSurgeonService : AccessibilityService() {
             lastRecordedInterventionElapsed[rule.packageName] = nowElapsed
         }
 
+        val hostApp = app
         val shield = overlayShield
-        if (rule.interventionMode == InterventionMode.OVERLAY && shield != null) {
+        val shouldShowDimOverlay = shield != null && (
+            rule.interventionMode == InterventionMode.OVERLAY ||
+                triggerMode == OverlayTriggerMode.DAILY_LIMIT_REACHED
+            )
+        if (shouldShowDimOverlay && shield != null) {
             val eventIdDeferred = CompletableDeferred<Long?>()
             serviceScope.launch {
-                val eventId = if (shouldRecord) {
-                    app.interventionRepository.recordIntervention(
+                val eventId = if (shouldRecord && hostApp != null) {
+                    hostApp.interventionRepository.recordIntervention(
                         rule = rule,
                         matchedSelector = matchedSelector,
                         actionTaken = InterventionMode.OVERLAY,
@@ -438,26 +674,28 @@ class FeedSurgeonService : AccessibilityService() {
                 eventIdDeferred.complete(eventId)
             }
 
-            val useDarkTheme = when (currentPrefs.appearanceMode) {
-                AppearanceMode.DARK -> true
-                AppearanceMode.LIGHT -> false
-                AppearanceMode.SYSTEM ->
-                    (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
-                        Configuration.UI_MODE_NIGHT_YES
-            }
+            val (primaryActionLabel, secondaryActionLabel, usefulSummary) = resolveUsefulSurfaceCopy(rule)
+            val dailyUsedSeconds = getTodayTrackedSeconds(rule.packageName, nowElapsed)
 
             shield.show(
                 appName = rule.displayName,
                 feedLabel = rule.feedLabel,
-                loopsToday = cachedTodayLoopsCount + 1,
-                timeKeptText = cachedTodayReclaimedText,
-                streakDays = cachedStreakDays,
-                strictModeEnabled = currentPrefs.strictModeEnabled,
-                useDarkTheme = useDarkTheme,
+                useDarkTheme = false,
                 hapticsEnabled = currentPrefs.hapticFeedbackEnabled,
+                strictModeEnabled = currentPrefs.strictModeEnabled,
+                todayLoopsBroken = todayLoopsBrokenCount + 1,
+                timeKeptText = todayTimeKeptText,
+                streakDays = currentStreakDays.coerceAtLeast(1),
+                preferredPauseMinutes = currentPrefs.preferredPauseMinutes,
+                primaryUsefulActionLabel = primaryActionLabel,
+                secondaryUsefulActionLabel = secondaryActionLabel,
+                usefulPartsSummary = usefulSummary,
+                triggerMode = triggerMode,
+                dailyUsedSeconds = dailyUsedSeconds,
+                dailyLimitMinutes = rule.dailyLimitMinutes,
                 onExitFeed = {
                     lastBlockTimestamps[rule.packageName] = SystemClock.elapsedRealtime()
-                    val freshRoot = resolveTargetRootNode(rule.packageName)
+                    val freshRoot = resolveTargetRootNode(rule.packageName) ?: rootNode
                     executeHomeTabThenBackFallback(freshRoot, rule)
                     serviceScope.launch {
                         try {
@@ -473,27 +711,31 @@ class FeedSurgeonService : AccessibilityService() {
                     serviceScope.launch {
                         try {
                             val eventId = eventIdDeferred.await()
-                            if (eventId != null) {
-                                app.interventionRepository.allowOnceForEvent(eventId, rule.packageName)
-                            } else {
-                                app.interventionRepository.allowOnceTemporary(rule.packageName)
+                            if (hostApp != null) {
+                                if (eventId != null) {
+                                    hostApp.interventionRepository.allowOnceForEvent(eventId, rule.packageName)
+                                } else {
+                                    hostApp.interventionRepository.allowOnceTemporary(rule.packageName)
+                                }
                             }
                         } finally {
                             inFlightVerifications.remove(rule.packageName)
                         }
                     }
                 },
-                onPauseForMinutes = { minutes ->
+                onSnoozeMinutes = { minutes ->
                     lastBlockTimestamps[rule.packageName] = SystemClock.elapsedRealtime()
                     serviceScope.launch {
                         try {
-                            app.interventionRepository.pauseGloballyForMinutes(minutes)
-                            val eventId = eventIdDeferred.await()
-                            if (eventId != null) {
-                                app.interventionRepository.updateInterventionOutcome(
-                                    eventId,
-                                    InterventionOutcome.ALLOWED_ONCE
-                                )
+                            if (hostApp != null) {
+                                hostApp.interventionRepository.snoozeForMinutes(rule.packageName, minutes)
+                                val eventId = eventIdDeferred.await()
+                                if (eventId != null) {
+                                    hostApp.interventionRepository.updateInterventionOutcome(
+                                        eventId,
+                                        InterventionOutcome.ALLOWED_ONCE
+                                    )
+                                }
                             }
                         } finally {
                             inFlightVerifications.remove(rule.packageName)
@@ -525,8 +767,8 @@ class FeedSurgeonService : AccessibilityService() {
 
         serviceScope.launch {
             try {
-                val eventId = if (shouldRecord) {
-                    app.interventionRepository.recordIntervention(
+                val eventId = if (shouldRecord && hostApp != null) {
+                    hostApp.interventionRepository.recordIntervention(
                         rule = rule,
                         matchedSelector = matchedSelector,
                         actionTaken = rule.interventionMode,
@@ -542,14 +784,108 @@ class FeedSurgeonService : AccessibilityService() {
         }
     }
 
+    private fun startUsageTickerIfNeeded() {
+        if (usageTickerJob?.isActive == true) return
+        usageTickerJob = serviceScope.launch {
+            while (isActive) {
+                delay(USAGE_FLUSH_INTERVAL_MS)
+                val nowElapsed = SystemClock.elapsedRealtime()
+                val nowMs = System.currentTimeMillis()
+                val dateKey = InterventionRepository.dateKeyForMs(nowMs)
+                if (observedDateKeyFlow.value != dateKey) {
+                    observedDateKeyFlow.value = dateKey
+                }
+                val slices = sessionTracker.flushActiveSession(nowElapsed, nowMs)
+                if (slices.isNotEmpty()) {
+                    persistUsageSlices(slices, nowMs)
+                }
+                val activePkg = sessionTracker.activePackage() ?: continue
+                val rule = activeRulesByPackage[activePkg] ?: continue
+                val prefs = currentPrefs
+                if (activePkg in prefs.alwaysOpenApps ||
+                    prefs.isGloballyPaused(nowMs) ||
+                    prefs.isInQuietHours(nowMs) ||
+                    !rule.enabled ||
+                    rule.isCurrentlySnoozed(nowMs) ||
+                    overlayShield?.isShowing() == true ||
+                    activePkg in inFlightVerifications
+                ) {
+                    continue
+                }
+                if (isDailyLimitReached(rule, nowElapsed)) {
+                    val lastBlock = lastBlockTimestamps[activePkg] ?: 0L
+                    if (nowElapsed - lastBlock >= rule.cooldownMs) {
+                        lastBlockTimestamps[activePkg] = nowElapsed
+                        executeIntervention(
+                            rootNode = resolveTargetRootNode(activePkg),
+                            rule = rule,
+                            matchedSelector = "daily_limit:${rule.dailyLimitMinutes}m",
+                            nowElapsed = nowElapsed,
+                            triggerMode = OverlayTriggerMode.DAILY_LIMIT_REACHED
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private fun stopUsageTicker() {
+        usageTickerJob?.cancel()
+        usageTickerJob = null
+    }
+
+    private fun flushSessionSlicesAsync(slices: List<AppSessionTimeTracker.TrackedUsageSlice>) {
+        if (slices.isEmpty()) return
+        val nowMs = System.currentTimeMillis()
+        serviceScope.launch {
+            persistUsageSlices(slices, nowMs)
+        }
+    }
+
+    private suspend fun persistUsageSlices(
+        slices: List<AppSessionTimeTracker.TrackedUsageSlice>,
+        updatedAtMs: Long
+    ) {
+        val repo = app?.controlledAppsRepository ?: return
+        val currentKey = InterventionRepository.dateKeyForMs(updatedAtMs)
+        slices.forEach { slice ->
+            if (slice.dateKey == currentKey) {
+                persistedTodayUsageSeconds.compute(slice.packageName) { _, existing ->
+                    (existing ?: 0L) + slice.deltaSeconds
+                }
+            }
+            runCatching {
+                repo.addTrackedUsageSeconds(
+                    packageName = slice.packageName,
+                    dateKey = slice.dateKey,
+                    deltaSeconds = slice.deltaSeconds,
+                    updatedAtMs = updatedAtMs
+                )
+            }
+        }
+    }
+
     override fun onInterrupt() {
+        val nowElapsed = SystemClock.elapsedRealtime()
+        val nowMs = System.currentTimeMillis()
+        flushSessionSlicesAsync(sessionTracker.flushActiveSession(nowElapsed, nowMs))
+        sessionTracker.reset()
+        stopUsageTicker()
         overlayShield?.dismiss()
         inFlightVerifications.clear()
+        foregroundMonitor.reset()
+        DiagnosticsBridge.clearForegroundMonitoredApp()
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
+        val nowElapsed = SystemClock.elapsedRealtime()
+        val nowMs = System.currentTimeMillis()
+        flushSessionSlicesAsync(sessionTracker.flushActiveSession(nowElapsed, nowMs))
+        sessionTracker.reset()
+        stopUsageTicker()
         overlayShield?.dismiss()
         inFlightVerifications.clear()
+        foregroundMonitor.reset()
         ForegroundProtectionNotifier.stopForegroundProtection(this)
         DiagnosticsBridge.setServiceConnected(false)
         return super.onUnbind(intent)
@@ -557,14 +893,77 @@ class FeedSurgeonService : AccessibilityService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        val nowElapsed = SystemClock.elapsedRealtime()
+        val nowMs = System.currentTimeMillis()
+        val finalSlices = sessionTracker.flushActiveSession(nowElapsed, nowMs)
+        val repo = app?.controlledAppsRepository
+        if (finalSlices.isNotEmpty() && repo != null) {
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                finalSlices.forEach { slice ->
+                    runCatching {
+                        repo.addTrackedUsageSeconds(
+                            packageName = slice.packageName,
+                            dateKey = slice.dateKey,
+                            deltaSeconds = slice.deltaSeconds,
+                            updatedAtMs = nowMs
+                        )
+                    }
+                }
+            }
+        }
+        sessionTracker.reset()
+        stopUsageTicker()
         overlayShield?.dismiss()
         inFlightVerifications.clear()
+        foregroundMonitor.reset()
         ForegroundProtectionNotifier.stopForegroundProtection(this)
         DiagnosticsBridge.setServiceConnected(false)
         serviceScope.cancel()
     }
 
+    private fun resolveUsefulSurfaceCopy(rule: TargetAppRuleEntity): Triple<String, String, String> =
+        when (rule.packageName) {
+            "com.instagram.android" -> Triple("Open DMs", "Go to Search", "DMs and Search are still open.")
+            "com.google.android.youtube" -> Triple("Go to Home", "Go to Search", "Home and Search are still open.")
+            "com.facebook.katana" -> Triple("Open Messenger", "Go to Home", "Messenger and Groups are still open.")
+            "com.zhiliaoapp.musically" -> Triple("Open Inbox", "Open Profile", "Inbox and Profile are still open.")
+            "com.twitter.android" -> Triple("Open Messages", "Go to Search", "Messages and Search are still open.")
+            else -> Triple("Go to ${rule.homeTabLabel}", "Allow once", "${rule.homeTabLabel} is still open.")
+        }
+
+    internal fun isControlledPackage(packageName: String): Boolean {
+        val rules = allRulesByPackage.ifEmpty {
+            FeedSurgeonDatabase.defaultBuiltInRules().associateBy { it.packageName }
+        }
+        return rules.containsKey(packageName)
+    }
+
+    internal fun isScrollMonitoringEvent(eventType: Int): Boolean =
+        eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED
+
+    internal fun seedTrackedUsageForTesting(packageName: String, persistedSeconds: Long) {
+        persistedTodayUsageSeconds[packageName] = persistedSeconds.coerceAtLeast(0L)
+    }
+
+    internal fun getTodayTrackedSeconds(
+        packageName: String,
+        nowElapsedMs: Long = SystemClock.elapsedRealtime()
+    ): Long {
+        val persisted = persistedTodayUsageSeconds[packageName] ?: 0L
+        val pending = sessionTracker.getPendingSeconds(packageName, nowElapsedMs)
+        return persisted + pending
+    }
+
+    internal fun isDailyLimitReached(
+        rule: TargetAppRuleEntity,
+        nowElapsedMs: Long = SystemClock.elapsedRealtime()
+    ): Boolean {
+        if (!rule.hasDailyLimit()) return false
+        return getTodayTrackedSeconds(rule.packageName, nowElapsedMs) >= rule.dailyLimitSeconds
+    }
+
     companion object {
         private const val DEDUP_WINDOW_MS = 2500L
+        private const val USAGE_FLUSH_INTERVAL_MS = 30_000L
     }
 }

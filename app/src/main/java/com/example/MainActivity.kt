@@ -23,9 +23,11 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
@@ -55,7 +57,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.data.local.AppearanceMode
 import com.example.data.model.InterventionMode
 import com.example.data.model.InterventionToastState
 import com.example.data.model.ProtectionStatus
@@ -68,8 +69,8 @@ import com.example.ui.components.InterventionBanner
 import com.example.ui.components.LocalAnimatedVisibilityScope
 import com.example.ui.components.LocalSharedTransitionScope
 import com.example.ui.components.NavAlertBadges
-import com.example.ui.components.ObsidianSideRail
-import com.example.ui.components.OutloopBentoCanvas
+import com.example.ui.components.OutloopCanvas
+import com.example.ui.components.OutloopSideRail
 import com.example.ui.components.OutloopToastPill
 import com.example.ui.screens.AppDetailScreen
 import com.example.ui.screens.DiagnosticsScreen
@@ -80,7 +81,6 @@ import com.example.ui.screens.OnboardingScreen
 import com.example.ui.screens.PrivacyScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.theme.FeedSurgeonTheme
-import com.example.ui.theme.isDarkThemeForAppearance
 import kotlinx.coroutines.delay
 
 object Routes {
@@ -113,22 +113,13 @@ fun FeedSurgeonRoot(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val useDarkTheme = isDarkThemeForAppearance(uiState.preferences.appearanceMode)
 
     if (activity != null) {
-        DisposableEffect(useDarkTheme) {
+        DisposableEffect(Unit) {
             val transparent = Color.Transparent.toArgb()
             activity.enableEdgeToEdge(
-                statusBarStyle = if (useDarkTheme) {
-                    SystemBarStyle.dark(transparent)
-                } else {
-                    SystemBarStyle.light(transparent, transparent)
-                },
-                navigationBarStyle = if (useDarkTheme) {
-                    SystemBarStyle.dark(transparent)
-                } else {
-                    SystemBarStyle.light(transparent, transparent)
-                }
+                statusBarStyle = SystemBarStyle.light(transparent, transparent),
+                navigationBarStyle = SystemBarStyle.light(transparent, transparent)
             )
             onDispose {}
         }
@@ -148,11 +139,10 @@ fun FeedSurgeonRoot(
     }
 
     FeedSurgeonTheme(
-        appearanceMode = uiState.preferences.appearanceMode,
         hapticsEnabled = uiState.preferences.hapticFeedbackEnabled
     ) {
         if (uiState.isInitialLoading) {
-            OutloopBentoCanvas {
+            OutloopCanvas {
                 Box(modifier = Modifier.fillMaxSize())
             }
             return@FeedSurgeonTheme
@@ -162,13 +152,12 @@ fun FeedSurgeonRoot(
             uiState = uiState,
             onRefreshProtectionHealth = { viewModel.refreshAccessibilityStatus(context) },
             onToggleApp = viewModel::setRuleEnabled,
+            onSetDailyLimit = viewModel::setDailyLimitMinutes,
             onSelectDefaultMode = { mode, applyToAll ->
                 viewModel.setDefaultInterventionMode(mode, applyToAllRules = applyToAll)
             },
-            onSelectAppearanceMode = viewModel::setAppearanceMode,
             onSetHapticFeedback = viewModel::setHapticFeedbackEnabled,
             onAcceptDisclosure = viewModel::acceptDisclosure,
-            onDeclineDisclosure = viewModel::declineDisclosure,
             onCompleteOnboarding = viewModel::completeOnboarding,
             onToggleGlobalPause = viewModel::setGlobalProtectionPaused,
             onPauseForMinutes = viewModel::pauseGloballyForMinutes,
@@ -180,9 +169,11 @@ fun FeedSurgeonRoot(
             onClearEventLog = viewModel::clearEventLog,
             onShareEventLog = {
                 viewModel.createShareLogIntent()?.let { shareIntent ->
-                    context.startActivity(
-                        Intent.createChooser(shareIntent, "Share diagnostic log")
-                    )
+                    runCatching {
+                        context.startActivity(
+                            Intent.createChooser(shareIntent, "Share diagnostic log")
+                        )
+                    }
                 }
             },
             onSetReclaimedSeconds = viewModel::setReclaimedSecondsPerCut,
@@ -199,6 +190,8 @@ fun FeedSurgeonRoot(
             onResumeQuietHoursEarly = viewModel::resumeFromQuietHoursEarly,
             onSetDailyBudget = viewModel::setDailyBudgetCuts,
             onSetStrictModeEnabled = viewModel::setStrictModeEnabled,
+            onToggleAlwaysOpenApp = viewModel::toggleAlwaysOpenApp,
+            onSetPreferredPauseMinutes = viewModel::setPreferredPauseMinutes,
             onSaveCustomRule = viewModel::upsertCustomRule,
             onDeleteCustomRule = viewModel::deleteCustomRule,
             onExportBackupUri = { uri, cb -> viewModel.exportBackupToUri(context, uri, cb) },
@@ -214,11 +207,10 @@ fun OutloopNavigationHost(
     uiState: MainUiState,
     onRefreshProtectionHealth: () -> Unit = {},
     onToggleApp: (String, Boolean) -> Unit = { _, _ -> },
+    onSetDailyLimit: (String, Int) -> Unit = { _, _ -> },
     onSelectDefaultMode: (InterventionMode, Boolean) -> Unit = { _, _ -> },
-    onSelectAppearanceMode: (AppearanceMode) -> Unit = {},
     onSetHapticFeedback: (Boolean) -> Unit = {},
     onAcceptDisclosure: () -> Unit = {},
-    onDeclineDisclosure: () -> Unit = {},
     onCompleteOnboarding: () -> Unit = {},
     onToggleGlobalPause: (Boolean) -> Unit = {},
     onPauseForMinutes: (Int) -> Unit = {},
@@ -243,6 +235,8 @@ fun OutloopNavigationHost(
     onResumeQuietHoursEarly: () -> Unit = {},
     onSetDailyBudget: (Int) -> Unit = {},
     onSetStrictModeEnabled: (Boolean) -> Unit = {},
+    onToggleAlwaysOpenApp: (String, Boolean) -> Unit = { _, _ -> },
+    onSetPreferredPauseMinutes: (Int) -> Unit = {},
     onSaveCustomRule: (String, String, String, List<String>, String, String, InterventionMode) -> Unit = { _, _, _, _, _, _, _ -> },
     onDeleteCustomRule: (String) -> Unit = {},
     onExportBackupUri: (Uri, (String) -> Unit) -> Unit = { _, _ -> },
@@ -292,9 +286,15 @@ fun OutloopNavigationHost(
             BottomTab.INSIGHTS -> Routes.INSIGHTS
             BottomTab.SETTINGS -> Routes.SETTINGS
         }
+        val hasHomeInBackStack = runCatching {
+            navController.getBackStackEntry(Routes.HOME)
+            true
+        }.getOrDefault(false)
         navController.navigate(route) {
-            popUpTo(navController.graph.findStartDestination().id) {
-                saveState = true
+            if (hasHomeInBackStack) {
+                popUpTo(Routes.HOME) { saveState = true }
+            } else {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
             }
             launchSingleTop = true
             restoreState = true
@@ -317,17 +317,21 @@ fun OutloopNavigationHost(
 
     val m3StandardEasing = remember { CubicBezierEasing(0.2f, 0f, 0f, 1f) }
 
-    OutloopBentoCanvas {
+    OutloopCanvas {
         SharedTransitionLayout {
             CompositionLocalProvider(LocalSharedTransitionScope provides this) {
                 BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                     val isWideScreen = maxWidth >= 600.dp
-                    val bottomContentPadding = if (!isWideScreen && selectedBottomTab != null) 96.dp else 32.dp
-                    val floatingBottomOffset = if (!isWideScreen && selectedBottomTab != null) 82.dp else 20.dp
+                    val navBarBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                    val bottomContentPadding = if (!isWideScreen && selectedBottomTab != null) {
+                        com.example.ui.theme.OutloopMetrics.BottomNavContentPadding + navBarBottomInset
+                    } else {
+                        28.dp + navBarBottomInset
+                    }
 
                     Row(modifier = Modifier.fillMaxSize()) {
                         if (isWideScreen && selectedBottomTab != null) {
-                            ObsidianSideRail(
+                            OutloopSideRail(
                                 selectedTab = selectedBottomTab,
                                 onTabSelected = ::navigateToTopLevel,
                                 alerts = navAlerts
@@ -392,10 +396,14 @@ fun OutloopNavigationHost(
                             ) {
                                 composable(Routes.ONBOARDING) {
                                     CompositionLocalProvider(LocalAnimatedVisibilityScope provides this) {
+                                        val quietSummary = if (uiState.preferences.quietHoursEnabled) {
+                                            "Quiet ${com.example.data.local.AppPreferences.formatMinutesOfDay(uiState.preferences.quietStartMinutes)} to ${com.example.data.local.AppPreferences.formatMinutesOfDay(uiState.preferences.quietEndMinutes)}"
+                                        } else {
+                                            "All day"
+                                        }
                                         OnboardingScreen(
                                             rules = uiState.rules,
                                             installedPackages = uiState.installedPackages,
-                                            preferences = uiState.preferences,
                                             isAccessibilityEnabled = uiState.isAccessibilityEnabled,
                                             isServiceConnected = uiState.isServiceConnected,
                                             isBatteryOptimizationIgnored = uiState.isBatteryOptimizationIgnored,
@@ -403,31 +411,18 @@ fun OutloopNavigationHost(
                                             onRefreshProtectionHealth = onRefreshProtectionHealth,
                                             onToggleApp = onToggleApp,
                                             onAcceptDisclosure = onAcceptDisclosure,
-                                            onDeclineDisclosure = {
-                                                onDeclineDisclosure()
-                                                navigateToHomeClearingOnboarding()
-                                            },
                                             onOpenPrivacyDetails = {
                                                 navController.navigate(Routes.PRIVACY)
                                             },
                                             onCompleteOnboarding = {
                                                 onCompleteOnboarding()
                                                 navigateToHomeClearingOnboarding()
-                                            }
+                                            },
+                                            hasScannedInstalledApps = uiState.hasScannedInstalledApps,
+                                            disclosureAccepted = uiState.preferences.disclosureAccepted,
+                                            preferredPauseMinutes = uiState.preferences.preferredPauseMinutes,
+                                            quietHoursSummary = quietSummary
                                         )
-                                    }
-                                }
-
-                                val handleStatusClick: () -> Unit = {
-                                    when (uiState.protectionStatus) {
-                                        ProtectionStatus.PERMISSION_NEEDED ->
-                                            navController.navigate(Routes.ONBOARDING)
-                                        ProtectionStatus.SERVICE_DISCONNECTED ->
-                                            navController.navigate(Routes.DIAGNOSTICS)
-                                        ProtectionStatus.NO_APPS_ACTIVE ->
-                                            navController.navigate(Routes.MANAGE_APPS)
-                                        else ->
-                                            navigateToTopLevel(BottomTab.SETTINGS)
                                     }
                                 }
 
@@ -435,7 +430,18 @@ fun OutloopNavigationHost(
                                     CompositionLocalProvider(LocalAnimatedVisibilityScope provides this) {
                                         HomeScreen(
                                             uiState = uiState,
-                                            onStatusClick = handleStatusClick,
+                                            onStatusClick = {
+                                                when (uiState.protectionStatus) {
+                                                    ProtectionStatus.PERMISSION_NEEDED ->
+                                                        navController.navigate(Routes.ONBOARDING)
+                                                    ProtectionStatus.SERVICE_DISCONNECTED ->
+                                                        navController.navigate(Routes.DIAGNOSTICS)
+                                                    ProtectionStatus.NO_APPS_ACTIVE ->
+                                                        navController.navigate(Routes.MANAGE_APPS)
+                                                    else ->
+                                                        navigateToTopLevel(BottomTab.SETTINGS)
+                                                }
+                                            },
                                             onSetupClick = {
                                                 if (uiState.isAccessibilityEnabled && !uiState.isServiceConnected) {
                                                     navController.navigate(Routes.DIAGNOSTICS)
@@ -458,8 +464,8 @@ fun OutloopNavigationHost(
                                             onShowEstimateToast = { msg -> uiToastMessage = msg },
                                             onResumeQuietHoursEarly = onResumeQuietHoursEarly,
                                             onRefreshProtectionHealth = onRefreshProtectionHealth,
-                                            bottomContentPadding = bottomContentPadding,
-                                            floatingBottomOffset = floatingBottomOffset
+                                            onSetPreferredPauseMinutes = onSetPreferredPauseMinutes,
+                                            bottomContentPadding = bottomContentPadding
                                         )
                                     }
                                 }
@@ -468,7 +474,6 @@ fun OutloopNavigationHost(
                                     CompositionLocalProvider(LocalAnimatedVisibilityScope provides this) {
                                         InsightsScreen(
                                             uiState = uiState,
-                                            onStatusClick = handleStatusClick,
                                             bottomContentPadding = bottomContentPadding
                                         )
                                     }
@@ -490,7 +495,6 @@ fun OutloopNavigationHost(
                                             onSelectDefaultMode = { mode ->
                                                 onSelectDefaultMode(mode, true)
                                             },
-                                            onSelectAppearanceMode = onSelectAppearanceMode,
                                             onSetReclaimedSeconds = onSetReclaimedSeconds,
                                             onSetHapticFeedback = onSetHapticFeedback,
                                             onSetShowBanner = onSetShowBanner,
@@ -498,13 +502,13 @@ fun OutloopNavigationHost(
                                             onShowToast = { msg -> uiToastMessage = msg },
                                             onSetQuietHours = onSetQuietHours,
                                             onSetDailyBudget = onSetDailyBudget,
-                                            onSetStrictModeEnabled = onSetStrictModeEnabled,
-                                            onToggleGlobalPause = onToggleGlobalPause,
-                                            onPauseForMinutes = onPauseForMinutes,
-                                            onStatusClick = handleStatusClick,
                                             onExportBackupUri = onExportBackupUri,
                                             onInspectBackupUri = onInspectBackupUri,
                                             onRestoreBackupJson = onRestoreBackupJson,
+                                            onAcceptDisclosure = onAcceptDisclosure,
+                                            onToggleGlobalPause = onToggleGlobalPause,
+                                            onSetStrictModeEnabled = onSetStrictModeEnabled,
+                                            onToggleAlwaysOpenApp = onToggleAlwaysOpenApp,
                                             bottomContentPadding = bottomContentPadding
                                         )
                                     }
@@ -520,7 +524,8 @@ fun OutloopNavigationHost(
                                             launchableApps = uiState.launchableApps,
                                             onSaveCustomRule = onSaveCustomRule,
                                             onDeleteCustomRule = onDeleteCustomRule,
-                                            onShowToast = { msg -> uiToastMessage = msg }
+                                            onShowToast = { msg -> uiToastMessage = msg },
+                                            hasScannedInstalledApps = uiState.hasScannedInstalledApps
                                         )
                                     }
                                 }
@@ -554,20 +559,22 @@ fun OutloopNavigationHost(
                                     CompositionLocalProvider(LocalAnimatedVisibilityScope provides this) {
                                         val pkg = entry.arguments?.getString("packageName").orEmpty()
                                         val rule = uiState.rules.firstOrNull { it.packageName == pkg }
+                                        val todayUsedSec = uiState.todayUsageSecondsByPackage[pkg] ?: 0L
                                         AppDetailScreen(
                                             rule = rule,
+                                            todayUsageSeconds = todayUsedSec,
+                                            reclaimedTodayText = uiState.todayReclaimedText,
+                                            streakDays = uiState.streakDays,
                                             onBack = { navController.popBackStack() },
                                             onToggleEnabled = { enabled -> onToggleApp(pkg, enabled) },
                                             onSelectMode = { mode -> onSelectMode(pkg, mode) },
                                             onChangeCooldown = { ms -> onChangeCooldown(pkg, ms) },
+                                            onChangeDailyLimitMinutes = { mins -> onSetDailyLimit(pkg, mins) },
                                             onAllowOnce = { onAllowOnceForApp(pkg) },
                                             onSnoozeMinutes = { minutes -> onSnoozeMinutes(pkg, minutes) },
                                             onResumeSnooze = { onAppSnoozeExpired(pkg) },
                                             onShowToast = { msg -> uiToastMessage = msg },
-                                            loopsToday = uiState.todayCutsCount,
-                                            timeKeptText = uiState.todayReclaimedText,
-                                            streakDays = uiState.streakDays,
-                                            strictModeEnabled = uiState.preferences.strictModeEnabled
+                                            currentTimeMs = uiState.currentTimeMs
                                         )
                                     }
                                 }
@@ -578,9 +585,8 @@ fun OutloopNavigationHost(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
                                     .fillMaxWidth()
-                                    .widthIn(max = 560.dp)
                                     .then(
-                                        if (isWideScreen) Modifier.padding(bottom = 16.dp) else Modifier
+                                        if (isWideScreen) Modifier.padding(bottom = 12.dp + navBarBottomInset) else Modifier
                                     ),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
@@ -592,7 +598,9 @@ fun OutloopNavigationHost(
                                     uiToastMessage?.let { msg ->
                                         OutloopToastPill(
                                             message = msg,
-                                            modifier = Modifier.padding(bottom = 8.dp)
+                                            modifier = Modifier
+                                                .widthIn(max = com.example.ui.theme.OutloopMetrics.MaxContentWidth - 20.dp)
+                                                .padding(bottom = 8.dp)
                                         )
                                     }
                                 }
@@ -604,12 +612,19 @@ fun OutloopNavigationHost(
                                         exit = slideOutVertically { it } + fadeOut()
                                     ) {
                                         uiState.recentToast?.let { toast ->
-                                            InterventionBanner(
-                                                toast = toast,
-                                                onAllowOnce = { onAllowOnceFromToast(toast) },
-                                                onUndo = { onUndoFromToast(toast) },
-                                                onDismiss = onDismissToast
-                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .widthIn(max = com.example.ui.theme.OutloopMetrics.MaxContentWidth - 20.dp)
+                                                    .fillMaxWidth(),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                InterventionBanner(
+                                                    toast = toast,
+                                                    onAllowOnce = { onAllowOnceFromToast(toast) },
+                                                    onUndo = { onUndoFromToast(toast) },
+                                                    onDismiss = onDismissToast
+                                                )
+                                            }
                                         }
                                     }
 

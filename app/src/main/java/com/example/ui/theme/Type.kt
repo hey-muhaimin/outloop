@@ -8,6 +8,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.example.R
 
+val PlusJakartaSansFontFamily = FontFamily(
+    Font(R.font.plus_jakarta_sans, FontWeight.SemiBold),
+    Font(R.font.plus_jakarta_sans, FontWeight.Bold)
+)
+
 val InterFontFamily = FontFamily(
     Font(R.font.inter, FontWeight.Normal),
     Font(R.font.inter, FontWeight.Medium),
@@ -21,36 +26,36 @@ val ManropeFontFamily = FontFamily(
 )
 
 val OutloopTypography = Typography(
-    // Primary tab title ("Today", "Insights", "Settings") - ~20% compact
+    // Primary tab title ("Today", "Insights", "Settings")
     displayLarge = TextStyle(
-        fontFamily = InterFontFamily,
+        fontFamily = PlusJakartaSansFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 28.sp,
-        lineHeight = 34.sp,
-        letterSpacing = (-0.6).sp
+        fontSize = 31.sp,
+        lineHeight = 36.sp,
+        letterSpacing = (-0.7).sp
     ),
-    // Sub-screen, Onboarding & Welcome headlines - unified across all flows
+    // Sub-screen, Onboarding & Hero headlines
     headlineLarge = TextStyle(
-        fontFamily = InterFontFamily,
+        fontFamily = PlusJakartaSansFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 26.sp,
+        fontSize = 27.sp,
         lineHeight = 32.sp,
         letterSpacing = (-0.5).sp
     ),
-    // Sheet & KPI metric headlines
+    // Card KPI / Sheet / Overlay titles
     headlineMedium = TextStyle(
-        fontFamily = InterFontFamily,
+        fontFamily = PlusJakartaSansFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 20.sp,
-        lineHeight = 25.sp,
+        fontSize = 21.sp,
+        lineHeight = 26.sp,
         letterSpacing = (-0.35).sp
     ),
-    // Hero wordmark / modal headline
+    // Brand wordmark / card headline
     titleLarge = TextStyle(
-        fontFamily = ManropeFontFamily,
+        fontFamily = PlusJakartaSansFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 19.sp,
-        lineHeight = 24.sp,
+        fontSize = 18.sp,
+        lineHeight = 23.sp,
         letterSpacing = (-0.25).sp
     ),
     // Primary row / button title
@@ -78,8 +83,8 @@ val OutloopTypography = Typography(
     bodyMedium = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 13.sp,
-        lineHeight = 18.sp
+        fontSize = 13.5.sp,
+        lineHeight = 19.sp
     ),
     // Footnote / secondary metadata
     bodySmall = TextStyle(
@@ -92,7 +97,7 @@ val OutloopTypography = Typography(
     labelLarge = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 12.sp,
+        fontSize = 12.5.sp,
         lineHeight = 16.sp
     ),
     // Eyebrow / Section Header
@@ -106,7 +111,7 @@ val OutloopTypography = Typography(
     labelSmall = TextStyle(
         fontFamily = InterFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 10.5.sp,
-        lineHeight = 13.sp
+        fontSize = 11.sp,
+        lineHeight = 14.sp
     )
 )

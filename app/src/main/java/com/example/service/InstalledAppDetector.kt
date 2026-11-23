@@ -119,6 +119,66 @@ object InstalledAppDetector {
         }.sortedBy { it.displayName.lowercase() }
     }
 
+    /**
+     * Resolves real installed Android package names for everyday utility apps (Dialer, SMS, Maps,
+     * Camera, Calendar, Clock) so Always open exclusions match actual foreground package names.
+     */
+    fun getInstalledUtilityApps(
+        context: Context,
+        launchableApps: List<LaunchableAppInfo>
+    ): List<LaunchableAppInfo> {
+        val pm = context.packageManager ?: return emptyList()
+        val resolvedByPkg = linkedMapOf<String, LaunchableAppInfo>()
+        val utilityIntents = listOf(
+            Intent(Intent.ACTION_DIAL),
+            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MESSAGING),
+            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MAPS),
+            Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE),
+            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALENDAR),
+            Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS)
+        )
+        utilityIntents.forEach { intent ->
+            val info = runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    pm.resolveActivity(intent, PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong()))
+                } else {
+                    @Suppress("DEPRECATION")
+                    pm.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+                }
+            }.getOrNull()
+            val pkg = info?.activityInfo?.packageName
+            if (!pkg.isNullOrBlank() && pkg != context.packageName && !resolvedByPkg.containsKey(pkg)) {
+                val label = runCatching { info.loadLabel(pm).toString() }
+                    .getOrDefault("")
+                    .trim()
+                    .ifEmpty { pkg }
+                resolvedByPkg[pkg] = LaunchableAppInfo(packageName = pkg, displayName = label)
+            }
+        }
+        val knownUtilityPackages = setOf(
+            "com.google.android.dialer",
+            "com.android.dialer",
+            "com.samsung.android.dialer",
+            "com.google.android.apps.messaging",
+            "com.android.messaging",
+            "com.samsung.android.messaging",
+            "com.google.android.apps.maps",
+            "com.google.android.GoogleCamera",
+            "com.android.camera",
+            "com.sec.android.app.camera",
+            "com.google.android.calendar",
+            "com.android.calendar",
+            "com.google.android.deskclock",
+            "com.android.deskclock"
+        )
+        launchableApps.forEach { app ->
+            if (app.packageName in knownUtilityPackages && !resolvedByPkg.containsKey(app.packageName)) {
+                resolvedByPkg[app.packageName] = app
+            }
+        }
+        return resolvedByPkg.values.sortedBy { it.displayName.lowercase() }
+    }
+
     fun loadCachedAppIcon(context: Context, packageName: String): ImageBitmap? {
         if (packageName.isBlank()) return null
         iconCache.get(packageName)?.let { return it }

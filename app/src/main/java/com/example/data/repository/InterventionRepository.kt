@@ -1,5 +1,6 @@
 package com.example.data.repository
 
+import com.example.data.local.AppDailyUsageEntity
 import com.example.data.local.AppPreferences
 import com.example.data.local.AppearanceMode
 import com.example.data.local.FeedSurgeonDao
@@ -12,22 +13,32 @@ import com.example.data.model.InterventionOutcome
 import com.example.data.model.InterventionToastState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 class InterventionRepository(
     private val dao: FeedSurgeonDao,
     private val settingsDataStore: SettingsDataStore
-) {
-    val allRules: Flow<List<TargetAppRuleEntity>> = dao.observeAllRules()
+) : ControlledAppsRepository {
+    override val allRules: Flow<List<TargetAppRuleEntity>> = dao.observeAllRules()
+    override val activeRules: Flow<List<TargetAppRuleEntity>> = dao.observeEnabledRules()
     val recentEvents: Flow<List<InterventionEventEntity>> = dao.observeRecentEvents()
     val eventsLast30Days: Flow<List<InterventionEventEntity>> =
         dao.observeEventsSince(startOfWeekDaysAgoMs(29))
     val preferences: Flow<AppPreferences> = settingsDataStore.preferencesFlow
 
-    fun observeRule(packageName: String): Flow<TargetAppRuleEntity?> =
+    override fun observeRule(packageName: String): Flow<TargetAppRuleEntity?> =
         dao.observeRuleByPackage(packageName)
 
-    suspend fun ensureDefaultRulesSeeded() {
+    override fun observeDailyUsageForDate(dateKey: String): Flow<List<AppDailyUsageEntity>> =
+        dao.observeDailyUsageForDate(dateKey)
+
+    override fun observeAppDailyUsage(packageName: String, dateKey: String): Flow<AppDailyUsageEntity?> =
+        dao.observeAppDailyUsage(packageName, dateKey)
+
+    override suspend fun ensureDefaultRulesSeeded() {
         val existingPackages = dao.getAllRulesSnapshot().map { it.packageName }.toSet()
         val defaultMode = settingsDataStore.preferencesFlow.first().defaultInterventionMode
         val missingDefaults = FeedSurgeonDatabase.defaultBuiltInRules().filter {
@@ -38,9 +49,38 @@ class InterventionRepository(
         }
     }
 
-    suspend fun setRuleEnabled(packageName: String, enabled: Boolean) {
+    override suspend fun getRule(packageName: String): TargetAppRuleEntity? =
+        dao.getRuleByPackage(packageName)
+
+    override suspend fun isControlledPackage(packageName: String): Boolean =
+        dao.getRuleByPackage(packageName) != null
+
+    override suspend fun setRuleEnabled(packageName: String, enabled: Boolean) {
         val current = dao.getRuleByPackage(packageName) ?: return
         dao.updateRule(current.copy(enabled = enabled))
+    }
+
+    override suspend fun setDailyLimitMinutes(packageName: String, limitMinutes: Int) {
+        val current = dao.getRuleByPackage(packageName) ?: return
+        dao.updateRule(current.copy(dailyLimitMinutes = limitMinutes.coerceIn(0, 720)))
+    }
+
+    override suspend fun getTodayUsageSeconds(packageName: String, dateKey: String): Long =
+        dao.getAppDailyUsage(packageName, dateKey)?.trackedSeconds ?: 0L
+
+    override suspend fun addTrackedUsageSeconds(
+        packageName: String,
+        dateKey: String,
+        deltaSeconds: Long,
+        updatedAtMs: Long
+    ) {
+        if (packageName.isBlank() || dateKey.isBlank() || deltaSeconds <= 0L) return
+        dao.incrementDailyUsageSeconds(
+            packageName = packageName,
+            dateKey = dateKey,
+            deltaSeconds = deltaSeconds,
+            updatedAtMs = updatedAtMs
+        )
     }
 
     suspend fun setInterventionMode(packageName: String, mode: InterventionMode) {
@@ -114,6 +154,20 @@ class InterventionRepository(
 
     suspend fun setStrictModeEnabled(enabled: Boolean) {
         settingsDataStore.setStrictModeEnabled(enabled)
+    }
+
+    suspend fun toggleAlwaysOpenApp(identifier: String, enabled: Boolean) {
+        val current = settingsDataStore.preferencesFlow.first().alwaysOpenApps.toMutableSet()
+        if (enabled) {
+            current.add(identifier)
+        } else {
+            current.remove(identifier)
+        }
+        settingsDataStore.setAlwaysOpenApps(current)
+    }
+
+    suspend fun setPreferredPauseMinutes(minutes: Int) {
+        settingsDataStore.setPreferredPauseMinutes(minutes)
     }
 
     suspend fun allowOnceForEvent(eventId: Long, packageName: String) {
@@ -197,7 +251,7 @@ class InterventionRepository(
         )
     }
 
-    suspend fun upsertCustomRule(
+    override suspend fun upsertCustomRule(
         packageName: String,
         displayName: String,
         feedLabel: String,
@@ -225,12 +279,13 @@ class InterventionRepository(
                 isBuiltIn = existing?.isBuiltIn ?: false,
                 matchedSelectorCount = cleanIds.size,
                 totalSelectorCount = cleanIds.size,
-                isOutdated = false
+                isOutdated = false,
+                dailyLimitMinutes = existing?.dailyLimitMinutes ?: 0
             )
         )
     }
 
-    suspend fun deleteCustomRule(packageName: String) {
+    override suspend fun deleteCustomRule(packageName: String) {
         dao.deleteCustomRule(packageName)
     }
 
@@ -240,6 +295,24 @@ class InterventionRepository(
     }
 
     companion object {
+        fun dateKeyForMs(nowMs: Long = System.currentTimeMillis()): String =
+            SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(nowMs))
+
+        fun formatDurationCompact(totalSeconds: Long): String {
+            val safeSeconds = totalSeconds.coerceAtLeast(0L)
+            val totalMinutes = safeSeconds / 60L
+            return when {
+                safeSeconds == 0L -> "0m"
+                totalMinutes == 0L -> "<1m"
+                totalMinutes < 60L -> "${totalMinutes}m"
+                else -> {
+                    val h = totalMinutes / 60L
+                    val m = totalMinutes % 60L
+                    if (m == 0L) "${h}h" else "${h}h ${m}m"
+                }
+            }
+        }
+
         fun startOfTodayMs(nowMs: Long = System.currentTimeMillis()): Long {
             val cal = Calendar.getInstance().apply {
                 timeInMillis = nowMs

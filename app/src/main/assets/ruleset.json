@@ -1,7 +1,18 @@
 {
-  "version": "v2026.11.18",
-  "updatedAt": "2026-11-18",
+  "version": "v2026.11.21",
+  "updatedAt": "2026-11-21",
   "apps": [
+    {
+      "packageName": "com.instagram.android",
+      "displayName": "Instagram",
+      "feedLabel": "Reels",
+      "homeTabLabel": "Home",
+      "viewIds": [
+        "com.instagram.android:id/clips_viewer_view_pager",
+        "com.instagram.android:id/clips_video_container"
+      ],
+      "tabContentDescription": "Reels"
+    },
     {
       "packageName": "com.google.android.youtube",
       "displayName": "YouTube",
@@ -15,17 +26,6 @@
       "tabContentDescription": "Shorts"
     },
     {
-      "packageName": "com.instagram.android",
-      "displayName": "Instagram",
-      "feedLabel": "Reels",
-      "homeTabLabel": "Home",
-      "viewIds": [
-        "com.instagram.android:id/clips_viewer_view_pager",
-        "com.instagram.android:id/clips_video_container"
-      ],
-      "tabContentDescription": "Reels"
-    },
-    {
       "packageName": "com.facebook.katana",
       "displayName": "Facebook",
       "feedLabel": "Reels",
@@ -35,6 +35,28 @@
         "com.facebook.katana:id/fb_reels_container"
       ],
       "tabContentDescription": "Reels"
+    },
+    {
+      "packageName": "com.zhiliaoapp.musically",
+      "displayName": "TikTok",
+      "feedLabel": "For You feed",
+      "homeTabLabel": "Profile",
+      "viewIds": [
+        "com.zhiliaoapp.musically:id/feed_pager",
+        "com.zhiliaoapp.musically:id/vertical_view_pager"
+      ],
+      "tabContentDescription": "Home"
+    },
+    {
+      "packageName": "com.twitter.android",
+      "displayName": "X",
+      "feedLabel": "For You timeline",
+      "homeTabLabel": "Messages",
+      "viewIds": [
+        "com.twitter.android:id/timeline_list",
+        "com.twitter.android:id/immersive_video_player"
+      ],
+      "tabContentDescription": "For you"
     },
     {
       "packageName": "com.snapchat.android",

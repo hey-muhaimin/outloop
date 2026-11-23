@@ -1,8 +1,6 @@
 <resources>
     <string name="app_name">Outloop</string>
-    <string name="accessibility_service_desc">Inspects active screen labels and view IDs in the apps you choose (YouTube, Instagram, Facebook, Snapchat, Reddit) strictly on-device to tell when a Shorts, Reels, or Watch feed opens. Your messages, passwords, and videos are never read or sent off your phone.</string>
-    <string name="privacy_policy_url">https://suprbuild.com/privacy</string>
-    <string name="privacy_policy_label">Privacy Policy</string>
+    <string name="accessibility_service_desc">Inspects active screen labels and view IDs in the apps you choose (YouTube, Instagram, Facebook, TikTok, X, Snapchat, Reddit) strictly on-device to tell when a Shorts, Reels, For You, Spotlight, or Watch feed opens. Your messages, passwords, and videos are never read or sent off your phone.</string>
 
     <!-- Navigation -->
     <string name="nav_home">Home</string>
@@ -10,8 +8,8 @@
     <string name="nav_settings">Settings</string>
 
     <!-- Status -->
-    <string name="status_running">Guard on</string>
-    <string name="status_paused">Paused</string>
+    <string name="status_running">Protection active</string>
+    <string name="status_paused">Taking a little space</string>
     <string name="status_service_off">Setup needed</string>
     <string name="status_disconnected">Needs attention</string>
     <string name="status_no_apps">Choose apps</string>

@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 data class BackupPreferencesDto(
-    val appearanceMode: String = AppearanceMode.SYSTEM.name,
+    val appearanceMode: String = AppearanceMode.LIGHT.name,
     val defaultInterventionMode: String = InterventionMode.OVERLAY.name,
     val reclaimedSecondsPerCut: Int = 180,
     val hapticFeedbackEnabled: Boolean = true,
@@ -26,7 +26,9 @@ data class BackupPreferencesDto(
     val quietStartMinutes: Int = 22 * 60,
     val quietEndMinutes: Int = 7 * 60,
     val dailyBudgetCuts: Int = 0,
-    val strictModeEnabled: Boolean = false
+    val strictModeEnabled: Boolean = true,
+    val alwaysOpenApps: List<String> = emptyList(),
+    val preferredPauseMinutes: Int = 15
 )
 
 data class BackupRuleDto(
@@ -39,7 +41,8 @@ data class BackupRuleDto(
     val homeTabLabel: String,
     val viewIdsRaw: String,
     val tabFallbackLabel: String,
-    val isBuiltIn: Boolean
+    val isBuiltIn: Boolean,
+    val dailyLimitMinutes: Int = 0
 )
 
 data class BackupEventDto(
@@ -111,7 +114,9 @@ class LocalBackupManager(
                 quietStartMinutes = prefs.quietStartMinutes,
                 quietEndMinutes = prefs.quietEndMinutes,
                 dailyBudgetCuts = prefs.dailyBudgetCuts,
-                strictModeEnabled = prefs.strictModeEnabled
+                strictModeEnabled = prefs.strictModeEnabled,
+                alwaysOpenApps = prefs.alwaysOpenApps.sorted(),
+                preferredPauseMinutes = prefs.preferredPauseMinutes
             ),
             rules = rules.map { rule ->
                 BackupRuleDto(
@@ -124,7 +129,8 @@ class LocalBackupManager(
                     homeTabLabel = rule.homeTabLabel,
                     viewIdsRaw = rule.viewIdsRaw,
                     tabFallbackLabel = rule.tabFallbackLabel,
-                    isBuiltIn = rule.isBuiltIn
+                    isBuiltIn = rule.isBuiltIn,
+                    dailyLimitMinutes = rule.dailyLimitMinutes
                 )
             },
             events = events.map { ev ->
@@ -184,7 +190,8 @@ class LocalBackupManager(
                 isBuiltIn = dto.isBuiltIn || cleanPkg in FeedSurgeonDatabase.BUILT_IN_PACKAGE_NAMES,
                 matchedSelectorCount = cleanViewIds.size,
                 totalSelectorCount = cleanViewIds.size,
-                isOutdated = false
+                isOutdated = false,
+                dailyLimitMinutes = dto.dailyLimitMinutes.coerceIn(0, 720)
             )
         }
 
@@ -225,6 +232,12 @@ class LocalBackupManager(
             it.name == prefDto.defaultInterventionMode
         } ?: InterventionMode.OVERLAY
 
+        val restoredAlwaysOpen = if (prefDto.alwaysOpenApps.isEmpty()) {
+            com.example.data.local.AppPreferences.DEFAULT_ALWAYS_OPEN_APPS
+        } else {
+            prefDto.alwaysOpenApps.toSet()
+        }
+
         settingsDataStore.restoreBackupPreferences(
             appearanceMode = restoredAppearance,
             defaultInterventionMode = restoredDefaultMode,
@@ -236,7 +249,9 @@ class LocalBackupManager(
             quietStartMinutes = prefDto.quietStartMinutes,
             quietEndMinutes = prefDto.quietEndMinutes,
             dailyBudgetCuts = prefDto.dailyBudgetCuts,
-            strictModeEnabled = prefDto.strictModeEnabled
+            strictModeEnabled = prefDto.strictModeEnabled,
+            alwaysOpenApps = restoredAlwaysOpen,
+            preferredPauseMinutes = prefDto.preferredPauseMinutes
         )
 
         BackupRestoreResult.Success(
