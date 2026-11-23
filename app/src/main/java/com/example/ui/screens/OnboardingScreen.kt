@@ -2,10 +2,9 @@ package com.example.ui.screens
 
 import android.Manifest
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
-import android.os.PowerManager
 import android.provider.Settings
+import com.example.service.ProtectionHealthHelper
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -215,23 +214,7 @@ fun OnboardingScreen(
     }
 
     val openBatterySettings = {
-        runCatching {
-            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val pm = context.getSystemService(PowerManager::class.java)
-                if (pm?.isIgnoringBatteryOptimizations(context.packageName) == false) {
-                    Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                        data = Uri.parse("package:${context.packageName}")
-                    }
-                } else {
-                    Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                }
-            } else {
-                Intent(Settings.ACTION_SETTINGS)
-            }
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-        }
-        Unit
+        ProtectionHealthHelper.openBatterySettings(context)
     }
 
     val stepIndex = when (step) {
@@ -705,7 +688,7 @@ fun OnboardingScreen(
                                 )
                                 if (!isBatteryOptimizationIgnored) {
                                     OutloopSecondaryButton(
-                                        text = "Allow unrestricted battery",
+                                        text = "Open app battery settings",
                                         onClick = openBatterySettings
                                     )
                                 }
@@ -933,12 +916,12 @@ fun OnboardingScreen(
             onDismiss = { showDisclosureSheet = false }
         ) {
             Text(
-                text = "Outloop uses Android\u2019s Accessibility Service to recognise technical screen labels and view IDs in the apps you choose so it can block Shorts, Reels, or Watch feeds.",
+                text = "Outloop uses Android\u2019s Accessibility Service to check on-screen view IDs, active app names, and navigation tab labels only in the apps you select, so it can pause Shorts, Reels, or Watch feeds, return to the app\u2019s Home tab, and track your local daily limits.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = colors.secondaryInk
             )
             Text(
-                text = "It never reads your messages, passwords, or videos. Detection runs strictly on your phone \u2014 no screen data is collected or shared.",
+                text = "It never reads your messages, passwords, or video content. All detection runs strictly on your device\u2014no personal or screen data is collected, stored off-device, or shared with third parties. You can turn access off anytime in Android Settings.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.secondaryInk
             )

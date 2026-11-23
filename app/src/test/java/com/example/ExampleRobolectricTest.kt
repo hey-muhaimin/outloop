@@ -4,6 +4,8 @@ import android.app.Notification
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
+import android.provider.Settings
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
@@ -42,6 +44,7 @@ import com.example.service.InstalledAppDetector
 import com.example.service.OverlayPresentationConfig
 import com.example.service.OverlayTriggerMode
 import com.example.service.ProtectionActionReceiver
+import com.example.service.ProtectionHealthHelper
 import com.example.service.SelectorMatcher
 import com.example.service.TransparentPauseDimOverlay
 import android.graphics.Color
@@ -1371,5 +1374,30 @@ class ExampleRobolectricTest {
         val matchedBack = SelectorMatcher.findInAppBackNode(fbReelsFullscreen, "com.facebook.katana")
         assertNotNull(matchedBack)
         assertEquals(backIconBtn.contentDescription, matchedBack?.contentDescription)
+    }
+
+    @Test
+    fun `battery optimization compliance excludes restricted permission and uses safe settings intent`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        @Suppress("DEPRECATION")
+        val packageInfo = context.packageManager.getPackageInfo(
+            context.packageName,
+            PackageManager.GET_PERMISSIONS
+        )
+        val requested = packageInfo.requestedPermissions?.toSet().orEmpty()
+        assertFalse(
+            "Restricted permission REQUEST_IGNORE_BATTERY_OPTIMIZATIONS must not be declared",
+            "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" in requested
+        )
+
+        val intent = ProtectionHealthHelper.createAppBatterySettingsIntent(context)
+        assertFalse(intent.action == Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+        assertTrue(
+            intent.action in setOf(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS,
+                Settings.ACTION_SETTINGS
+            )
+        )
     }
 }

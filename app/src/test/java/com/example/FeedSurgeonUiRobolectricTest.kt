@@ -32,6 +32,7 @@ import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.InsightsScreen
 import com.example.ui.screens.ManageAppsScreen
 import com.example.ui.screens.OnboardingScreen
+import com.example.ui.screens.PrivacyScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.theme.FeedSurgeonTheme
 import org.junit.Assert.assertEquals
@@ -827,5 +828,19 @@ class FeedSurgeonUiRobolectricTest {
         composeRule.onNodeWithTag("home_list")
             .performScrollToNode(hasTestTag("home_app_row_com.google.android.youtube"))
         composeRule.onNodeWithText("Shorts blocked \u00B7 Search open \u00B7 12m/30m").assertIsDisplayed()
+    }
+
+    @Test
+    fun `privacy screen renders on-device accessibility disclosure and optional rule checks`() {
+        composeRule.setContent {
+            FeedSurgeonTheme {
+                PrivacyScreen(onBack = {})
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Everything stays on your phone").assertIsDisplayed()
+        composeRule.onNodeWithText("Why accessibility access").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Optional rule checks").performScrollTo().assertIsDisplayed()
     }
 }

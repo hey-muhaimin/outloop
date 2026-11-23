@@ -551,7 +551,7 @@ fun SettingsScreen(
                 color = colors.ink
             )
             Text(
-                text = "All feed detection, usage tracking, and activity insights run strictly on your device. Outloop never uploads screen activity, browsing habits, or account data.",
+                text = "All feed detection, usage tracking, and activity insights run strictly on your device. Outloop never uploads screen activity, browsing habits, or account data. Optional rule updates only check public selector definitions over HTTPS.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.secondaryInk
             )
@@ -703,12 +703,12 @@ fun SettingsScreen(
             onDismiss = { showAccessibilityDisclosureSheet = false }
         ) {
             Text(
-                text = "Outloop uses Android\u2019s Accessibility Service to recognise technical screen labels and view IDs in the apps you choose so it can step in when a Shorts, Reels, or Watch feed opens.",
+                text = "Outloop uses Android\u2019s Accessibility Service to check on-screen view IDs, active app names, and navigation tab labels only in the apps you select, so it can pause Shorts, Reels, or Watch feeds, return to the app\u2019s Home tab, and track your local daily limits.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = colors.secondaryInk
             )
             Text(
-                text = "It never reads your messages, passwords, or videos. Detection runs strictly on your phone\u2014no personal or screen data is collected off-device or shared with third parties.",
+                text = "It never reads your messages, passwords, or video content. All detection runs strictly on your device\u2014no personal or screen data is collected, stored off-device, or shared with third parties. You can turn access off anytime in Android Settings.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.secondaryInk
             )

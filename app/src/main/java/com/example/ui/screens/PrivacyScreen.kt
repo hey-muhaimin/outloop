@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccessibilityNew
 import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Tune
@@ -121,13 +122,20 @@ fun PrivacyScreen(
         }
         OutloopStaggeredEntrance(index = 6) {
             PrivacyDetailCard(
+                icon = Icons.Outlined.Info,
+                title = "Optional rule checks",
+                body = "When Auto-update feed rules is enabled in Diagnostics, Outloop performs read-only HTTPS checks for updated public feed selector definitions. Zero personal data, screen content, or usage stats are uploaded, and you can turn this off anytime."
+            )
+        }
+        OutloopStaggeredEntrance(index = 7) {
+            PrivacyDetailCard(
                 icon = Icons.Outlined.Tune,
                 title = "How to turn it off",
                 body = "Android Settings \u203A Accessibility \u203A Outloop, at any time."
             )
         }
 
-        OutloopStaggeredEntrance(index = 7) {
+        OutloopStaggeredEntrance(index = 8) {
             OutloopInsetWell(
                 containerColor = colors.surfaceSubtle,
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)

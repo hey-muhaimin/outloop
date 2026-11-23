@@ -1,11 +1,7 @@
 package com.example.ui.screens
 
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
-import android.os.PowerManager
-import android.provider.Settings
 import androidx.activity.compose.BackHandler
+import com.example.service.ProtectionHealthHelper
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -238,25 +234,8 @@ fun DiagnosticsScreen(
         if (!uiState.isBatteryOptimizationIgnored) {
             OutloopStaggeredEntrance(index = 2) {
                 OutloopSecondaryButton(
-                    text = "Allow unrestricted background activity",
-                    onClick = {
-                        runCatching {
-                            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                val pm = context.getSystemService(PowerManager::class.java)
-                                if (pm?.isIgnoringBatteryOptimizations(context.packageName) == false) {
-                                    Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                        data = Uri.parse("package:${context.packageName}")
-                                    }
-                                } else {
-                                    Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                }
-                            } else {
-                                Intent(Settings.ACTION_SETTINGS)
-                            }
-                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            context.startActivity(intent)
-                        }
-                    }
+                    text = "Open app battery settings",
+                    onClick = { ProtectionHealthHelper.openBatterySettings(context) }
                 )
             }
         }

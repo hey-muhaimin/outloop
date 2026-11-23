@@ -30,28 +30,40 @@ object ProtectionHealthHelper {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
-    fun requestIgnoreBatteryOptimizations(context: Context) {
-        val directIntent = Intent(
-            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+    fun createAppBatterySettingsIntent(context: Context): Intent {
+        val appDetailsIntent = Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
             Uri.parse("package:${context.packageName}")
         ).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        val fallbackIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+        val batteryListIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        val settingsFallback = Intent(Settings.ACTION_SETTINGS).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
         val pm = context.packageManager
-        val chosen = if (directIntent.resolveActivity(pm) != null) {
-            directIntent
-        } else {
-            fallbackIntent
+        return when {
+            appDetailsIntent.resolveActivity(pm) != null -> appDetailsIntent
+            batteryListIntent.resolveActivity(pm) != null -> batteryListIntent
+            else -> settingsFallback
         }
+    }
 
+    fun openBatterySettings(context: Context) {
+        val chosen = createAppBatterySettingsIntent(context)
         runCatching {
             context.startActivity(chosen)
         }.onFailure {
-            runCatching { context.startActivity(fallbackIntent) }
+            runCatching {
+                context.startActivity(
+                    Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                )
+            }
         }
     }
 }
