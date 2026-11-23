@@ -2,6 +2,8 @@ package com.example
 
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -26,6 +28,7 @@ import com.example.ui.MainUiState
 import com.example.ui.components.BottomTab
 import com.example.ui.components.FloatingPillNavBar
 import com.example.ui.components.NavAlertBadges
+import com.example.ui.components.OutloopSideRail
 import com.example.ui.screens.AppDetailScreen
 import com.example.ui.screens.DiagnosticsScreen
 import com.example.ui.screens.HomeScreen
@@ -844,4 +847,214 @@ class FeedSurgeonUiRobolectricTest {
         composeRule.onNodeWithText("Persistent protection status").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Optional rule checks").performScrollTo().assertIsDisplayed()
     }
+
+    @Test
+    fun `floating pill nav bar rapidly animates and switches across all tabs in order`() {
+        var currentTab by mutableStateOf(BottomTab.HOME)
+        composeRule.setContent {
+            FeedSurgeonTheme {
+                FloatingPillNavBar(
+                    selectedTab = currentTab,
+                    onTabSelected = { currentTab = it },
+                    alerts = NavAlertBadges(homeNeedsAttention = false, settingsNeedsAttention = true)
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("floating_segmented_nav").assertIsDisplayed()
+
+        // Switch to Insights
+        composeRule.onNodeWithTag("nav_insights").performClick()
+        composeRule.waitForIdle()
+        assertEquals(BottomTab.INSIGHTS, currentTab)
+
+        // Switch to Settings
+        composeRule.onNodeWithTag("nav_settings").performClick()
+        composeRule.waitForIdle()
+        assertEquals(BottomTab.SETTINGS, currentTab)
+
+        // Switch back to Home
+        composeRule.onNodeWithTag("nav_home").performClick()
+        composeRule.waitForIdle()
+        assertEquals(BottomTab.HOME, currentTab)
+    }
+
+    @Test
+    fun `side rail renders on tablet with side_rail tag and handles tab selection`() {
+        var selected by mutableStateOf(BottomTab.HOME)
+        composeRule.setContent {
+            FeedSurgeonTheme {
+                OutloopSideRail(
+                    selectedTab = selected,
+                    onTabSelected = { selected = it },
+                    alerts = NavAlertBadges(homeNeedsAttention = true)
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("side_rail").assertIsDisplayed()
+        composeRule.onNodeWithTag("nav_insights").performClick()
+        composeRule.waitForIdle()
+        assertEquals(BottomTab.INSIGHTS, selected)
+
+        composeRule.onNodeWithTag("nav_settings").performClick()
+        composeRule.waitForIdle()
+        assertEquals(BottomTab.SETTINGS, selected)
+    }
+
+    @Test
+    fun `status pill tap opens OutloopPauseGuardDialog in strict mode with countdown`() {
+        val rules = FeedSurgeonDatabase.defaultBuiltInRules()
+        var pausedMinutes: Int? = null
+
+        composeRule.setContent {
+            FeedSurgeonTheme {
+                HomeScreen(
+                    uiState = MainUiState(
+                        isInitialLoading = false,
+                        preferences = AppPreferences(strictModeEnabled = true),
+                        rules = rules,
+                        installedPackages = setOf("com.google.android.youtube"),
+                        isAccessibilityEnabled = true,
+                        isServiceConnected = true,
+                        protectionStatus = ProtectionStatus.OPERATIONAL,
+                        activeInstalledCount = 1,
+                        installedSupportedCount = 1
+                    ),
+                    onStatusClick = {},
+                    onSetupClick = {},
+                    onManageAppsClick = {},
+                    onToggleGlobalPause = {},
+                    onPauseForMinutes = { pausedMinutes = it },
+                    onGlobalBreakExpired = {},
+                    onAppSnoozeExpired = {},
+                    onRefreshBlockersClick = {},
+                    onAppClick = {},
+                    onToggleApp = { _, _ -> },
+                    onShowEstimateToast = {}
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        // Tap the status pill to open Pause Guard dialog
+        composeRule.onNodeWithTag("status_pill").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("pause_guard_dialog").assertIsDisplayed()
+        composeRule.onNodeWithTag("pause_guard_duration_selector").assertIsDisplayed()
+        composeRule.onNodeWithText("Strict mode").assertIsDisplayed()
+
+        // In strict mode, confirm button is initially disabled during countdown
+        composeRule.onNodeWithTag("pause_guard_confirm_button").assertIsNotEnabled()
+
+        // Tap Keep guarding to dismiss dialog cleanly
+        composeRule.onNodeWithTag("pause_guard_keep_button").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("pause_guard_dialog").assertDoesNotExist()
+        assertEquals(null, pausedMinutes)
+    }
+
+    @Test
+    fun `status pill tap opens OutloopPauseGuardDialog in non-strict mode and confirms pause`() {
+        val rules = FeedSurgeonDatabase.defaultBuiltInRules()
+        var pausedMinutes: Int? = null
+
+        composeRule.setContent {
+            FeedSurgeonTheme {
+                HomeScreen(
+                    uiState = MainUiState(
+                        isInitialLoading = false,
+                        preferences = AppPreferences(
+                            strictModeEnabled = false,
+                            preferredPauseMinutes = 15
+                        ),
+                        rules = rules,
+                        installedPackages = setOf("com.google.android.youtube"),
+                        isAccessibilityEnabled = true,
+                        isServiceConnected = true,
+                        protectionStatus = ProtectionStatus.OPERATIONAL,
+                        activeInstalledCount = 1,
+                        installedSupportedCount = 1
+                    ),
+                    onStatusClick = {},
+                    onSetupClick = {},
+                    onManageAppsClick = {},
+                    onToggleGlobalPause = {},
+                    onPauseForMinutes = { pausedMinutes = it },
+                    onGlobalBreakExpired = {},
+                    onAppSnoozeExpired = {},
+                    onRefreshBlockersClick = {},
+                    onAppClick = {},
+                    onToggleApp = { _, _ -> },
+                    onShowEstimateToast = {}
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("status_pill").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("pause_guard_dialog").assertIsDisplayed()
+        // Non-strict mode enables confirm button immediately
+        composeRule.onNodeWithTag("pause_guard_confirm_button").assertIsEnabled()
+        composeRule.onNodeWithTag("pause_guard_confirm_button").performClick()
+        composeRule.waitForIdle()
+
+        assertEquals(15, pausedMinutes)
+        composeRule.onNodeWithTag("pause_guard_dialog").assertDoesNotExist()
+    }
+
+    @Test
+    fun `status pill tap when paused or needing setup invokes onStatusClick`() {
+        val rules = FeedSurgeonDatabase.defaultBuiltInRules()
+        var statusClickCount = 0
+
+        var currentStatus by mutableStateOf(ProtectionStatus.PAUSED)
+
+        composeRule.setContent {
+            FeedSurgeonTheme {
+                HomeScreen(
+                    uiState = MainUiState(
+                        isInitialLoading = false,
+                        rules = rules,
+                        installedPackages = setOf("com.google.android.youtube"),
+                        isAccessibilityEnabled = true,
+                        isServiceConnected = true,
+                        protectionStatus = currentStatus,
+                        activeInstalledCount = 1,
+                        installedSupportedCount = 1
+                    ),
+                    onStatusClick = { statusClickCount++ },
+                    onSetupClick = {},
+                    onManageAppsClick = {},
+                    onToggleGlobalPause = {},
+                    onPauseForMinutes = {},
+                    onGlobalBreakExpired = {},
+                    onAppSnoozeExpired = {},
+                    onRefreshBlockersClick = {},
+                    onAppClick = {},
+                    onToggleApp = { _, _ -> },
+                    onShowEstimateToast = {}
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        // Tapping status pill while paused invokes onStatusClick
+        composeRule.onNodeWithTag("status_pill").performClick()
+        composeRule.waitForIdle()
+        assertEquals(1, statusClickCount)
+
+        // Tapping status pill while setup needed invokes onStatusClick
+        currentStatus = ProtectionStatus.PERMISSION_NEEDED
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("status_pill").performClick()
+        composeRule.waitForIdle()
+        assertEquals(2, statusClickCount)
+    }
 }
+

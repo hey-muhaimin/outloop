@@ -150,6 +150,7 @@ fun FloatingPillNavBar(
                 .widthIn(max = 396.dp)
                 .fillMaxWidth()
                 .height(OutloopMetrics.DockHeight)
+                .testTag("floating_segmented_nav")
                 .shadow(
                     elevation = 10.dp,
                     shape = CircleShape,
@@ -309,6 +310,7 @@ fun OutloopSideRail(
         Column(
             modifier = Modifier
                 .width(OutloopMetrics.SideRailWidth)
+                .testTag("side_rail")
                 .shadow(
                     elevation = 6.dp,
                     shape = RoundedCornerShape(26.dp),

@@ -202,29 +202,35 @@ class ExampleRobolectricTest {
     }
 
     @Test
-    fun `accessibility event logger writes reads and clears local file`() = runTest {
+    fun `accessibility event logger enforces strict zero data logging without disk writes`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val logger = AccessibilityEventLogger(context)
         logger.clear()
         assertEquals(0L, logger.getFileSizeBytes())
 
+        // Seed a legacy file to confirm clear() and getFileSizeBytes() purge it
+        logger.getFile().writeText("legacy_entry\n")
+        assertTrue(logger.getFile().exists())
+        logger.clear()
+        assertFalse(logger.getFile().exists())
+
         logger.logEvent(
             packageName = "com.google.android.youtube",
-            eventType = 32,
-            eventClassName = "com.google.android.apps.youtube.app.WatchWhileActivity",
+            eventType = AccessibilityEvent.TYPE_VIEW_SCROLLED,
+            eventClassName = "androidx.recyclerview.widget.RecyclerView",
             rootNode = null,
             matchedSelector = "com.google.android.youtube:id/reel_recycler",
             outcome = "TRIGGERED:OVERLAY"
         )
 
-        val tail = logger.readTail(20)
-        assertTrue(tail.contains("pkg=com.google.android.youtube"))
-        assertTrue(tail.contains("match=com.google.android.youtube:id/reel_recycler"))
-        assertTrue(tail.contains("outcome=TRIGGERED:OVERLAY"))
-        assertTrue(logger.getFileSizeBytes() > 0L)
-
-        logger.clear()
         assertEquals("", logger.readTail(20))
+        assertEquals(0L, logger.getFileSizeBytes())
+        assertFalse(logger.getFile().exists())
+        assertNull(logger.getShareUri())
+        val snapshot = logger.captureSnapshot(null)
+        assertEquals("redacted", snapshot.rootPackage)
+        assertTrue(snapshot.visibleViewIds.isEmpty())
+        assertTrue(snapshot.selectedTabs.isEmpty())
     }
 
     @Test
@@ -791,6 +797,98 @@ class ExampleRobolectricTest {
             rule = ytRule
         )
         assertNull(noMatch)
+    }
+
+    @Suppress("DEPRECATION")
+    @Test
+    fun `detectShortFormFeedPattern detects vertical feed containers and ignores messages or search`() {
+        val igRule = FeedSurgeonDatabase.defaultBuiltInRules().first {
+            it.packageName == "com.instagram.android"
+        }
+        val rootNode = AccessibilityNodeInfo().apply {
+            packageName = "com.instagram.android"
+            isVisibleToUser = true
+            setBoundsInScreen(android.graphics.Rect(0, 0, 1080, 2400))
+        }
+
+        // Scroll container with unknown exact ID but vertical short-form layout tag hint
+        val verticalShortFormPager = AccessibilityNodeInfo().apply {
+            packageName = "com.instagram.android"
+            className = "androidx.viewpager2.widget.ViewPager2"
+            viewIdResourceName = "com.instagram.android:id/vertical_reels_feed_pager"
+            isScrollable = true
+            isVisibleToUser = true
+            setBoundsInScreen(android.graphics.Rect(0, 100, 1080, 2300))
+        }
+        val detected = SelectorMatcher.detectShortFormFeedPattern(
+            eventType = AccessibilityEvent.TYPE_VIEW_SCROLLED,
+            sourceNode = verticalShortFormPager,
+            root = rootNode,
+            rule = igRule
+        )
+        assertEquals(SelectorMatcher.PATTERN_VERTICAL_FEED_CONTAINER, detected)
+
+        // DM inbox RecyclerView must NOT match even though scrollable and full screen
+        val dmInboxList = AccessibilityNodeInfo().apply {
+            packageName = "com.instagram.android"
+            className = "androidx.recyclerview.widget.RecyclerView"
+            viewIdResourceName = "com.instagram.android:id/dm_inbox_thread_list"
+            isScrollable = true
+            isVisibleToUser = true
+            setBoundsInScreen(android.graphics.Rect(0, 100, 1080, 2300))
+        }
+        val dmMatch = SelectorMatcher.detectShortFormFeedPattern(
+            eventType = AccessibilityEvent.TYPE_VIEW_SCROLLED,
+            sourceNode = dmInboxList,
+            root = rootNode,
+            rule = igRule
+        )
+        assertNull(dmMatch)
+    }
+
+    @Suppress("DEPRECATION")
+    @Test
+    fun `detectShortFormFeedPattern ignores scroll events from unmonitored packages and non-scrolling views`() {
+        val ytRule = FeedSurgeonDatabase.defaultBuiltInRules().first {
+            it.packageName == "com.google.android.youtube"
+        }
+        val rootNode = AccessibilityNodeInfo().apply {
+            packageName = "com.google.android.youtube"
+            isVisibleToUser = true
+            setBoundsInScreen(android.graphics.Rect(0, 0, 1080, 2400))
+        }
+
+        // Scroll event from an unmonitored package (e.g. settings) must return null
+        val unmonitoredNode = AccessibilityNodeInfo().apply {
+            packageName = "com.android.settings"
+            className = "androidx.recyclerview.widget.RecyclerView"
+            isScrollable = true
+            isVisibleToUser = true
+            setBoundsInScreen(android.graphics.Rect(0, 100, 1080, 2300))
+        }
+        val unmonitoredMatch = SelectorMatcher.detectShortFormFeedPattern(
+            eventType = AccessibilityEvent.TYPE_VIEW_SCROLLED,
+            sourceNode = unmonitoredNode,
+            root = rootNode,
+            rule = ytRule
+        )
+        assertNull(unmonitoredMatch)
+
+        // Non-scrolling container without layout ID hint must return null
+        val staticView = AccessibilityNodeInfo().apply {
+            packageName = "com.google.android.youtube"
+            className = "android.widget.FrameLayout"
+            isScrollable = false
+            isVisibleToUser = true
+            setBoundsInScreen(android.graphics.Rect(0, 100, 1080, 2300))
+        }
+        val staticMatch = SelectorMatcher.detectShortFormFeedPattern(
+            eventType = AccessibilityEvent.TYPE_VIEW_SCROLLED,
+            sourceNode = staticView,
+            root = rootNode,
+            rule = ytRule
+        )
+        assertNull(staticMatch)
     }
 
     @Test

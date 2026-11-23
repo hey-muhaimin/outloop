@@ -275,7 +275,7 @@ class SettingsDataStore(private val context: Context) {
             disclosureAccepted = prefs[Keys.DISCLOSURE_ACCEPTED] ?: false,
             onboardingCompleted = prefs[Keys.ONBOARDING_COMPLETED] ?: false,
             autoUpdateRules = prefs[Keys.AUTO_UPDATE_RULES] ?: true,
-            eventCaptureEnabled = prefs[Keys.EVENT_CAPTURE_ENABLED] ?: false,
+            eventCaptureEnabled = false,
             rulesetVersion = prefs[Keys.RULESET_VERSION] ?: AppPreferences.DEFAULT_RULESET_VERSION,
             rulesetEndpointUrl = prefs[Keys.RULESET_ENDPOINT_URL] ?: AppPreferences.DEFAULT_GIST_URL,
             rulesetEtag = prefs[Keys.RULESET_ETAG] ?: "",
@@ -323,7 +323,7 @@ class SettingsDataStore(private val context: Context) {
 
     suspend fun setEventCaptureEnabled(enabled: Boolean) {
         context.feedSurgeonDataStore.edit { prefs ->
-            prefs[Keys.EVENT_CAPTURE_ENABLED] = enabled
+            prefs[Keys.EVENT_CAPTURE_ENABLED] = false
         }
     }
 

@@ -76,6 +76,94 @@ object SelectorMatcher {
         return findMatchingSelector(root, rule)
     }
 
+    /**
+     * Core short-form feed detector evaluating explicit layout IDs, active tab fallback,
+     * and vertical-scrolling short-form container patterns strictly within [rule.packageName]
+     * without reading or logging any user content.
+     */
+    fun detectShortFormFeedPattern(
+        eventType: Int,
+        sourceNode: AccessibilityNodeInfo?,
+        root: AccessibilityNodeInfo,
+        rule: TargetAppRuleEntity
+    ): String? {
+        val explicitMatch = if (eventType == android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SCROLLED) {
+            findMatchingScrollSelector(sourceNode, root, rule)
+        } else {
+            findMatchingSelector(root, rule)
+        }
+        if (explicitMatch != null) return explicitMatch
+
+        val rootBounds = android.graphics.Rect().also { root.getBoundsInScreen(it) }
+
+        if (eventType == android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SCROLLED &&
+            sourceNode != null &&
+            matchesTargetPackage(sourceNode, rule.packageName) &&
+            isShortFormVerticalFeedContainer(sourceNode, rootBounds)
+        ) {
+            return PATTERN_VERTICAL_FEED_CONTAINER
+        }
+
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < 300) {
+            val node = queue.removeFirst()
+            visited++
+            if (node.isVisibleToUser &&
+                matchesTargetPackage(node, rule.packageName) &&
+                isShortFormVerticalFeedContainer(node, rootBounds)
+            ) {
+                return PATTERN_VERTICAL_FEED_CONTAINER
+            }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { queue.add(it) }
+            }
+        }
+        return null
+    }
+
+    private fun isShortFormVerticalFeedContainer(
+        node: AccessibilityNodeInfo,
+        rootBounds: android.graphics.Rect
+    ): Boolean {
+        if (!node.isVisibleToUser) return false
+        val simpleClass = node.className?.toString()?.substringAfterLast('.').orEmpty()
+        val isPagerOrScrollable = node.isScrollable || simpleClass in VERTICAL_FEED_CONTAINER_CLASSES
+        if (!isPagerOrScrollable) return false
+
+        val idToken = node.viewIdResourceName
+            ?.substringAfter(":id/", "")
+            ?.lowercase(java.util.Locale.US)
+            .orEmpty()
+
+        if (idToken.isNotEmpty() && NON_FEED_CONTAINER_HINTS.any { it in idToken }) {
+            return false
+        }
+
+        val hasShortFormLayoutHint = idToken.isNotEmpty() &&
+            SHORT_FORM_LAYOUT_HINTS.any { it in idToken }
+
+        val nodeBounds = android.graphics.Rect().also { node.getBoundsInScreen(it) }
+        val hasMeasuredBounds = nodeBounds.width() > 0 && nodeBounds.height() > 0 &&
+            rootBounds.width() > 0 && rootBounds.height() > 0
+
+        if (hasMeasuredBounds) {
+            val fillsFeedHeight = nodeBounds.height() >= (rootBounds.height() * 0.55f)
+            val fillsFeedWidth = nodeBounds.width() >= (rootBounds.width() * 0.70f)
+            if (!fillsFeedHeight || !fillsFeedWidth) {
+                return false
+            }
+            val isFullBleedPager = simpleClass in PAGER_CONTAINER_CLASSES &&
+                nodeBounds.height() >= (rootBounds.height() * 0.72f) &&
+                nodeBounds.width() >= (rootBounds.width() * 0.85f) &&
+                node.isScrollable
+            return hasShortFormLayoutHint || isFullBleedPager
+        }
+
+        return hasShortFormLayoutHint
+    }
+
     fun countVisibleViewIdMatches(
         root: AccessibilityNodeInfo,
         rule: TargetAppRuleEntity
@@ -454,4 +542,51 @@ object SelectorMatcher {
             node.findAccessibilityNodeInfosByText(text)
         }.getOrDefault(emptyList())
     }
+
+    const val PATTERN_VERTICAL_FEED_CONTAINER = "pattern:vertical_feed_container"
+
+    private val PAGER_CONTAINER_CLASSES = setOf(
+        "ViewPager2",
+        "ViewPager"
+    )
+
+    private val VERTICAL_FEED_CONTAINER_CLASSES = setOf(
+        "ViewPager2",
+        "ViewPager",
+        "RecyclerView",
+        "ListView",
+        "NestedScrollView",
+        "ScrollView"
+    )
+
+    private val SHORT_FORM_LAYOUT_HINTS = setOf(
+        "short",
+        "shorts",
+        "reel",
+        "reels",
+        "clips",
+        "spotlight",
+        "opera",
+        "watch_feed",
+        "video_pager",
+        "foryou",
+        "fyp",
+        "vertical_pager",
+        "feed_pager"
+    )
+
+    private val NON_FEED_CONTAINER_HINTS = setOf(
+        "inbox",
+        "direct",
+        "thread",
+        "chat",
+        "message",
+        "search",
+        "comment",
+        "profile",
+        "settings",
+        "notification",
+        "story_tray",
+        "tray"
+    )
 }
