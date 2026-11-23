@@ -28,9 +28,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ExitToApp
 import androidx.compose.material.icons.rounded.Home
@@ -473,13 +476,17 @@ fun OutloopSimulationOverlay(
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color(0xFF111214).copy(alpha = scrimAlpha))
                 .clickable(onClick = onDismiss)
+                .systemBarsPadding()
                 .padding(horizontal = 18.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -496,6 +503,7 @@ fun OutloopSimulationOverlay(
                     .clip(RoundedCornerShape(OutloopMetrics.SheetCornerRadius))
                     .background(colors.surfaceCard)
                     .border(1.dp, colors.hairlineBorder, RoundedCornerShape(OutloopMetrics.SheetCornerRadius))
+                    .verticalScroll(rememberScrollState())
                     .clickable(enabled = false, onClick = {})
                     .padding(OutloopMetrics.CardPadding)
                     .testTag("simulation_pause_dialog")

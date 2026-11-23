@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.data.local.TargetAppRuleEntity
@@ -434,7 +435,7 @@ fun HomeScreen(
                                         !rule.enabled -> "Off"
                                         snoozed -> "Paused ${formatRemainingCountdown(rule.snoozeUntilMs - nowMs)}"
                                         isLimitReached ->
-                                            "Daily limit reached \u00B7 $usedCompact/${rule.dailyLimitMinutes}m"
+                                            "Limit reached \u00B7 $usedCompact / ${rule.dailyLimitMinutes}m"
                                         rule.hasDailyLimit() ->
                                             "${homeUsefulSubtitle(rule)} \u00B7 $usedCompact/${rule.dailyLimitMinutes}m"
                                         else -> homeUsefulSubtitle(rule)
@@ -467,7 +468,9 @@ fun HomeScreen(
                                             Text(
                                                 text = subtitle,
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = if (isLimitReached) colors.warnText else colors.secondaryInk
+                                                color = if (isLimitReached) colors.warnText else colors.secondaryInk,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                             if (rule.enabled && rule.hasDailyLimit()) {
                                                 Spacer(modifier = Modifier.height(6.dp))

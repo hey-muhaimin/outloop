@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -1426,12 +1427,13 @@ fun OutloopPauseGuardDialog(
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp),
+            modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
             Box(
@@ -1440,19 +1442,26 @@ fun OutloopPauseGuardDialog(
                     .background(Color(0xCC111214))
                     .pointerInput(Unit) { detectTapGestures { onDismiss() } }
             )
-            Column(
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 420.dp)
-                    .testTag("pause_guard_dialog")
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(colors.surfaceCard)
-                    .border(1.dp, colors.hairlineBorder, RoundedCornerShape(28.dp))
-                    .verticalScroll(rememberScrollState())
-                    .pointerInput(Unit) { detectTapGestures { } }
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .fillMaxSize()
+                    .systemBarsPadding()
+                    .padding(horizontal = 20.dp),
+                contentAlignment = Alignment.Center
             ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 420.dp)
+                        .testTag("pause_guard_dialog")
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(colors.surfaceCard)
+                        .border(1.dp, colors.hairlineBorder, RoundedCornerShape(28.dp))
+                        .verticalScroll(rememberScrollState())
+                        .pointerInput(Unit) { detectTapGestures { } }
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                 // Dark hero countdown box matching OutloopSimulationOverlay hero proportions
                 Row(
                     modifier = Modifier
@@ -1601,4 +1610,5 @@ fun OutloopPauseGuardDialog(
             }
         }
     }
+}
 }

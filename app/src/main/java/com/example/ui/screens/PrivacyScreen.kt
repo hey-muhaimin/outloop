@@ -18,6 +18,7 @@ import androidx.compose.material.icons.outlined.AccessibilityNew
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Visibility
@@ -122,12 +123,19 @@ fun PrivacyScreen(
         }
         OutloopStaggeredEntrance(index = 6) {
             PrivacyDetailCard(
+                icon = Icons.Outlined.NotificationsNone,
+                title = "Persistent protection status",
+                body = "While Guard is connected, Outloop runs an Android special-use foreground service so background protection isn\u2019t silently stopped. It shows a quiet status notification with quick Pause 15 min and Resume controls."
+            )
+        }
+        OutloopStaggeredEntrance(index = 7) {
+            PrivacyDetailCard(
                 icon = Icons.Outlined.Info,
                 title = "Optional rule checks",
                 body = "When Auto-update feed rules is enabled in Diagnostics, Outloop performs read-only HTTPS checks for updated public feed selector definitions. Zero personal data, screen content, or usage stats are uploaded, and you can turn this off anytime."
             )
         }
-        OutloopStaggeredEntrance(index = 7) {
+        OutloopStaggeredEntrance(index = 8) {
             PrivacyDetailCard(
                 icon = Icons.Outlined.Tune,
                 title = "How to turn it off",
@@ -135,7 +143,7 @@ fun PrivacyScreen(
             )
         }
 
-        OutloopStaggeredEntrance(index = 8) {
+        OutloopStaggeredEntrance(index = 9) {
             OutloopInsetWell(
                 containerColor = colors.surfaceSubtle,
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)

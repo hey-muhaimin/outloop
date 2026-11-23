@@ -1400,4 +1400,33 @@ class ExampleRobolectricTest {
             )
         )
     }
+
+    @Test
+    fun `manifest declares AccessibilityService and specialUse foreground service metadata cleanly`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        @Suppress("DEPRECATION")
+        val packageInfo = context.packageManager.getPackageInfo(
+            context.packageName,
+            PackageManager.GET_PERMISSIONS or PackageManager.GET_SERVICES or PackageManager.GET_META_DATA
+        )
+        val requested = packageInfo.requestedPermissions?.toSet().orEmpty()
+        assertTrue("android.permission.FOREGROUND_SERVICE" in requested)
+        assertTrue("android.permission.FOREGROUND_SERVICE_SPECIAL_USE" in requested)
+        assertTrue("android.permission.POST_NOTIFICATIONS" in requested)
+        assertTrue("android.permission.INTERNET" in requested)
+
+        val serviceInfo = packageInfo.services?.firstOrNull {
+            it.name == FeedSurgeonService::class.java.name
+        }
+        assertNotNull("FeedSurgeonService must be declared in manifest", serviceInfo)
+        assertEquals(android.Manifest.permission.BIND_ACCESSIBILITY_SERVICE, serviceInfo!!.permission)
+        assertEquals(
+            android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+            serviceInfo.foregroundServiceType
+        )
+        assertTrue(
+            context.getString(R.string.accessibility_service_desc)
+                .contains("strictly on-device", ignoreCase = true)
+        )
+    }
 }

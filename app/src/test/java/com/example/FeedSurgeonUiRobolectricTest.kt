@@ -841,6 +841,7 @@ class FeedSurgeonUiRobolectricTest {
 
         composeRule.onNodeWithText("Everything stays on your phone").assertIsDisplayed()
         composeRule.onNodeWithText("Why accessibility access").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Persistent protection status").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Optional rule checks").performScrollTo().assertIsDisplayed()
     }
 }

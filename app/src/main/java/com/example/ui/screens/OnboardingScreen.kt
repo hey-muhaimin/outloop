@@ -624,7 +624,7 @@ fun OnboardingScreen(
                                         onClick = onOpenPrivacyDetails
                                     ) {
                                         Text(
-                                            text = "Used only to recognise feed screens, like Reels and Shorts. Tap to see how detection works.",
+                                            text = "Runs strictly on-device to spot feeds like Reels and Shorts and show an ongoing Pause/Resume status notification. Tap to see how detection works.",
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = colors.ink
                                         )

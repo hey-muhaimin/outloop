@@ -66,6 +66,7 @@ mkdir -p "$BUNDLED_DIR"
 
 cat > "$BUNDLED_DIR/RELEASE_INFO.txt" <<EOF
 App: Outloop
+Application ID: com.suprbuild.outloop
 Version Name: $VERSION_NAME
 Version Code: $VERSION_CODE
 Build Mode: $MODE
