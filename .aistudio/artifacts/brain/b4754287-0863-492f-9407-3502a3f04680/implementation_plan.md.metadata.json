@@ -1,6 +1,0 @@
-{
-  "summary":  "Implementation plan for pixel-perfect Outloop Tonal Bento UI redesign across onboarding, Home, Insights, Settings, Accessibility overlays, secondary screens, and adaptive launcher icon, with full wiring for Strict mode, 10-second Pause Guard countdown, Always open exclusions, and TikTok/X rules.",
-  "updatedAt":  "2026-11-22T04:18:57.412057460Z",
-  "requestFeedback":  true,
-  "userFacing":  true
-}
