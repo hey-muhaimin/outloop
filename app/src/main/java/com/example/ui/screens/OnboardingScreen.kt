@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -60,6 +61,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -77,10 +79,12 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.data.local.TargetAppRuleEntity
 import com.example.service.AccessibilityStatusHelper
+import com.example.ui.components.AccessibilityOnboardingCarousel
+import com.example.ui.components.ONBOARDING_CAROUSEL_PAGE_COUNT
 import com.example.ui.components.OutloopAppMonogramBadge
+import com.example.ui.components.OutloopBackButton
 import com.example.ui.components.OutloopHairlineDivider
 import com.example.ui.components.OutloopInsetWell
-import com.example.ui.components.OutloopMark
 import com.example.ui.components.OutloopModalSheet
 import com.example.ui.components.OutloopPrimaryButton
 import com.example.ui.components.OutloopRoundedCheckbox
@@ -95,6 +99,7 @@ import com.example.ui.components.StatusBannerTone
 import com.example.ui.theme.OutloopMetrics
 import com.example.ui.theme.OutloopTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 enum class OnboardingStep {
     WELCOME,
@@ -132,6 +137,8 @@ fun OnboardingScreen(
     var awaitingPermissionReturn by rememberSaveable { mutableStateOf(false) }
     var checkAttemptKey by rememberSaveable { mutableIntStateOf(0) }
     var showDisclosureSheet by rememberSaveable { mutableStateOf(false) }
+    val welcomePagerState = rememberPagerState(pageCount = { ONBOARDING_CAROUSEL_PAGE_COUNT })
+    val coroutineScope = rememberCoroutineScope()
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -190,14 +197,20 @@ fun OnboardingScreen(
         }
     }
 
-    BackHandler(enabled = step != OnboardingStep.WELCOME) {
-        step = when (step) {
-            OnboardingStep.WELCOME -> OnboardingStep.WELCOME
-            OnboardingStep.CHOOSE_APPS -> OnboardingStep.WELCOME
-            OnboardingStep.ALLOW_ACCESS -> OnboardingStep.CHOOSE_APPS
-            OnboardingStep.CHECKING -> OnboardingStep.ALLOW_ACCESS
-            OnboardingStep.PROBLEM -> OnboardingStep.ALLOW_ACCESS
-            OnboardingStep.READY -> OnboardingStep.ALLOW_ACCESS
+    BackHandler(enabled = step != OnboardingStep.WELCOME || welcomePagerState.currentPage > 0) {
+        if (step == OnboardingStep.WELCOME && welcomePagerState.currentPage > 0) {
+            coroutineScope.launch {
+                welcomePagerState.animateScrollToPage((welcomePagerState.currentPage - 1).coerceAtLeast(0))
+            }
+        } else {
+            step = when (step) {
+                OnboardingStep.WELCOME -> OnboardingStep.WELCOME
+                OnboardingStep.CHOOSE_APPS -> OnboardingStep.WELCOME
+                OnboardingStep.ALLOW_ACCESS -> OnboardingStep.CHOOSE_APPS
+                OnboardingStep.CHECKING -> OnboardingStep.ALLOW_ACCESS
+                OnboardingStep.PROBLEM -> OnboardingStep.ALLOW_ACCESS
+                OnboardingStep.READY -> OnboardingStep.ALLOW_ACCESS
+            }
         }
     }
 
@@ -273,116 +286,31 @@ fun OnboardingScreen(
                 label = "outloopOnboardingStep",
                 modifier = Modifier.weight(1f)
             ) { currentStep ->
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .verticalScroll(rememberScrollState())
-                            .padding(
-                                horizontal = OutloopMetrics.ScreenHorizontalPadding,
-                                vertical = OutloopMetrics.SectionSpacing
-                            ),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        when (currentStep) {
-                            OnboardingStep.WELCOME -> {
-                                OutloopStaggeredEntrance(index = 0) {
-                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                        Text(
-                                            text = "Break the loop.\nKeep the apps.",
-                                            style = MaterialTheme.typography.displayLarge.copy(
-                                                fontSize = 32.sp,
-                                                lineHeight = 36.sp
-                                            ),
-                                            color = colors.ink
-                                        )
-                                        Text(
-                                            text = "Outloop interrupts endless short-form feeds like Reels and Shorts, while messages, search, and subscriptions stay open.",
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            color = colors.secondaryInk
-                                        )
-                                    }
-                                }
+                if (currentStep == OnboardingStep.WELCOME) {
+                    AccessibilityOnboardingCarousel(
+                        pagerState = welcomePagerState,
+                        preferredPauseMinutes = preferredPauseMinutes,
+                        isReplayMode = false,
+                        onOpenPrivacyDetails = onOpenPrivacyDetails,
+                        onFinish = { step = OnboardingStep.CHOOSE_APPS },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState())
+                                .padding(
+                                    horizontal = OutloopMetrics.ScreenHorizontalPadding,
+                                    vertical = OutloopMetrics.SectionSpacing
+                                ),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            when (currentStep) {
+                                OnboardingStep.WELCOME -> Unit
 
-                                OutloopStaggeredEntrance(index = 1) {
-                                    OutloopTonalCard(
-                                        cornerRadius = OutloopMetrics.CardCornerRadius,
-                                        contentPadding = PaddingValues(18.dp),
-                                        modifier = Modifier.testTag("onboarding_preview_card")
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                            ) {
-                                                OutloopMark(
-                                                    size = 18.dp,
-                                                    color = colors.heroDark,
-                                                    strokeWidth = 2.8.dp
-                                                )
-                                                Text(
-                                                    text = "What Guard touches",
-                                                    style = MaterialTheme.typography.titleSmall,
-                                                    color = colors.ink
-                                                )
-                                            }
-                                            OutloopStatusPill(
-                                                text = "On-device",
-                                                tone = PillTone.SUCCESS
-                                            )
-                                        }
-
-                                        Spacer(modifier = Modifier.height(14.dp))
-
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(IntrinsicSize.Max),
-                                            horizontalArrangement = Arrangement.spacedBy(OutloopMetrics.BentoGap)
-                                        ) {
-                                            WelcomeComparisonBentoCell(
-                                                title = "Reels, Shorts & For You",
-                                                subtitle = "Autoplay video feeds",
-                                                pillText = "Paused",
-                                                containerColor = colors.surfaceSubtle,
-                                                pillBgColor = colors.heroDark,
-                                                pillTextColor = colors.onPrimaryTint,
-                                                pillBorder = false,
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .fillMaxHeight()
-                                            )
-                                            WelcomeComparisonBentoCell(
-                                                title = "DMs, Search & Profile",
-                                                subtitle = "Intentional tools",
-                                                pillText = "Always open",
-                                                containerColor = colors.surfaceElevated,
-                                                pillBgColor = colors.canvas,
-                                                pillTextColor = colors.ink,
-                                                pillBorder = true,
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .fillMaxHeight()
-                                            )
-                                        }
-                                    }
-                                }
-
-                                OutloopStaggeredEntrance(index = 2) {
-                                    OutloopStatusBannerCard(
-                                        tone = StatusBannerTone.INFO,
-                                        icon = Icons.Outlined.Lock,
-                                        title = "Private by design",
-                                        body = "All feed detection, daily limits, and insights stay strictly on your phone. No accounts or analytics servers."
-                                    )
-                                }
-                            }
-
-                            OnboardingStep.CHOOSE_APPS -> {
+                                OnboardingStep.CHOOSE_APPS -> {
                                 val selectedCount = rules.count {
                                     it.enabled && (it.packageName in installedPackages || !it.isBuiltIn)
                                 }
@@ -789,13 +717,7 @@ fun OnboardingScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         when (currentStep) {
-                            OnboardingStep.WELCOME -> {
-                                OutloopPrimaryButton(
-                                    text = "Get started",
-                                    onClick = { step = OnboardingStep.CHOOSE_APPS },
-                                    modifier = Modifier.testTag("onboarding_get_started")
-                                )
-                            }
+                            OnboardingStep.WELCOME -> Unit
 
                             OnboardingStep.CHOOSE_APPS -> {
                                 Row(
@@ -907,6 +829,7 @@ fun OnboardingScreen(
                     }
                 }
             }
+            }
         }
     }
 
@@ -956,53 +879,72 @@ fun OnboardingScreen(
 }
 
 @Composable
-private fun WelcomeComparisonBentoCell(
-    title: String,
-    subtitle: String,
-    pillText: String,
-    containerColor: Color,
-    pillBgColor: Color,
-    pillTextColor: Color,
-    pillBorder: Boolean,
-    modifier: Modifier = Modifier
+fun WalkthroughReplayScreen(
+    preferredPauseMinutes: Int,
+    onOpenPrivacyDetails: () -> Unit,
+    onBack: () -> Unit
 ) {
     val colors = OutloopTheme.colors
-    val shape = RoundedCornerShape(OutloopMetrics.WellCornerRadius)
-    Column(
-        modifier = modifier
-            .clip(shape)
-            .background(containerColor)
-            .border(1.dp, colors.hairlineBorder, shape)
-            .padding(14.dp),
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
-        Box(
-            modifier = Modifier
-                .clip(CircleShape)
-                .background(pillBgColor)
-                .then(
-                    if (pillBorder) Modifier.border(1.dp, colors.hairlineBorder, CircleShape)
-                    else Modifier
-                )
-                .padding(horizontal = 10.dp, vertical = 4.dp)
-        ) {
-            Text(
-                text = pillText,
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                color = pillTextColor
-            )
+    val pagerState = rememberPagerState(pageCount = { ONBOARDING_CAROUSEL_PAGE_COUNT })
+    val coroutineScope = rememberCoroutineScope()
+
+    BackHandler {
+        if (pagerState.currentPage > 0) {
+            coroutineScope.launch {
+                pagerState.animateScrollToPage((pagerState.currentPage - 1).coerceAtLeast(0))
+            }
+        } else {
+            onBack()
         }
-        Spacer(modifier = Modifier.height(12.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                color = colors.ink
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.secondaryInk
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.canvas)
+            .windowInsetsPadding(WindowInsets.navigationBars),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .widthIn(max = OutloopMetrics.MaxContentWidth)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = OutloopMetrics.TopBarStartPadding,
+                        end = OutloopMetrics.ScreenHorizontalPadding,
+                        top = OutloopMetrics.TopBarTopPadding,
+                        bottom = 6.dp
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutloopBackButton(
+                    onClick = onBack,
+                    modifier = Modifier.testTag("walkthrough_back_button")
+                )
+                Text(
+                    text = "How Guard works",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = colors.ink,
+                    modifier = Modifier.weight(1f)
+                )
+                OutloopStatusPill(
+                    text = "${pagerState.currentPage + 1} / $ONBOARDING_CAROUSEL_PAGE_COUNT",
+                    tone = PillTone.NEUTRAL
+                )
+            }
+
+            AccessibilityOnboardingCarousel(
+                pagerState = pagerState,
+                preferredPauseMinutes = preferredPauseMinutes,
+                isReplayMode = true,
+                onOpenPrivacyDetails = onOpenPrivacyDetails,
+                onFinish = onBack,
+                modifier = Modifier.weight(1f)
             )
         }
     }

@@ -97,6 +97,7 @@ fun SettingsScreen(
     onOpenManageApps: () -> Unit,
     onOpenPrivacy: () -> Unit,
     onOpenDiagnostics: () -> Unit,
+    onOpenWalkthrough: () -> Unit = {},
     onSelectDefaultMode: (InterventionMode) -> Unit,
     onSetReclaimedSeconds: (Int) -> Unit,
     onSetHapticFeedback: (Boolean) -> Unit,
@@ -444,6 +445,13 @@ fun SettingsScreen(
                             color = colors.secondaryInk
                         )
                         Spacer(modifier = Modifier.height(6.dp))
+                        OutloopListNavRow(
+                            title = "How Guard works",
+                            valueText = "4-step tour",
+                            onClick = onOpenWalkthrough,
+                            modifier = Modifier.testTag("settings_walkthrough")
+                        )
+                        OutloopHairlineDivider()
                         OutloopListNavRow(
                             title = "How detection works",
                             onClick = onOpenPrivacy,

@@ -80,11 +80,13 @@ import com.example.ui.screens.ManageAppsScreen
 import com.example.ui.screens.OnboardingScreen
 import com.example.ui.screens.PrivacyScreen
 import com.example.ui.screens.SettingsScreen
+import com.example.ui.screens.WalkthroughReplayScreen
 import com.example.ui.theme.FeedSurgeonTheme
 import kotlinx.coroutines.delay
 
 object Routes {
     const val ONBOARDING = "onboarding"
+    const val WALKTHROUGH = "walkthrough"
     const val HOME = "home"
     const val INSIGHTS = "insights"
     const val SETTINGS = "settings"
@@ -494,6 +496,9 @@ fun OutloopNavigationHost(
                                             onOpenDiagnostics = {
                                                 navController.navigate(Routes.DIAGNOSTICS)
                                             },
+                                            onOpenWalkthrough = {
+                                                navController.navigate(Routes.WALKTHROUGH)
+                                            },
                                             onSelectDefaultMode = { mode ->
                                                 onSelectDefaultMode(mode, true)
                                             },
@@ -536,6 +541,18 @@ fun OutloopNavigationHost(
                                 composable(Routes.PRIVACY) {
                                     CompositionLocalProvider(LocalAnimatedVisibilityScope provides this) {
                                         PrivacyScreen(onBack = { navController.popBackStack() })
+                                    }
+                                }
+
+                                composable(Routes.WALKTHROUGH) {
+                                    CompositionLocalProvider(LocalAnimatedVisibilityScope provides this) {
+                                        WalkthroughReplayScreen(
+                                            preferredPauseMinutes = uiState.preferences.preferredPauseMinutes,
+                                            onOpenPrivacyDetails = {
+                                                navController.navigate(Routes.PRIVACY)
+                                            },
+                                            onBack = { navController.popBackStack() }
+                                        )
                                     }
                                 }
 

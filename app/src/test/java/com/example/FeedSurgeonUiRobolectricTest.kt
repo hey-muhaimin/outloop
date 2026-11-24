@@ -38,6 +38,7 @@ import com.example.ui.screens.ManageAppsScreen
 import com.example.ui.screens.OnboardingScreen
 import com.example.ui.screens.PrivacyScreen
 import com.example.ui.screens.SettingsScreen
+import com.example.ui.screens.WalkthroughReplayScreen
 import com.example.ui.theme.FeedSurgeonTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -81,10 +82,24 @@ class FeedSurgeonUiRobolectricTest {
         }
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText("Break the loop.\nKeep the apps.").assertIsDisplayed()
+        composeRule.onNodeWithText("Spot feeds.\nSkip the rest.").assertIsDisplayed()
         composeRule.onNodeWithTag("onboarding_preview_card").assertIsDisplayed()
-        composeRule.onNodeWithText("What Guard touches").assertIsDisplayed()
+        composeRule.onNodeWithText("Tap to inspect view tags").assertIsDisplayed()
         composeRule.onNodeWithTag("onboarding_skip").assertDoesNotExist()
+
+        // Step across all 4 interactive carousel slides before reaching Choose apps
+        composeRule.onNodeWithTag("carousel_next_button").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Break the loop\nwith Strict mode.").assertIsDisplayed()
+
+        composeRule.onNodeWithTag("carousel_next_button").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Leave the feed,\nkeep the app.").assertIsDisplayed()
+
+        composeRule.onNodeWithTag("carousel_next_button").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Zero content read.\n100% on-device.").assertIsDisplayed()
+
         composeRule.onNodeWithTag("onboarding_get_started").performClick()
         composeRule.waitForIdle()
 
@@ -670,6 +685,10 @@ class FeedSurgeonUiRobolectricTest {
         }
         composeRule.waitForIdle()
 
+        repeat(3) {
+            composeRule.onNodeWithTag("carousel_next_button").performClick()
+            composeRule.waitForIdle()
+        }
         composeRule.onNodeWithTag("onboarding_get_started").performClick()
         composeRule.waitForIdle()
 
@@ -1197,5 +1216,124 @@ class FeedSurgeonUiRobolectricTest {
         composeRule.onNodeWithText("Time in feeds today \u00B7 of 60m budget").assertIsDisplayed()
         composeRule.onNodeWithText("22m").assertIsDisplayed()
     }
+
+    @Test
+    fun `onboarding carousel supports interactive tag inspection strict countdown exit dock and privacy toggle`() {
+        val rules = FeedSurgeonDatabase.defaultBuiltInRules()
+        var openedPrivacy = false
+
+        composeRule.setContent {
+            FeedSurgeonTheme {
+                OnboardingScreen(
+                    rules = rules,
+                    installedPackages = setOf("com.google.android.youtube"),
+                    isAccessibilityEnabled = false,
+                    isServiceConnected = false,
+                    isBatteryOptimizationIgnored = false,
+                    isNotificationPermissionGranted = true,
+                    onRefreshProtectionHealth = {},
+                    onToggleApp = { _, _ -> },
+                    onAcceptDisclosure = {},
+                    onOpenPrivacyDetails = { openedPrivacy = true },
+                    onCompleteOnboarding = {},
+                    disclosureAccepted = false
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        // Slide 1: Tap-to-inspect view tags
+        composeRule.onNodeWithTag("carousel_tag_inspector").assertTextContains("Paused by Guard", substring = true)
+        composeRule.onNodeWithTag("carousel_inspect_dm_inbox").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("carousel_tag_inspector").assertTextContains("Always open", substring = true)
+        composeRule.onNodeWithTag("carousel_inspect_search_bar").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("carousel_tag_inspector").assertTextContains("search_edit", substring = true)
+
+        // Slide 2: Strict countdown preview + fast-forward + duration unlock
+        composeRule.onNodeWithTag("carousel_next_button").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("carousel_try_pause_button").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("carousel_preview_break_button").assertIsNotEnabled()
+        composeRule.onNodeWithTag("carousel_countdown_fast_forward").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("carousel_preview_break_button").assertIsEnabled()
+        composeRule.onNodeWithTag("carousel_preview_break_button").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Temporary break simulated").assertIsDisplayed()
+
+        // Slide 3: Home / Exit 2-row action dock simulator
+        composeRule.onNodeWithTag("carousel_next_button").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("carousel_dock_home").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Returned to Home tab").assertIsDisplayed()
+        composeRule.onNodeWithTag("carousel_dock_exit").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Exited to phone Home").assertIsDisplayed()
+        composeRule.onNodeWithTag("carousel_dock_reset").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Loop broken").assertIsDisplayed()
+
+        // Slide 4: Privacy boundary switcher & details link
+        composeRule.onNodeWithTag("carousel_next_button").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Selected app package").assertIsDisplayed()
+        composeRule.onNodeWithText("Never read").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Messages & chats").assertIsDisplayed()
+        composeRule.onNodeWithTag("carousel_open_privacy").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        assertTrue(openedPrivacy)
+    }
+
+    @Test
+    fun `settings row opens non-destructive walkthrough replay screen and Done returns cleanly`() {
+        var openedWalkthrough by mutableStateOf(false)
+        var finishedReplay = false
+
+        composeRule.setContent {
+            FeedSurgeonTheme {
+                if (!openedWalkthrough) {
+                    SettingsScreen(
+                        uiState = MainUiState(isInitialLoading = false),
+                        onOpenManageApps = {},
+                        onOpenPrivacy = {},
+                        onOpenDiagnostics = {},
+                        onOpenWalkthrough = { openedWalkthrough = true },
+                        onSelectDefaultMode = {},
+                        onSetReclaimedSeconds = {},
+                        onSetHapticFeedback = {},
+                        onSetShowBanner = {},
+                        onClearHistory = {},
+                        onShowToast = {}
+                    )
+                } else {
+                    WalkthroughReplayScreen(
+                        preferredPauseMinutes = 15,
+                        onOpenPrivacyDetails = {},
+                        onBack = { finishedReplay = true }
+                    )
+                }
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("settings_list")
+            .performScrollToNode(hasTestTag("settings_walkthrough"))
+        composeRule.onNodeWithTag("settings_walkthrough").performClick()
+        composeRule.waitForIdle()
+        assertTrue(openedWalkthrough)
+
+        composeRule.onNodeWithText("How Guard works").assertIsDisplayed()
+        composeRule.onNodeWithTag("carousel_dot_3").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("carousel_replay_done").performClick()
+        composeRule.waitForIdle()
+        assertTrue(finishedReplay)
+    }
 }
+
 
