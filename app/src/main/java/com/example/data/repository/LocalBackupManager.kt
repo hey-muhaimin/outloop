@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 data class BackupPreferencesDto(
-    val appearanceMode: String = AppearanceMode.SYSTEM.name,
+    val appearanceMode: String = AppearanceMode.LIGHT.name,
     val defaultInterventionMode: String = InterventionMode.OVERLAY.name,
     val reclaimedSecondsPerCut: Int = 180,
     val hapticFeedbackEnabled: Boolean = true,
@@ -25,7 +25,11 @@ data class BackupPreferencesDto(
     val quietHoursEnabled: Boolean = false,
     val quietStartMinutes: Int = 22 * 60,
     val quietEndMinutes: Int = 7 * 60,
-    val dailyBudgetCuts: Int = 0
+    val dailyBudgetCuts: Int = 0,
+    val strictModeEnabled: Boolean = true,
+    val alwaysOpenApps: List<String> = emptyList(),
+    val preferredPauseMinutes: Int = 15,
+    val globalFeedTimeBudgetMinutes: Int = 0
 )
 
 data class BackupRuleDto(
@@ -109,7 +113,11 @@ class LocalBackupManager(
                 quietHoursEnabled = prefs.quietHoursEnabled,
                 quietStartMinutes = prefs.quietStartMinutes,
                 quietEndMinutes = prefs.quietEndMinutes,
-                dailyBudgetCuts = prefs.dailyBudgetCuts
+                dailyBudgetCuts = prefs.dailyBudgetCuts,
+                strictModeEnabled = prefs.strictModeEnabled,
+                alwaysOpenApps = prefs.alwaysOpenApps.sorted(),
+                preferredPauseMinutes = prefs.preferredPauseMinutes,
+                globalFeedTimeBudgetMinutes = prefs.globalFeedTimeBudgetMinutes
             ),
             rules = rules.map { rule ->
                 BackupRuleDto(
@@ -223,6 +231,12 @@ class LocalBackupManager(
             it.name == prefDto.defaultInterventionMode
         } ?: InterventionMode.OVERLAY
 
+        val restoredAlwaysOpen = if (prefDto.alwaysOpenApps.isEmpty()) {
+            com.example.data.local.AppPreferences.DEFAULT_ALWAYS_OPEN_APPS
+        } else {
+            prefDto.alwaysOpenApps.toSet()
+        }
+
         settingsDataStore.restoreBackupPreferences(
             appearanceMode = restoredAppearance,
             defaultInterventionMode = restoredDefaultMode,
@@ -233,7 +247,11 @@ class LocalBackupManager(
             quietHoursEnabled = prefDto.quietHoursEnabled,
             quietStartMinutes = prefDto.quietStartMinutes,
             quietEndMinutes = prefDto.quietEndMinutes,
-            dailyBudgetCuts = prefDto.dailyBudgetCuts
+            dailyBudgetCuts = prefDto.dailyBudgetCuts,
+            strictModeEnabled = prefDto.strictModeEnabled,
+            alwaysOpenApps = restoredAlwaysOpen,
+            preferredPauseMinutes = prefDto.preferredPauseMinutes,
+            globalFeedTimeBudgetMinutes = prefDto.globalFeedTimeBudgetMinutes
         )
 
         BackupRestoreResult.Success(

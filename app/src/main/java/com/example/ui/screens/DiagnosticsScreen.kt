@@ -131,48 +131,21 @@ fun DiagnosticsScreen(
         }
     ) {
         OutloopStaggeredEntrance(index = 0) {
-            Text(
-                text = "Diagnostics",
-                style = MaterialTheme.typography.displayLarge,
-                color = colors.ink
-            )
-        }
-
-        OutloopStaggeredEntrance(index = 1) {
-            OutloopTonalCard(
-                cornerRadius = OutloopMetrics.CardCornerRadius,
-                contentPadding = PaddingValues(0.dp)
-            ) {
-                DiagnosticRow("Accessibility service", accessibilityStatusLabel)
-                OutloopHairlineDivider()
-                DiagnosticRow("Last connection", lastConnectionLabel)
-                OutloopHairlineDivider()
-                DiagnosticRow("Protected apps", uiState.activeInstalledCount.toString())
-                OutloopHairlineDivider()
-                DiagnosticRow("Protection", protectionLabel)
-                OutloopHairlineDivider()
-                DiagnosticRow("Foreground monitor", uiState.foregroundAppSummary)
-                OutloopHairlineDivider()
-                DiagnosticRow("Last detection", uiState.lastDetectionSummary)
-                OutloopHairlineDivider()
-                DiagnosticRow("Last intervention", uiState.lastInterventionOutcomeSummary)
-                OutloopHairlineDivider()
-                DiagnosticRow(
-                    "Battery optimization",
-                    if (uiState.isBatteryOptimizationIgnored) "Unrestricted" else "Restricted"
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "Diagnostics",
+                    style = MaterialTheme.typography.displayLarge,
+                    color = colors.ink
                 )
-                OutloopHairlineDivider()
-                DiagnosticRow("Quiet hours", quietHoursSummary)
-                OutloopHairlineDivider()
-                DiagnosticRow("Ruleset version", uiState.preferences.rulesetVersion)
-                OutloopHairlineDivider()
-                DiagnosticRow("Last rules check", lastRulesCheckLabel)
-                OutloopHairlineDivider()
-                DiagnosticRow("App version", BuildConfig.VERSION_NAME)
+                Text(
+                    text = "Live accessibility health & selector matching.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = colors.secondaryInk
+                )
             }
         }
 
-        OutloopStaggeredEntrance(index = 2) {
+        OutloopStaggeredEntrance(index = 1) {
             if (uiState.isAccessibilityEnabled && uiState.isServiceConnected) {
                 OutloopStatusBannerCard(
                     tone = StatusBannerTone.SUCCESS,
@@ -191,6 +164,45 @@ fun DiagnosticsScreen(
                     },
                     body = "Turn on Outloop in Android\u2019s Accessibility settings, then check again."
                 )
+            }
+        }
+
+        OutloopStaggeredEntrance(index = 2) {
+            OutloopTonalCard(
+                cornerRadius = OutloopMetrics.CardCornerRadius,
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                DiagnosticRow("Accessibility service", accessibilityStatusLabel)
+                OutloopHairlineDivider(modifier = Modifier.padding(horizontal = 18.dp))
+                DiagnosticRow("Last connection", lastConnectionLabel)
+                OutloopHairlineDivider(modifier = Modifier.padding(horizontal = 18.dp))
+                DiagnosticRow("Guarded apps", uiState.activeInstalledCount.toString())
+                OutloopHairlineDivider(modifier = Modifier.padding(horizontal = 18.dp))
+                DiagnosticRow("Guard status", protectionLabel)
+                OutloopHairlineDivider(modifier = Modifier.padding(horizontal = 18.dp))
+                DiagnosticRow(
+                    "Strict mode",
+                    if (uiState.preferences.strictModeEnabled) "On (10s delay)" else "Off"
+                )
+                OutloopHairlineDivider(modifier = Modifier.padding(horizontal = 18.dp))
+                DiagnosticRow("Foreground monitor", uiState.foregroundAppSummary)
+                OutloopHairlineDivider(modifier = Modifier.padding(horizontal = 18.dp))
+                DiagnosticRow("Last detection", uiState.lastDetectionSummary)
+                OutloopHairlineDivider(modifier = Modifier.padding(horizontal = 18.dp))
+                DiagnosticRow("Last intervention", uiState.lastInterventionOutcomeSummary)
+                OutloopHairlineDivider(modifier = Modifier.padding(horizontal = 18.dp))
+                DiagnosticRow(
+                    "Battery optimization",
+                    if (uiState.isBatteryOptimizationIgnored) "Unrestricted" else "Restricted"
+                )
+                OutloopHairlineDivider(modifier = Modifier.padding(horizontal = 18.dp))
+                DiagnosticRow("Quiet hours", quietHoursSummary)
+                OutloopHairlineDivider(modifier = Modifier.padding(horizontal = 18.dp))
+                DiagnosticRow("Ruleset version", uiState.preferences.rulesetVersion)
+                OutloopHairlineDivider(modifier = Modifier.padding(horizontal = 18.dp))
+                DiagnosticRow("Last rules check", lastRulesCheckLabel)
+                OutloopHairlineDivider(modifier = Modifier.padding(horizontal = 18.dp))
+                DiagnosticRow("App version", BuildConfig.VERSION_NAME)
             }
         }
 
@@ -231,13 +243,13 @@ fun DiagnosticsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = OutloopMetrics.NavRowMinHeight)
-                            .padding(horizontal = OutloopMetrics.ListRowPaddingHorizontal, vertical = 4.dp),
+                            .padding(horizontal = 18.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
                             text = "Auto-update feed rules",
-                            style = MaterialTheme.typography.titleSmall,
+                            style = MaterialTheme.typography.titleMedium,
                             color = colors.ink
                         )
                         OutloopSwitch(
@@ -246,19 +258,19 @@ fun DiagnosticsScreen(
                             contentDescription = "Auto-update feed rules"
                         )
                     }
-                    OutloopHairlineDivider()
+                    OutloopHairlineDivider(modifier = Modifier.padding(horizontal = 18.dp))
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = OutloopMetrics.NavRowMinHeight)
-                            .padding(horizontal = OutloopMetrics.ListRowPaddingHorizontal, vertical = 4.dp),
+                            .padding(horizontal = 18.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "Troubleshooting log",
-                                style = MaterialTheme.typography.titleSmall,
+                                style = MaterialTheme.typography.titleMedium,
                                 color = colors.ink
                             )
                             Text(
@@ -281,7 +293,7 @@ fun DiagnosticsScreen(
             OutloopStaggeredEntrance(index = 4) {
                 OutloopTonalCard(
                     cornerRadius = OutloopMetrics.CardCornerRadius,
-                    contentPadding = OutloopMetrics.CompactCardPadding
+                    contentPadding = PaddingValues(18.dp)
                 ) {
                     Text(
                         text = "Local event log (${uiState.eventLogSizeBytes} bytes)",
@@ -332,14 +344,14 @@ private fun DiagnosticRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 44.dp)
-            .padding(horizontal = OutloopMetrics.ListRowPaddingHorizontal, vertical = 8.dp),
+            .heightIn(min = 46.dp)
+            .padding(horizontal = 18.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Normal),
+            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
             color = colors.ink,
             modifier = Modifier.weight(1f)
         )

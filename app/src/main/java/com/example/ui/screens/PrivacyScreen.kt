@@ -1,22 +1,31 @@
 package com.example.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccessibilityNew
 import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.example.ui.components.OutloopIconBadge
@@ -50,39 +59,86 @@ fun PrivacyScreen(
         }
 
         OutloopStaggeredEntrance(index = 1) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(OutloopMetrics.CardCornerRadius))
+                    .background(colors.mintTile)
+                    .padding(horizontal = 18.dp, vertical = 18.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Lock,
+                    contentDescription = null,
+                    tint = colors.ink
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Everything stays on your phone",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = colors.ink
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "No accounts, no analytics servers, and no personal content leaves this device.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.secondaryInk
+                    )
+                }
+            }
+        }
+
+        OutloopStaggeredEntrance(index = 2) {
             PrivacyDetailCard(
                 icon = Icons.Outlined.AccessibilityNew,
                 title = "Why accessibility access",
-                body = "Android only lets an app recognise what\u2019s on screen through its Accessibility Service. Outloop uses it to tell when a Shorts, Reels or Watch feed is open."
+                body = "Android only lets an app recognise what\u2019s on screen through its Accessibility Service. Outloop uses it to tell when a Shorts, Reels or For You feed is open."
             )
         }
-        OutloopStaggeredEntrance(index = 2) {
+        OutloopStaggeredEntrance(index = 3) {
             PrivacyDetailCard(
                 icon = Icons.Outlined.Visibility,
                 title = "What it inspects",
                 body = "Technical screen labels in the apps you choose. It doesn\u2019t read your messages, passwords or videos."
             )
         }
-        OutloopStaggeredEntrance(index = 3) {
+        OutloopStaggeredEntrance(index = 4) {
             PrivacyDetailCard(
                 icon = Icons.Outlined.PhoneAndroid,
                 title = "What stays on your phone",
                 body = "Feed detection and your daily counts stay strictly on this device."
             )
         }
-        OutloopStaggeredEntrance(index = 4) {
+        OutloopStaggeredEntrance(index = 5) {
             PrivacyDetailCard(
                 icon = Icons.Outlined.GridView,
                 title = "What is stored",
                 body = "Your app choices, preferences and local interruption counts. Troubleshooting logs remain off unless you turn them on in Diagnostics."
             )
         }
-        OutloopStaggeredEntrance(index = 5) {
+        OutloopStaggeredEntrance(index = 6) {
             PrivacyDetailCard(
                 icon = Icons.Outlined.Tune,
                 title = "How to turn it off",
                 body = "Android Settings \u203A Accessibility \u203A Outloop, at any time."
             )
+        }
+
+        OutloopStaggeredEntrance(index = 7) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(colors.peachTile)
+                    .padding(horizontal = 18.dp, vertical = 14.dp)
+            ) {
+                Text(
+                    text = "You\u2019re in control. Pause Guard from Home or export your local history whenever you want.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.ink
+                )
+            }
         }
     }
 }
@@ -96,7 +152,7 @@ private fun PrivacyDetailCard(
     val colors = OutloopTheme.colors
     OutloopTonalCard(
         cornerRadius = OutloopMetrics.CardCornerRadius,
-        contentPadding = OutloopMetrics.CompactCardPadding
+        contentPadding = PaddingValues(18.dp)
     ) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -106,7 +162,7 @@ private fun PrivacyDetailCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.titleMedium,
                     color = colors.ink
                 )
                 Spacer(modifier = Modifier.height(2.dp))

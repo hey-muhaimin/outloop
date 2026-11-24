@@ -53,6 +53,28 @@ interface FeedSurgeonDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEvents(events: List<InterventionEventEntity>)
 
+    @Query("SELECT * FROM app_feed_usage WHERE packageName = :packageName AND dateKey = :dateKey LIMIT 1")
+    suspend fun getAppFeedUsage(packageName: String, dateKey: String): AppFeedUsageEntity?
+
+    @Query("SELECT * FROM app_feed_usage WHERE dateKey = :dateKey ORDER BY packageName ASC")
+    suspend fun getAppFeedUsageForDate(dateKey: String): List<AppFeedUsageEntity>
+
+    @Query("SELECT * FROM app_feed_usage WHERE dateKey = :dateKey ORDER BY packageName ASC")
+    fun observeAppFeedUsageForDate(dateKey: String): Flow<List<AppFeedUsageEntity>>
+
+    @Query(
+        "INSERT OR REPLACE INTO app_feed_usage (packageName, dateKey, trackedSeconds, lastUpdatedMs) " +
+            "VALUES (:packageName, :dateKey, " +
+            "COALESCE((SELECT trackedSeconds FROM app_feed_usage WHERE packageName = :packageName AND dateKey = :dateKey LIMIT 1), 0) + :deltaSeconds, " +
+            ":updatedAtMs)"
+    )
+    suspend fun incrementAppFeedUsageSeconds(
+        packageName: String,
+        dateKey: String,
+        deltaSeconds: Long,
+        updatedAtMs: Long
+    )
+
     @Query("UPDATE intervention_events SET wasAllowedOnce = 1, outcome = 'ALLOWED_ONCE' WHERE id = :eventId")
     suspend fun markEventAllowedOnce(eventId: Long)
 

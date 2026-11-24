@@ -2,9 +2,11 @@ package com.example.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DeleteOutline
@@ -35,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.data.local.TargetAppRuleEntity
 import com.example.data.model.InterventionMode
@@ -44,12 +48,12 @@ import com.example.ui.components.OutloopHairlineDivider
 import com.example.ui.components.OutloopModalSheet
 import com.example.ui.components.OutloopPrimaryButton
 import com.example.ui.components.OutloopSecondaryButton
-import com.example.ui.components.OutloopSectionHeader
 import com.example.ui.components.OutloopSegmentedControl
 import com.example.ui.components.OutloopStaggeredEntrance
 import com.example.ui.components.OutloopSubScreenScaffold
 import com.example.ui.components.OutloopSwitch
 import com.example.ui.components.OutloopTonalCard
+import com.example.ui.components.rememberOutloopHaptic
 import com.example.ui.theme.OutloopMetrics
 import com.example.ui.theme.OutloopTheme
 
@@ -75,6 +79,7 @@ fun ManageAppsScreen(
 ) {
     BackHandler(onBack = onBack)
     val colors = OutloopTheme.colors
+    val haptic = rememberOutloopHaptic()
     var showAddCustomSheet by rememberSaveable { mutableStateOf(false) }
 
     val installedRules = if (hasScannedInstalledApps) {
@@ -87,6 +92,7 @@ fun ManageAppsScreen(
     } else {
         rules
     }
+    val selectedCount = installedRules.count { it.enabled }
 
     OutloopSubScreenScaffold(
         onBack = onBack,
@@ -97,12 +103,12 @@ fun ManageAppsScreen(
         OutloopStaggeredEntrance(index = 0) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = "Your apps",
+                    text = "Guarded apps",
                     style = MaterialTheme.typography.displayLarge,
                     color = colors.ink
                 )
                 Text(
-                    text = "Choose where Outloop steps in, or add a custom app rule.",
+                    text = "Only endless feeds are blocked. Useful tabs stay open.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = colors.secondaryInk
                 )
@@ -110,29 +116,44 @@ fun ManageAppsScreen(
         }
 
         OutloopStaggeredEntrance(index = 1) {
-            Column(verticalArrangement = Arrangement.spacedBy(OutloopMetrics.ItemSpacing)) {
-                OutloopSectionHeader(text = "On your phone")
+            OutloopTonalCard(
+                cornerRadius = OutloopMetrics.CardCornerRadius,
+                contentPadding = PaddingValues(18.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "On your phone",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = colors.secondaryInk
+                    )
+                    Text(
+                        text = "$selectedCount selected",
+                        style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
+                        color = colors.ink
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+
                 if (installedRules.isNotEmpty()) {
-                    OutloopTonalCard(
-                        cornerRadius = OutloopMetrics.CardCornerRadius,
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         installedRules.forEachIndexed { idx, rule ->
                             if (idx > 0) OutloopHairlineDivider()
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .heightIn(min = OutloopMetrics.RowMinHeight)
-                                    .padding(
-                                        horizontal = OutloopMetrics.ListRowPaddingHorizontal,
-                                        vertical = OutloopMetrics.ListRowPaddingVertical
-                                    ),
+                                    .heightIn(min = 56.dp)
+                                    .padding(vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 OutloopAppMonogramBadge(
                                     appName = rule.displayName,
-                                    packageName = rule.packageName
+                                    packageName = rule.packageName,
+                                    preferDarkMonogram = true
                                 )
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
@@ -142,7 +163,7 @@ fun ManageAppsScreen(
                                     )
                                     Text(
                                         text = buildString {
-                                            append("Interrupts ${rule.feedLabel}")
+                                            append("${rule.feedLabel} \u00B7 ${rule.homeTabLabel} open")
                                             if (!rule.isBuiltIn) append(" \u00B7 Custom")
                                         },
                                         style = MaterialTheme.typography.bodySmall,
@@ -166,29 +187,44 @@ fun ManageAppsScreen(
                                         )
                                     }
                                 }
-                                OutloopSwitch(
-                                    checked = rule.enabled,
-                                    onCheckedChange = { enabled -> onToggleApp(rule.packageName, enabled) },
-                                    contentDescription = "Protect ${rule.displayName}"
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .heightIn(min = 48.dp)
+                                        .clickable {
+                                            haptic()
+                                            onToggleApp(rule.packageName, !rule.enabled)
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(CircleShape)
+                                            .background(if (rule.enabled) colors.mintTile else colors.surfaceSubtle)
+                                            .padding(horizontal = 16.dp, vertical = 7.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = if (rule.enabled) "On" else "Off",
+                                            style = MaterialTheme.typography.labelLarge.copy(
+                                                fontWeight = FontWeight.SemiBold
+                                            ),
+                                            color = if (rule.enabled) colors.ink else colors.secondaryInk
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 } else {
-                    OutloopTonalCard(
-                        cornerRadius = OutloopMetrics.SubCardCornerRadius,
-                        contentPadding = OutloopMetrics.CompactCardPadding
-                    ) {
-                        Text(
-                            text = if (hasScannedInstalledApps) {
-                                "No supported short-form video apps detected on this phone yet. Add a custom app below."
-                            } else {
-                                "Scanning installed apps\u2026"
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colors.secondaryInk
-                        )
-                    }
+                    Text(
+                        text = if (hasScannedInstalledApps) {
+                            "No supported short-form video apps detected on this phone yet. Add a custom app below."
+                        } else {
+                            "Scanning installed apps\u2026"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.secondaryInk
+                    )
                 }
             }
         }
@@ -203,47 +239,50 @@ fun ManageAppsScreen(
 
         if (notInstalledRules.isNotEmpty()) {
             OutloopStaggeredEntrance(index = 3) {
-                Column(verticalArrangement = Arrangement.spacedBy(OutloopMetrics.ItemSpacing)) {
-                    OutloopSectionHeader(text = "Not installed")
-                    OutloopTonalCard(
-                        cornerRadius = OutloopMetrics.CardCornerRadius,
-                        contentPadding = PaddingValues(0.dp),
-                        containerColor = colors.surfaceSubtle,
-                        modifier = Modifier.alpha(0.75f)
-                    ) {
-                        notInstalledRules.forEachIndexed { idx, rule ->
-                            if (idx > 0) OutloopHairlineDivider()
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = OutloopMetrics.RowMinHeight)
-                                    .padding(
-                                        horizontal = OutloopMetrics.ListRowPaddingHorizontal,
-                                        vertical = OutloopMetrics.ListRowPaddingVertical
-                                    ),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                OutloopAppMonogramBadge(appName = rule.displayName)
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = rule.displayName,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = colors.ink
-                                    )
-                                    Text(
-                                        text = "${rule.feedLabel} \u00B7 not installed",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = colors.secondaryInk
-                                    )
-                                }
-                                OutloopSwitch(
-                                    checked = false,
-                                    enabled = false,
-                                    onCheckedChange = {},
-                                    contentDescription = "${rule.displayName} not installed"
+                OutloopTonalCard(
+                    cornerRadius = OutloopMetrics.CardCornerRadius,
+                    contentPadding = PaddingValues(18.dp),
+                    containerColor = colors.surfaceSubtle,
+                    modifier = Modifier.alpha(0.78f)
+                ) {
+                    Text(
+                        text = "Not installed",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = colors.secondaryInk
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    notInstalledRules.forEachIndexed { idx, rule ->
+                        if (idx > 0) OutloopHairlineDivider()
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 52.dp)
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutloopAppMonogramBadge(
+                                appName = rule.displayName,
+                                preferDarkMonogram = true
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = rule.displayName,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = colors.ink
+                                )
+                                Text(
+                                    text = "${rule.feedLabel} \u00B7 not installed",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.secondaryInk
                                 )
                             }
+                            OutloopSwitch(
+                                checked = false,
+                                enabled = false,
+                                onCheckedChange = {},
+                                contentDescription = "${rule.displayName} not installed"
+                            )
                         }
                     }
                 }
@@ -261,7 +300,7 @@ fun ManageAppsScreen(
             onSave = { pkg, display, feed, viewIds, tabFallback, homeTab, mode ->
                 onSaveCustomRule(pkg, display, feed, viewIds, tabFallback, homeTab, mode)
                 showAddCustomSheet = false
-                onShowToast("Added custom protection for $display.")
+                onShowToast("Added custom guard for $display.")
             },
             onDismiss = { showAddCustomSheet = false }
         )
@@ -312,7 +351,7 @@ private fun AddCustomAppSheet(
                     val isPicked = packageName == candidate.packageName
                     Surface(
                         shape = RoundedCornerShape(14.dp),
-                        color = if (isPicked) colors.primaryTint else colors.surfaceElevated,
+                        color = if (isPicked) colors.heroDark else colors.surfaceElevated,
                         border = BorderStroke(1.dp, colors.hairlineBorder),
                         modifier = Modifier
                             .heightIn(min = 48.dp)
@@ -332,7 +371,8 @@ private fun AddCustomAppSheet(
                                 appName = candidate.displayName,
                                 packageName = candidate.packageName,
                                 size = 22.dp,
-                                cornerRadius = 6.dp
+                                cornerRadius = 6.dp,
+                                preferDarkMonogram = true
                             )
                             Text(
                                 text = candidate.displayName,

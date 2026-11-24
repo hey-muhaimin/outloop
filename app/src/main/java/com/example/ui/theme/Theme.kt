@@ -18,37 +18,37 @@ val LocalOutloopColors = staticCompositionLocalOf { LightOutloopColors }
 val LocalHapticsEnabled = staticCompositionLocalOf { true }
 
 /**
- * Shared 20%-compact spatial & sizing tokens used across every Outloop screen
- * so padding, corners, button heights, badge sizes, and title positioning stay consistent.
+ * Shared Light Tonal Bento spacing, corner radii, and component tokens.
  */
 object OutloopMetrics {
     val ScreenHorizontalPadding = 16.dp
-    val ScreenTopPadding = 16.dp
+    val ScreenTopPadding = 12.dp
     val TopBarTopPadding = 10.dp
     val TopBarStartPadding = 10.dp
-    val SectionSpacing = 11.dp
+    val SectionSpacing = 12.dp
     val ItemSpacing = 8.dp
-    val CardCornerRadius = 20.dp
+    val CardCornerRadius = 24.dp
+    val HeroCornerRadius = 26.dp
     val SubCardCornerRadius = 18.dp
     val SheetCornerRadius = 28.dp
-    val CardPadding = PaddingValues(16.dp)
-    val CompactCardPadding = PaddingValues(13.dp)
-    val ListRowPaddingHorizontal = 14.dp
-    val ListRowPaddingVertical = 8.dp
+    val CardPadding = PaddingValues(18.dp)
+    val CompactCardPadding = PaddingValues(14.dp)
+    val ListRowPaddingHorizontal = 16.dp
+    val ListRowPaddingVertical = 10.dp
     val RowMinHeight = 56.dp
-    val NavRowMinHeight = 48.dp
-    val ButtonMinHeight = 48.dp
-    val AppBadgeSize = 40.dp
-    val AppBadgeCornerRadius = 12.dp
-    val AppDetailBadgeSize = 46.dp
+    val NavRowMinHeight = 52.dp
+    val ButtonMinHeight = 50.dp
+    val AppBadgeSize = 42.dp
+    val AppBadgeCornerRadius = 14.dp
+    val AppDetailBadgeSize = 48.dp
     val AppDetailBadgeCornerRadius = 14.dp
-    val IconBadgeSize = 34.dp
-    val IconBadgeCornerRadius = 10.dp
-    val IconBadgeGlyphSize = 17.dp
+    val IconBadgeSize = 36.dp
+    val IconBadgeCornerRadius = 12.dp
+    val IconBadgeGlyphSize = 18.dp
     val HeroRingSize = 86.dp
     val RhythmCircleSize = 30.dp
-    val DockHeight = 56.dp
-    val DockBottomPadding = 12.dp
+    val DockHeight = 68.dp
+    val DockBottomPadding = 0.dp
     val BottomNavContentPadding = 96.dp
     val SideRailWidth = 80.dp
     val MaxContentWidth = 580.dp
@@ -78,10 +78,11 @@ fun isDarkThemeForAppearance(appearanceMode: AppearanceMode): Boolean = when (ap
 
 @Composable
 fun FeedSurgeonTheme(
-    appearanceMode: AppearanceMode = AppearanceMode.SYSTEM,
+    appearanceMode: AppearanceMode = AppearanceMode.LIGHT,
     hapticsEnabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
+    // Light Tonal Bento is the primary design system unless user explicitly selects Dark
     val darkTheme = isDarkThemeForAppearance(appearanceMode)
     val outloopColors = if (darkTheme) DarkOutloopColors else LightOutloopColors
 

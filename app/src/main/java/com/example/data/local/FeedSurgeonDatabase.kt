@@ -13,8 +13,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Database(
-    entities = [TargetAppRuleEntity::class, InterventionEventEntity::class],
-    version = 3,
+    entities = [TargetAppRuleEntity::class, InterventionEventEntity::class, AppFeedUsageEntity::class],
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(FeedSurgeonConverters::class)
@@ -39,15 +39,51 @@ abstract class FeedSurgeonDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE target_app_rules ADD COLUMN dailyLimitMinutes INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `app_feed_usage` (" +
+                        "`packageName` TEXT NOT NULL, " +
+                        "`dateKey` TEXT NOT NULL, " +
+                        "`trackedSeconds` INTEGER NOT NULL, " +
+                        "`lastUpdatedMs` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`packageName`, `dateKey`))"
+                )
+            }
+        }
+
         val BUILT_IN_PACKAGE_NAMES = setOf(
-            "com.google.android.youtube",
             "com.instagram.android",
+            "com.google.android.youtube",
             "com.facebook.katana",
+            "com.zhiliaoapp.musically",
+            "com.twitter.android",
             "com.snapchat.android",
             "com.reddit.frontpage"
         )
 
         fun defaultBuiltInRules(): List<TargetAppRuleEntity> = listOf(
+            TargetAppRuleEntity(
+                packageName = "com.instagram.android",
+                displayName = "Instagram",
+                feedLabel = "Reels",
+                enabled = true,
+                interventionMode = InterventionMode.OVERLAY,
+                cooldownMs = 800,
+                homeTabLabel = "Home",
+                viewIdsRaw = listOf(
+                    "com.instagram.android:id/clips_viewer_view_pager",
+                    "com.instagram.android:id/clips_video_container"
+                ).joinToString("|"),
+                tabFallbackLabel = "Reels",
+                isBuiltIn = true,
+                matchedSelectorCount = 2,
+                totalSelectorCount = 2,
+                isOutdated = false
+            ),
             TargetAppRuleEntity(
                 packageName = "com.google.android.youtube",
                 displayName = "YouTube",
@@ -68,24 +104,6 @@ abstract class FeedSurgeonDatabase : RoomDatabase() {
                 isOutdated = false
             ),
             TargetAppRuleEntity(
-                packageName = "com.instagram.android",
-                displayName = "Instagram",
-                feedLabel = "Reels",
-                enabled = true,
-                interventionMode = InterventionMode.OVERLAY,
-                cooldownMs = 800,
-                homeTabLabel = "Home",
-                viewIdsRaw = listOf(
-                    "com.instagram.android:id/clips_viewer_view_pager",
-                    "com.instagram.android:id/clips_video_container"
-                ).joinToString("|"),
-                tabFallbackLabel = "Reels",
-                isBuiltIn = true,
-                matchedSelectorCount = 2,
-                totalSelectorCount = 2,
-                isOutdated = false
-            ),
-            TargetAppRuleEntity(
                 packageName = "com.facebook.katana",
                 displayName = "Facebook",
                 feedLabel = "Reels",
@@ -98,6 +116,42 @@ abstract class FeedSurgeonDatabase : RoomDatabase() {
                     "com.facebook.katana:id/fb_reels_container"
                 ).joinToString("|"),
                 tabFallbackLabel = "Reels",
+                isBuiltIn = true,
+                matchedSelectorCount = 2,
+                totalSelectorCount = 2,
+                isOutdated = false
+            ),
+            TargetAppRuleEntity(
+                packageName = "com.zhiliaoapp.musically",
+                displayName = "TikTok",
+                feedLabel = "For You feed",
+                enabled = false,
+                interventionMode = InterventionMode.OVERLAY,
+                cooldownMs = 800,
+                homeTabLabel = "Profile",
+                viewIdsRaw = listOf(
+                    "com.zhiliaoapp.musically:id/feed_pager",
+                    "com.zhiliaoapp.musically:id/vertical_view_pager"
+                ).joinToString("|"),
+                tabFallbackLabel = "Home",
+                isBuiltIn = true,
+                matchedSelectorCount = 2,
+                totalSelectorCount = 2,
+                isOutdated = false
+            ),
+            TargetAppRuleEntity(
+                packageName = "com.twitter.android",
+                displayName = "X",
+                feedLabel = "For You timeline",
+                enabled = false,
+                interventionMode = InterventionMode.OVERLAY,
+                cooldownMs = 800,
+                homeTabLabel = "Messages",
+                viewIdsRaw = listOf(
+                    "com.twitter.android:id/timeline_list",
+                    "com.twitter.android:id/immersive_video_player"
+                ).joinToString("|"),
+                tabFallbackLabel = "For you",
                 isBuiltIn = true,
                 matchedSelectorCount = 2,
                 totalSelectorCount = 2,
@@ -152,7 +206,7 @@ abstract class FeedSurgeonDatabase : RoomDatabase() {
                 appContext,
                 FeedSurgeonDatabase::class.java,
                 "outloop.db"
-            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .addCallback(
                     object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {

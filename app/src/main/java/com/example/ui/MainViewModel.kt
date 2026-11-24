@@ -7,6 +7,7 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.FeedSurgeonApp
+import com.example.data.local.AppFeedUsageEntity
 import com.example.data.local.AppPreferences
 import com.example.data.local.AppearanceMode
 import com.example.data.local.InterventionEventEntity
@@ -28,11 +29,13 @@ import com.example.worker.RulesetSyncWorker
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -111,6 +114,10 @@ data class MainUiState(
     val quietHoursEndLabel: String = "",
     val launchableApps: List<LaunchableAppInfo> = emptyList(),
     val streakDays: Int = 0,
+    val bestStreakDays: Int = 0,
+    val todayFeedSecondsByPackage: Map<String, Long> = emptyMap(),
+    val totalTodayFeedSeconds: Int = 0,
+    val weeklyDeltaText: String? = null,
     val currentTimeMs: Long = System.currentTimeMillis()
 )
 
@@ -247,12 +254,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    private val feedUsageRows: Flow<List<AppFeedUsageEntity>> = transientFlow
+        .map { InterventionRepository.dateKeyForMs(it.nowMs) }
+        .distinctUntilChanged()
+        .flatMapLatest { dateKey -> interventionRepo.observeAppFeedUsageForDate(dateKey) }
+
     val uiState: StateFlow<MainUiState> = combine(
         interventionRepo.preferences,
         interventionRepo.allRules,
         interventionRepo.eventsLast30Days,
-        transientFlow
-    ) { prefs, rules, events, transient ->
+        transientFlow,
+        feedUsageRows
+    ) { prefs, rules, events, transient, feedRows ->
         val installed = if (transient.hasScannedInstalledApps) {
             transient.installedPackages
         } else {
@@ -273,6 +286,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val weekEvents = countedEvents.filter { it.timestampMs >= weekStart }
         val weekSeconds = weekEvents.sumOf { it.reclaimedSeconds }
         val weekAllowedOnce = weekEvents.count { it.wasAllowedOnce }
+        val prevWeekStart = InterventionRepository.startOfWeekDaysAgoMs(13, nowMs)
+        val prevWeekSeconds = countedEvents
+            .filter { it.timestampMs in prevWeekStart until weekStart }
+            .sumOf { it.reclaimedSeconds }
+        val weeklyDeltaText = when {
+            prevWeekSeconds > 0 -> {
+                val pct = (((weekSeconds - prevWeekSeconds).toFloat() / prevWeekSeconds.toFloat()) * 100f).toInt()
+                if (pct >= 0) "+$pct% vs last week" else "$pct% vs last week"
+            }
+            weekSeconds > 0 -> "First active week"
+            else -> null
+        }
 
         val thirtyDayStart = InterventionRepository.startOfWeekDaysAgoMs(27, nowMs)
         val thirtyDayEvents = countedEvents.filter { it.timestampMs >= thirtyDayStart }
@@ -302,6 +327,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } ?: "None recorded yet"
         val lastOutcomeSummary = latestEvent?.let { formatOutcomeSummary(it.outcome) }
             ?: "None recorded yet"
+        val currentStreak = computeStreakDays(countedEvents, nowMs)
+        val bestStreak = computeBestStreakDays(countedEvents, nowMs).coerceAtLeast(currentStreak)
+        val todayFeedByPackage = feedRows.associate { it.packageName to it.trackedSeconds }
+        val totalTodayFeedSeconds = feedRows.sumOf { it.trackedSeconds }.toInt()
 
         MainUiState(
             isInitialLoading = false,
@@ -348,7 +377,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             isInQuietHours = isInQuietHours,
             quietHoursEndLabel = AppPreferences.formatMinutesOfDay(prefs.quietEndMinutes),
             launchableApps = transient.launchableApps,
-            streakDays = computeStreakDays(countedEvents, nowMs),
+            streakDays = currentStreak,
+            bestStreakDays = bestStreak,
+            todayFeedSecondsByPackage = todayFeedByPackage,
+            totalTodayFeedSeconds = totalTodayFeedSeconds,
+            weeklyDeltaText = weeklyDeltaText,
             currentTimeMs = nowMs
         )
     }.stateIn(
@@ -358,6 +391,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     init {
+        viewModelScope.launch {
+            runCatching { interventionRepo.ensureDefaultRulesSeeded() }
+        }
         refreshEventLog()
         refreshInstalledApps(app)
 
@@ -712,6 +748,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun setStrictModeEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            interventionRepo.setStrictModeEnabled(enabled)
+        }
+    }
+
+    fun toggleAlwaysOpenApp(identifier: String, enabled: Boolean) {
+        viewModelScope.launch {
+            interventionRepo.toggleAlwaysOpenApp(identifier, enabled)
+        }
+    }
+
+    fun setPreferredPauseMinutes(minutes: Int) {
+        viewModelScope.launch {
+            interventionRepo.setPreferredPauseMinutes(minutes)
+        }
+    }
+
+    fun setGlobalFeedTimeBudgetMinutes(minutes: Int) {
+        viewModelScope.launch {
+            interventionRepo.setGlobalFeedTimeBudgetMinutes(minutes)
+        }
+    }
+
     fun upsertCustomRule(
         packageName: String,
         displayName: String,
@@ -944,6 +1004,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return streak
     }
 
+    private fun computeBestStreakDays(
+        events: List<InterventionEventEntity>,
+        nowMs: Long
+    ): Int {
+        if (events.isEmpty()) return 0
+        var best = 0
+        var current = 0
+        for (daysAgo in 29 downTo 0) {
+            val dayStart = InterventionRepository.startOfWeekDaysAgoMs(daysAgo, nowMs)
+            val dayEnd = dayStart + 24L * 60 * 60 * 1000
+            if (events.any { it.timestampMs in dayStart until dayEnd }) {
+                current++
+                if (current > best) best = current
+            } else {
+                current = 0
+            }
+        }
+        return best
+    }
+
     private fun buildAppBreakdown(
         rules: List<TargetAppRuleEntity>,
         events: List<InterventionEventEntity>
@@ -967,9 +1047,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun formatReclaimedDuration(totalSeconds: Int): String {
         val minutes = totalSeconds / 60
         return when {
-            minutes <= 0 -> "0 min"
-            minutes < 60 -> "~$minutes min"
-            else -> "~${minutes / 60} h ${minutes % 60} min"
+            minutes <= 0 -> "0m"
+            minutes < 60 -> "${minutes}m"
+            else -> "${minutes / 60}h ${minutes % 60}m"
         }
     }
 

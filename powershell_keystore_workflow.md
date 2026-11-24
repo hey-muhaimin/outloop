@@ -14,7 +14,7 @@ This guide walks through generating your permanent Google Play upload keystore o
 Verify Java 21 (or JDK 17+) and `keytool` are available in PowerShell:
 
 ```powershell
-cd E:\Dev\Projects\outloop
+cd E:\Dev\OpenSource\outloop
 java -version
 keytool -help | Select-Object -First 3
 ```
@@ -44,7 +44,7 @@ signingConfigs {
 }
 ```
 
-- **`KEYSTORE_PATH`**: Full path to your `.jks` file (recommended outside the repo or at `E:\Dev\Projects\outloop\my-upload-key.jks`).
+- **`KEYSTORE_PATH`**: Full path to your `.jks` file (recommended outside the repo or at `E:\Dev\OpenSource\outloop\my-upload-key.jks`).
 - **`keyAlias`**: Must be **`upload`** (matches `app/build.gradle.kts` and `scripts/build-release.sh`).
 - **`STORE_PASSWORD` / `KEY_PASSWORD`**: Provided via PowerShell environment variables at build time.
 
@@ -114,7 +114,7 @@ Test-Path $env:KEYSTORE_PATH
 Run clean tests, release lint, Android App Bundle (`.aab` for Google Play), and signed release APK (`.apk` for local sideload testing):
 
 ```powershell
-cd E:\Dev\Projects\outloop
+cd E:\Dev\OpenSource\outloop
 
 .\gradlew.bat clean :app:testDebugUnitTest :app:lintVitalRelease :app:bundleRelease :app:assembleRelease
 ```

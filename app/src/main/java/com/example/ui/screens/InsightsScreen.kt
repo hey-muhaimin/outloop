@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -30,32 +31,32 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.data.model.ProtectionStatus
 import com.example.ui.MainUiState
 import com.example.ui.components.ChartColumnData
-import com.example.ui.components.OutloopAppMonogramBadge
-import com.example.ui.components.OutloopInsightsBarChart
-import com.example.ui.components.OutloopMark
+import com.example.ui.components.OutloopBentoStatTile
+import com.example.ui.components.OutloopBrandTopBar
+import com.example.ui.components.OutloopInsightsDarkChartCard
 import com.example.ui.components.OutloopSegmentedControl
 import com.example.ui.components.OutloopStaggeredEntrance
-import com.example.ui.components.OutloopTabHeader
 import com.example.ui.components.OutloopTonalCard
+import com.example.ui.components.PillTone
 import com.example.ui.theme.OutloopMetrics
 import com.example.ui.theme.OutloopTheme
-import java.util.Locale
 
 enum class InsightsRange(val label: String) {
-    TODAY("Today"),
-    SEVEN_DAYS("7 days"),
-    THIRTY_DAYS("30 days")
+    TODAY("Day"),
+    SEVEN_DAYS("Week"),
+    THIRTY_DAYS("Month")
 }
 
 @Composable
 fun InsightsScreen(
     uiState: MainUiState,
-    bottomContentPadding: Dp = OutloopMetrics.BottomNavContentPadding
+    bottomContentPadding: Dp = OutloopMetrics.BottomNavContentPadding,
+    onStatusClick: () -> Unit = {}
 ) {
     val colors = OutloopTheme.colors
     var selectedRange by rememberSaveable { mutableStateOf(InsightsRange.SEVEN_DAYS) }
@@ -87,27 +88,28 @@ fun InsightsScreen(
         InsightsRange.SEVEN_DAYS -> uiState.weeklyReclaimedText
         InsightsRange.THIRTY_DAYS -> uiState.thirtyDayReclaimedText
     }
+    val chartSubtitle = when (selectedRange) {
+        InsightsRange.TODAY -> "Time kept today"
+        InsightsRange.SEVEN_DAYS -> "Time kept this week"
+        InsightsRange.THIRTY_DAYS -> "Time kept this month"
+    }
+    val deltaPillText = when (selectedRange) {
+        InsightsRange.SEVEN_DAYS -> uiState.weeklyDeltaText
+        else -> null
+    }
     val byApp = when (selectedRange) {
         InsightsRange.TODAY -> uiState.todayByAppBreakdown
         InsightsRange.SEVEN_DAYS -> uiState.byAppBreakdown
         InsightsRange.THIRTY_DAYS -> uiState.thirtyDayByAppBreakdown
     }
-    val topAppName = byApp.firstOrNull { it.count > 0 }?.displayName ?: "\u2014"
 
-    val narrativeTitle = when (selectedRange) {
-        InsightsRange.TODAY -> "Small moments of awareness add up."
-        InsightsRange.SEVEN_DAYS -> "Your attention had a little more room this week."
-        InsightsRange.THIRTY_DAYS -> "You paused before entering $totalCount feeds."
-    }
-
-    val thirdKpiValue = when (selectedRange) {
-        InsightsRange.TODAY -> uiState.todayBusiestTimeLabel
-        InsightsRange.SEVEN_DAYS -> String.format(Locale.US, "%.1f", uiState.weeklyCutsCount / 7f)
-        InsightsRange.THIRTY_DAYS -> String.format(Locale.US, "%.1f", uiState.thirtyDayCutsCount / 28f)
-    }
-    val thirdKpiLabel = when (selectedRange) {
-        InsightsRange.TODAY -> "busiest time"
-        InsightsRange.SEVEN_DAYS, InsightsRange.THIRTY_DAYS -> "daily average"
+    val statusPill = when (uiState.protectionStatus) {
+        ProtectionStatus.OPERATIONAL -> "Guard on" to PillTone.SUCCESS
+        ProtectionStatus.PAUSED -> "Guard paused" to PillTone.WARNING
+        ProtectionStatus.QUIET_HOURS -> "Quiet hours" to PillTone.NEUTRAL
+        ProtectionStatus.NO_APPS_ACTIVE -> "No apps guarded" to PillTone.NEUTRAL
+        ProtectionStatus.PERMISSION_NEEDED -> "Setup needed" to PillTone.WARNING
+        ProtectionStatus.SERVICE_DISCONNECTED -> "Needs attention" to PillTone.WARNING
     }
 
     Box(
@@ -124,10 +126,16 @@ fun InsightsScreen(
                 top = OutloopMetrics.ScreenTopPadding,
                 bottom = bottomContentPadding
             ),
-            verticalArrangement = Arrangement.spacedBy(OutloopMetrics.SectionSpacing)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                OutloopTabHeader(title = "Insights")
+                OutloopBrandTopBar(
+                    title = "Insights",
+                    statusText = statusPill.first,
+                    statusTone = statusPill.second,
+                    onStatusClick = onStatusClick,
+                    statusTestTag = "insights_status_pill"
+                )
             }
 
             item {
@@ -143,116 +151,93 @@ fun InsightsScreen(
                 )
             }
 
-            if (totalCount == 0) {
-                item {
-                    OutloopStaggeredEntrance(index = 0) {
-                        OutloopTonalCard(
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 28.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                OutloopMark(size = 44.dp, color = colors.primaryTint)
-                                Text(
-                                    text = if (selectedRange == InsightsRange.TODAY) {
-                                        "Nothing to interrupt today."
-                                    } else {
-                                        "Your insights will appear as you use Outloop."
-                                    },
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = colors.ink,
-                                    textAlign = TextAlign.Center
-                                )
-                                Text(
-                                    text = "Outloop only counts feeds it actually interrupted.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.secondaryInk,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                    }
+            // Dark hero chart card ("Time kept this week", big metric, chunky capsule bars)
+            item {
+                OutloopStaggeredEntrance(index = 0) {
+                    OutloopInsightsDarkChartCard(
+                        subtitle = chartSubtitle,
+                        durationText = reclaimedText,
+                        deltaPillText = deltaPillText,
+                        columns = columns,
+                        selectedIndex = selectedBarIndex,
+                        onSelectIndex = { selectedBarIndex = it }
+                    )
                 }
-            } else {
-                // Narrative 2x2 KPI tonal card
-                item {
-                    OutloopStaggeredEntrance(index = 0) {
-                        OutloopTonalCard(contentPadding = OutloopMetrics.CardPadding) {
-                            Text(
-                                text = narrativeTitle,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = colors.ink
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                InsightMetricTile(
-                                    value = totalCount.toString(),
-                                    label = "feeds interrupted",
-                                    modifier = Modifier.weight(1f)
-                                )
-                                InsightMetricTile(
-                                    value = reclaimedText,
-                                    label = "est. time reclaimed",
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                InsightMetricTile(
-                                    value = thirdKpiValue,
-                                    label = thirdKpiLabel,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                InsightMetricTile(
-                                    value = topAppName,
-                                    label = "most interrupted",
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                    }
-                }
+            }
 
-                // Interactive bar chart card
-                item {
-                    OutloopStaggeredEntrance(index = 1) {
-                        OutloopTonalCard(contentPadding = OutloopMetrics.CardPadding) {
-                            Text(
-                                text = "Feeds interrupted",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = colors.ink
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            OutloopInsightsBarChart(
-                                columns = columns,
-                                selectedIndex = selectedBarIndex,
-                                onSelectIndex = { selectedBarIndex = it }
-                            )
-                        }
+            // Twin Mint ("loops broken") + Peach ("best streak") Bento Tiles
+            item {
+                OutloopStaggeredEntrance(index = 1) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutloopBentoStatTile(
+                            value = totalCount.toString(),
+                            label = "loops broken",
+                            containerColor = colors.mintTile,
+                            modifier = Modifier.weight(1f)
+                        )
+                        val bestStreakVal = uiState.bestStreakDays
+                        val bestStreakText = if (bestStreakVal == 1) "1 day" else "$bestStreakVal days"
+                        OutloopBentoStatTile(
+                            value = bestStreakText,
+                            label = "best streak",
+                            containerColor = colors.peachTile,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
+            }
 
-                // By app breakdown
-                item {
-                    OutloopStaggeredEntrance(index = 2) {
-                        OutloopTonalCard(contentPadding = OutloopMetrics.CardPadding) {
+            // Mint tile: measured time in feeds today (closes the estimation gap)
+            item {
+                OutloopStaggeredEntrance(index = 3) {
+                    val feedMinutes = uiState.totalTodayFeedSeconds.toLong() / 60
+                    val feedText = when {
+                        feedMinutes <= 0 -> "0m"
+                        feedMinutes < 60 -> "${feedMinutes}m"
+                        else -> "${feedMinutes / 60}h ${feedMinutes % 60}m"
+                    }
+                    OutloopBentoStatTile(
+                        value = feedText,
+                        label = "time in feeds today",
+                        containerColor = colors.mintTile
+                    )
+                }
+            }
+
+            // "Where loops start" breakdown card
+            item {
+                OutloopStaggeredEntrance(index = 2) {
+                    OutloopTonalCard(
+                        cornerRadius = OutloopMetrics.CardCornerRadius,
+                        contentPadding = PaddingValues(18.dp)
+                    ) {
+                        Text(
+                            text = "Where loops start",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = colors.secondaryInk
+                        )
+
+                        val activeBreakdown = byApp.filter {
+                            it.count > 0 || it.packageName in uiState.installedPackages
+                        }
+
+                        if (totalCount == 0 || activeBreakdown.none { it.count > 0 }) {
+                            Spacer(modifier = Modifier.height(10.dp))
                             Text(
-                                text = "By app",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = colors.ink
+                                text = if (selectedRange == InsightsRange.TODAY) {
+                                    "No feeds needed interrupting today. Outloop only counts real interruptions."
+                                } else {
+                                    "Your breakdown appears here once Outloop breaks a feed loop."
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.secondaryInk
                             )
-                            val activeBreakdown = byApp.filter {
-                                it.count > 0 || it.packageName in uiState.installedPackages
-                            }.ifEmpty { byApp }
-                            activeBreakdown.forEach { stat ->
+                        } else {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            activeBreakdown.filter { it.count > 0 }.forEach { stat ->
                                 val animatedWidth by animateFloatAsState(
                                     targetValue = stat.fraction.coerceIn(0f, 1f),
                                     animationSpec = spring(
@@ -261,53 +246,43 @@ fun InsightsScreen(
                                     ),
                                     label = "breakdown_${stat.packageName}"
                                 )
-                                Spacer(modifier = Modifier.height(10.dp))
+                                Spacer(modifier = Modifier.height(12.dp))
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        OutloopAppMonogramBadge(
-                                            appName = stat.displayName,
-                                            packageName = stat.packageName,
-                                            size = 24.dp,
-                                            cornerRadius = 7.dp
-                                        )
-                                        Text(
-                                            text = stat.displayName,
-                                            style = MaterialTheme.typography.titleMedium.copy(
-                                                fontWeight = FontWeight.Medium
-                                            ),
-                                            color = colors.ink
-                                        )
-                                    }
+                                    Text(
+                                        text = stat.label,
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontWeight = FontWeight.Medium
+                                        ),
+                                        color = colors.ink
+                                    )
                                     Text(
                                         text = stat.count.toString(),
-                                        style = MaterialTheme.typography.bodyLarge.copy(
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontWeight = FontWeight.Bold,
                                             fontFeatureSettings = "tnum"
                                         ),
-                                        color = colors.secondaryInk
+                                        color = colors.ink
                                     )
                                 }
-                                Spacer(modifier = Modifier.height(5.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(6.dp)
+                                        .height(10.dp)
                                         .clip(CircleShape)
-                                        .background(colors.divider)
+                                        .background(colors.surfaceSubtle)
                                 ) {
                                     if (animatedWidth > 0f) {
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxWidth(animatedWidth)
-                                                .height(6.dp)
+                                                .height(10.dp)
                                                 .clip(CircleShape)
-                                                .background(colors.primaryTint)
+                                                .background(colors.heroDark)
                                         )
                                     }
                                 }
@@ -315,40 +290,7 @@ fun InsightsScreen(
                         }
                     }
                 }
-
-                item {
-                    Text(
-                        text = "Estimated from confirmed exits, not measured screen time.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.secondaryInk,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
             }
         }
-    }
-}
-
-@Composable
-private fun InsightMetricTile(
-    value: String,
-    label: String,
-    modifier: Modifier = Modifier
-) {
-    val colors = OutloopTheme.colors
-    Column(modifier = modifier) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontFeatureSettings = "tnum"
-            ),
-            color = colors.ink
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = colors.secondaryInk
-        )
     }
 }

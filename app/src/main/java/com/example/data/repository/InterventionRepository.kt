@@ -1,5 +1,6 @@
 package com.example.data.repository
 
+import com.example.data.local.AppFeedUsageEntity
 import com.example.data.local.AppPreferences
 import com.example.data.local.AppearanceMode
 import com.example.data.local.FeedSurgeonDao
@@ -12,7 +13,10 @@ import com.example.data.model.InterventionOutcome
 import com.example.data.model.InterventionToastState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 class InterventionRepository(
     private val dao: FeedSurgeonDao,
@@ -41,6 +45,30 @@ class InterventionRepository(
     suspend fun setRuleEnabled(packageName: String, enabled: Boolean) {
         val current = dao.getRuleByPackage(packageName) ?: return
         dao.updateRule(current.copy(enabled = enabled))
+    }
+
+    suspend fun setDailyLimitMinutes(packageName: String, limitMinutes: Int) {
+        val current = dao.getRuleByPackage(packageName) ?: return
+        dao.updateRule(current.copy(dailyLimitMinutes = limitMinutes.coerceIn(0, 720)))
+    }
+
+    suspend fun setGlobalFeedTimeBudgetMinutes(minutes: Int) {
+        settingsDataStore.setGlobalFeedTimeBudgetMinutes(minutes)
+    }
+
+    fun observeAppFeedUsageForDate(dateKey: String): Flow<List<AppFeedUsageEntity>> =
+        dao.observeAppFeedUsageForDate(dateKey)
+
+    suspend fun getFeedUsageForDate(dateKey: String): List<AppFeedUsageEntity> =
+        dao.getAppFeedUsageForDate(dateKey)
+
+    suspend fun addFeedUsageSeconds(
+        packageName: String,
+        dateKey: String,
+        deltaSeconds: Long,
+        updatedAtMs: Long
+    ) {
+        dao.incrementAppFeedUsageSeconds(packageName, dateKey, deltaSeconds, updatedAtMs)
     }
 
     suspend fun setInterventionMode(packageName: String, mode: InterventionMode) {
@@ -110,6 +138,24 @@ class InterventionRepository(
 
     suspend fun setDailyBudgetCuts(budgetCuts: Int) {
         settingsDataStore.setDailyBudgetCuts(budgetCuts)
+    }
+
+    suspend fun setStrictModeEnabled(enabled: Boolean) {
+        settingsDataStore.setStrictModeEnabled(enabled)
+    }
+
+    suspend fun toggleAlwaysOpenApp(identifier: String, enabled: Boolean) {
+        val current = settingsDataStore.preferencesFlow.first().alwaysOpenApps.toMutableSet()
+        if (enabled) {
+            current.add(identifier)
+        } else {
+            current.remove(identifier)
+        }
+        settingsDataStore.setAlwaysOpenApps(current)
+    }
+
+    suspend fun setPreferredPauseMinutes(minutes: Int) {
+        settingsDataStore.setPreferredPauseMinutes(minutes)
     }
 
     suspend fun allowOnceForEvent(eventId: Long, packageName: String) {
@@ -236,6 +282,9 @@ class InterventionRepository(
     }
 
     companion object {
+        fun dateKeyForMs(nowMs: Long = System.currentTimeMillis()): String =
+            SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(nowMs))
+
         fun startOfTodayMs(nowMs: Long = System.currentTimeMillis()): Long {
             val cal = Calendar.getInstance().apply {
                 timeInMillis = nowMs

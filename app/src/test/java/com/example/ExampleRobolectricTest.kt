@@ -86,7 +86,7 @@ class ExampleRobolectricTest {
     @Test
     fun `default built-in rules use overlay shield mode`() {
         val defaults = FeedSurgeonDatabase.defaultBuiltInRules()
-        assertEquals(5, defaults.size)
+        assertEquals(7, defaults.size)
         assertTrue(defaults.all { it.interventionMode == InterventionMode.OVERLAY })
     }
 
@@ -122,7 +122,7 @@ class ExampleRobolectricTest {
     }
 
     @Test
-    fun `ruleset repository parses all five bundled apps and seeds local cache`() = runTest {
+    fun `ruleset repository parses all seven bundled apps and seeds local cache`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val db = FeedSurgeonDatabase.getInstance(context)
         val settings = SettingsDataStore(context)
@@ -130,10 +130,10 @@ class ExampleRobolectricTest {
 
         val parsed = repo.parseAndValidate(AppPreferences.BUNDLED_RULESET_JSON)
         assertNotNull(parsed)
-        assertEquals("v2026.11.18", parsed!!.version)
+        assertEquals("v2026.11.21", parsed!!.version)
         val packages = parsed.apps.map { it.packageName }.toSet()
         assertTrue(packages.containsAll(FeedSurgeonDatabase.BUILT_IN_PACKAGE_NAMES))
-        assertEquals(5, packages.size)
+        assertEquals(7, packages.size)
 
         val cacheFile = File(context.filesDir, "ruleset_cache.json")
         cacheFile.delete()
@@ -141,7 +141,7 @@ class ExampleRobolectricTest {
         assertTrue(cacheFile.exists())
         val cachedParsed = repo.parseAndValidate(cacheFile.readText())
         assertNotNull(cachedParsed)
-        assertEquals(5, cachedParsed!!.apps.size)
+        assertEquals(7, cachedParsed!!.apps.size)
     }
 
     @Test
@@ -157,7 +157,7 @@ class ExampleRobolectricTest {
         assertTrue(result is RulesetSyncResult.Success)
         val success = result as RulesetSyncResult.Success
         assertTrue(success.fromLocalCache)
-        assertEquals(5, success.updatedApps)
+        assertEquals(7, success.updatedApps)
     }
 
     @Test
@@ -325,9 +325,9 @@ class ExampleRobolectricTest {
         val success = fallback as RulesetSyncResult.Success
         assertTrue(success.revertedToHardcoded)
         assertEquals(AppPreferences.DEFAULT_RULESET_VERSION, success.version)
-        assertEquals(5, success.updatedApps)
+        assertEquals(7, success.updatedApps)
         assertEquals("", settings.preferencesFlow.first().rulesetEtag)
-        assertEquals(5, db.feedSurgeonDao().getAllRulesSnapshot().size)
+        assertEquals(7, db.feedSurgeonDao().getAllRulesSnapshot().size)
     }
 
     @Test
@@ -696,11 +696,14 @@ class ExampleRobolectricTest {
         settings.setAppearanceMode(AppearanceMode.DARK)
         settings.setQuietHours(enabled = true, startMinutes = 22 * 60, endMinutes = 7 * 60)
         settings.setDailyBudgetCuts(15)
+        settings.setStrictModeEnabled(false)
+        settings.setPreferredPauseMinutes(30)
+        repo.toggleAlwaysOpenApp("Slack", true)
 
         val json = backupManager.exportToJson()
         val preview = backupManager.inspectBackupJson(json)
         assertNotNull(preview)
-        assertEquals(6, preview!!.ruleCount)
+        assertEquals(8, preview!!.ruleCount)
         assertEquals(1, preview.customRuleCount)
         assertEquals(1, preview.eventCount)
 
@@ -710,6 +713,9 @@ class ExampleRobolectricTest {
         settings.setAppearanceMode(AppearanceMode.LIGHT)
         settings.setQuietHours(enabled = false, startMinutes = 0, endMinutes = 0)
         settings.setDailyBudgetCuts(0)
+        settings.setStrictModeEnabled(true)
+        settings.setPreferredPauseMinutes(15)
+        repo.toggleAlwaysOpenApp("Slack", false)
 
         val invalidResult = backupManager.restoreFromJson("{invalid json")
         assertTrue(invalidResult is BackupRestoreResult.Error)
@@ -717,7 +723,7 @@ class ExampleRobolectricTest {
         val restored = backupManager.restoreFromJson(json)
         assertTrue(restored is BackupRestoreResult.Success)
         val success = restored as BackupRestoreResult.Success
-        assertEquals(6, success.restoredRules)
+        assertEquals(8, success.restoredRules)
         assertEquals(1, success.restoredEvents)
 
         val restoredCustom = dao.getRuleByPackage("com.custom.shortapp")
@@ -729,13 +735,19 @@ class ExampleRobolectricTest {
         assertEquals(AppearanceMode.DARK, restoredPrefs.appearanceMode)
         assertTrue(restoredPrefs.quietHoursEnabled)
         assertEquals(15, restoredPrefs.dailyBudgetCuts)
+        assertFalse(restoredPrefs.strictModeEnabled)
+        assertEquals(30, restoredPrefs.preferredPauseMinutes)
+        assertTrue("Slack" in restoredPrefs.alwaysOpenApps)
 
         // Clean up test mutations so shared Robolectric DB/DataStore remains pristine for other tests
         dao.deleteCustomRule("com.custom.shortapp")
         dao.clearAllEvents()
         settings.setQuietHours(enabled = false, startMinutes = 22 * 60, endMinutes = 7 * 60)
         settings.setDailyBudgetCuts(0)
-        settings.setAppearanceMode(AppearanceMode.SYSTEM)
+        settings.setStrictModeEnabled(true)
+        settings.setPreferredPauseMinutes(15)
+        repo.toggleAlwaysOpenApp("Slack", false)
+        settings.setAppearanceMode(AppearanceMode.LIGHT)
     }
 
     @Test

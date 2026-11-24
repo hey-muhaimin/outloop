@@ -71,14 +71,6 @@ android {
   }
 }
 
-// Robolectric @Config(sdk = [36]) requires a Java 21 test JVM; host/CI JDK is 17.
-// The Foojay resolver in settings.gradle.kts auto-provisions the launcher.
-tasks.withType<Test>().configureEach {
-  javaLauncher.set(javaToolchains.launcherFor {
-    languageVersion.set(JavaLanguageVersion.of(21))
-  })
-}
-
 // Configure the Secrets Gradle Plugin to use .env and .env.example files
 // to match the convention used in Web projects.
 secrets {

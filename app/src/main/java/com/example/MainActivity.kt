@@ -200,6 +200,10 @@ fun FeedSurgeonRoot(
             onSetQuietHours = viewModel::setQuietHours,
             onResumeQuietHoursEarly = viewModel::resumeFromQuietHoursEarly,
             onSetDailyBudget = viewModel::setDailyBudgetCuts,
+            onSetStrictModeEnabled = viewModel::setStrictModeEnabled,
+            onSetGlobalFeedTimeBudgetMinutes = viewModel::setGlobalFeedTimeBudgetMinutes,
+            onToggleAlwaysOpenApp = viewModel::toggleAlwaysOpenApp,
+            onSetPreferredPauseMinutes = viewModel::setPreferredPauseMinutes,
             onSaveCustomRule = viewModel::upsertCustomRule,
             onDeleteCustomRule = viewModel::deleteCustomRule,
             onExportBackupUri = { uri, cb -> viewModel.exportBackupToUri(context, uri, cb) },
@@ -243,6 +247,10 @@ fun OutloopNavigationHost(
     onSetQuietHours: (Boolean, Int, Int) -> Unit = { _, _, _ -> },
     onResumeQuietHoursEarly: () -> Unit = {},
     onSetDailyBudget: (Int) -> Unit = {},
+    onSetStrictModeEnabled: (Boolean) -> Unit = {},
+    onSetGlobalFeedTimeBudgetMinutes: (Int) -> Unit = {},
+    onToggleAlwaysOpenApp: (String, Boolean) -> Unit = { _, _ -> },
+    onSetPreferredPauseMinutes: (Int) -> Unit = {},
     onSaveCustomRule: (String, String, String, List<String>, String, String, InterventionMode) -> Unit = { _, _, _, _, _, _, _ -> },
     onDeleteCustomRule: (String) -> Unit = {},
     onExportBackupUri: (Uri, (String) -> Unit) -> Unit = { _, _ -> },
@@ -401,6 +409,11 @@ fun OutloopNavigationHost(
                             ) {
                                 composable(Routes.ONBOARDING) {
                                     CompositionLocalProvider(LocalAnimatedVisibilityScope provides this) {
+                                        val quietSummary = if (uiState.preferences.quietHoursEnabled) {
+                                            "Quiet ${com.example.data.local.AppPreferences.formatMinutesOfDay(uiState.preferences.quietStartMinutes)} to ${com.example.data.local.AppPreferences.formatMinutesOfDay(uiState.preferences.quietEndMinutes)}"
+                                        } else {
+                                            "All day"
+                                        }
                                         OnboardingScreen(
                                             rules = uiState.rules,
                                             installedPackages = uiState.installedPackages,
@@ -431,7 +444,10 @@ fun OutloopNavigationHost(
                                                 navigateToHomeClearingOnboarding()
                                                 navigateToTopLevel(BottomTab.SETTINGS)
                                             },
-                                            hasScannedInstalledApps = uiState.hasScannedInstalledApps
+                                            hasScannedInstalledApps = uiState.hasScannedInstalledApps,
+                                            disclosureAccepted = uiState.preferences.disclosureAccepted,
+                                            preferredPauseMinutes = uiState.preferences.preferredPauseMinutes,
+                                            quietHoursSummary = quietSummary
                                         )
                                     }
                                 }
@@ -474,6 +490,7 @@ fun OutloopNavigationHost(
                                             onShowEstimateToast = { msg -> uiToastMessage = msg },
                                             onResumeQuietHoursEarly = onResumeQuietHoursEarly,
                                             onRefreshProtectionHealth = onRefreshProtectionHealth,
+                                            onSetPreferredPauseMinutes = onSetPreferredPauseMinutes,
                                             bottomContentPadding = bottomContentPadding
                                         )
                                     }
@@ -483,7 +500,19 @@ fun OutloopNavigationHost(
                                     CompositionLocalProvider(LocalAnimatedVisibilityScope provides this) {
                                         InsightsScreen(
                                             uiState = uiState,
-                                            bottomContentPadding = bottomContentPadding
+                                            bottomContentPadding = bottomContentPadding,
+                                            onStatusClick = {
+                                                when (uiState.protectionStatus) {
+                                                    ProtectionStatus.PERMISSION_NEEDED ->
+                                                        navController.navigate(Routes.ONBOARDING)
+                                                    ProtectionStatus.SERVICE_DISCONNECTED ->
+                                                        navController.navigate(Routes.DIAGNOSTICS)
+                                                    ProtectionStatus.NO_APPS_ACTIVE ->
+                                                        navController.navigate(Routes.MANAGE_APPS)
+                                                    else ->
+                                                        navigateToTopLevel(BottomTab.SETTINGS)
+                                                }
+                                            }
                                         )
                                     }
                                 }
@@ -516,6 +545,10 @@ fun OutloopNavigationHost(
                                             onInspectBackupUri = onInspectBackupUri,
                                             onRestoreBackupJson = onRestoreBackupJson,
                                             onAcceptDisclosure = onAcceptDisclosure,
+                                            onToggleGlobalPause = onToggleGlobalPause,
+                                            onSetStrictModeEnabled = onSetStrictModeEnabled,
+                                            onSetGlobalFeedTimeBudgetMinutes = onSetGlobalFeedTimeBudgetMinutes,
+                                            onToggleAlwaysOpenApp = onToggleAlwaysOpenApp,
                                             bottomContentPadding = bottomContentPadding
                                         )
                                     }
