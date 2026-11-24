@@ -32,7 +32,8 @@ data class TargetAppRuleEntity(
             if (idx >= 0) "id/" + fullId.substring(idx + 4) else fullId
         }
 
-    val dailyLimitSeconds: Long get() = dailyLimitMinutes.coerceAtLeast(0) * 60L
+    val dailyLimitSeconds: Long
+        get() = dailyLimitMinutes.coerceAtLeast(0) * 60L
 
     fun hasDailyLimit(): Boolean = dailyLimitMinutes > 0
 

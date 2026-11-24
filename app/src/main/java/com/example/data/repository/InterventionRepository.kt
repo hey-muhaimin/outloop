@@ -1,6 +1,6 @@
 package com.example.data.repository
 
-import com.example.data.local.AppFeedUsageEntity
+import com.example.data.local.AppDailyUsageEntity
 import com.example.data.local.AppPreferences
 import com.example.data.local.AppearanceMode
 import com.example.data.local.FeedSurgeonDao
@@ -21,54 +21,66 @@ import java.util.Locale
 class InterventionRepository(
     private val dao: FeedSurgeonDao,
     private val settingsDataStore: SettingsDataStore
-) {
-    val allRules: Flow<List<TargetAppRuleEntity>> = dao.observeAllRules()
+) : ControlledAppsRepository {
+    override val allRules: Flow<List<TargetAppRuleEntity>> = dao.observeAllRules()
+    override val activeRules: Flow<List<TargetAppRuleEntity>> = dao.observeEnabledRules()
     val recentEvents: Flow<List<InterventionEventEntity>> = dao.observeRecentEvents()
     val eventsLast30Days: Flow<List<InterventionEventEntity>> =
         dao.observeEventsSince(startOfWeekDaysAgoMs(29))
     val preferences: Flow<AppPreferences> = settingsDataStore.preferencesFlow
 
-    fun observeRule(packageName: String): Flow<TargetAppRuleEntity?> =
+    override fun observeRule(packageName: String): Flow<TargetAppRuleEntity?> =
         dao.observeRuleByPackage(packageName)
 
-    suspend fun ensureDefaultRulesSeeded() {
+    override fun observeDailyUsageForDate(dateKey: String): Flow<List<AppDailyUsageEntity>> =
+        dao.observeDailyUsageForDate(dateKey)
+
+    override fun observeAppDailyUsage(packageName: String, dateKey: String): Flow<AppDailyUsageEntity?> =
+        dao.observeAppDailyUsage(packageName, dateKey)
+
+    override suspend fun ensureDefaultRulesSeeded() {
         val existingPackages = dao.getAllRulesSnapshot().map { it.packageName }.toSet()
         val defaultMode = settingsDataStore.preferencesFlow.first().defaultInterventionMode
         val missingDefaults = FeedSurgeonDatabase.defaultBuiltInRules().filter {
             it.packageName !in existingPackages
         }.map { it.copy(interventionMode = defaultMode) }
         if (missingDefaults.isNotEmpty()) {
-            dao.upsertRules(missingDefaults)
+            dao.insertRulesIfMissing(missingDefaults)
         }
     }
 
-    suspend fun setRuleEnabled(packageName: String, enabled: Boolean) {
+    override suspend fun getRule(packageName: String): TargetAppRuleEntity? =
+        dao.getRuleByPackage(packageName)
+
+    override suspend fun isControlledPackage(packageName: String): Boolean =
+        dao.getRuleByPackage(packageName) != null
+
+    override suspend fun setRuleEnabled(packageName: String, enabled: Boolean) {
         val current = dao.getRuleByPackage(packageName) ?: return
         dao.updateRule(current.copy(enabled = enabled))
     }
 
-    suspend fun setDailyLimitMinutes(packageName: String, limitMinutes: Int) {
+    override suspend fun setDailyLimitMinutes(packageName: String, limitMinutes: Int) {
         val current = dao.getRuleByPackage(packageName) ?: return
         dao.updateRule(current.copy(dailyLimitMinutes = limitMinutes.coerceIn(0, 720)))
     }
 
-    suspend fun setGlobalFeedTimeBudgetMinutes(minutes: Int) {
-        settingsDataStore.setGlobalFeedTimeBudgetMinutes(minutes)
-    }
+    override suspend fun getTodayUsageSeconds(packageName: String, dateKey: String): Long =
+        dao.getAppDailyUsage(packageName, dateKey)?.trackedSeconds ?: 0L
 
-    fun observeAppFeedUsageForDate(dateKey: String): Flow<List<AppFeedUsageEntity>> =
-        dao.observeAppFeedUsageForDate(dateKey)
-
-    suspend fun getFeedUsageForDate(dateKey: String): List<AppFeedUsageEntity> =
-        dao.getAppFeedUsageForDate(dateKey)
-
-    suspend fun addFeedUsageSeconds(
+    override suspend fun addTrackedUsageSeconds(
         packageName: String,
         dateKey: String,
         deltaSeconds: Long,
         updatedAtMs: Long
     ) {
-        dao.incrementAppFeedUsageSeconds(packageName, dateKey, deltaSeconds, updatedAtMs)
+        if (packageName.isBlank() || dateKey.isBlank() || deltaSeconds <= 0L) return
+        dao.incrementDailyUsageSeconds(
+            packageName = packageName,
+            dateKey = dateKey,
+            deltaSeconds = deltaSeconds,
+            updatedAtMs = updatedAtMs
+        )
     }
 
     suspend fun setInterventionMode(packageName: String, mode: InterventionMode) {
@@ -239,7 +251,7 @@ class InterventionRepository(
         )
     }
 
-    suspend fun upsertCustomRule(
+    override suspend fun upsertCustomRule(
         packageName: String,
         displayName: String,
         feedLabel: String,
@@ -267,12 +279,13 @@ class InterventionRepository(
                 isBuiltIn = existing?.isBuiltIn ?: false,
                 matchedSelectorCount = cleanIds.size,
                 totalSelectorCount = cleanIds.size,
-                isOutdated = false
+                isOutdated = false,
+                dailyLimitMinutes = existing?.dailyLimitMinutes ?: 0
             )
         )
     }
 
-    suspend fun deleteCustomRule(packageName: String) {
+    override suspend fun deleteCustomRule(packageName: String) {
         dao.deleteCustomRule(packageName)
     }
 
@@ -284,6 +297,21 @@ class InterventionRepository(
     companion object {
         fun dateKeyForMs(nowMs: Long = System.currentTimeMillis()): String =
             SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(nowMs))
+
+        fun formatDurationCompact(totalSeconds: Long): String {
+            val safeSeconds = totalSeconds.coerceAtLeast(0L)
+            val totalMinutes = safeSeconds / 60L
+            return when {
+                safeSeconds == 0L -> "0m"
+                totalMinutes == 0L -> "<1m"
+                totalMinutes < 60L -> "${totalMinutes}m"
+                else -> {
+                    val h = totalMinutes / 60L
+                    val m = totalMinutes % 60L
+                    if (m == 0L) "${h}h" else "${h}h ${m}m"
+                }
+            }
+        }
 
         fun startOfTodayMs(nowMs: Long = System.currentTimeMillis()): Long {
             val cal = Calendar.getInstance().apply {

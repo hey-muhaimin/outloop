@@ -30,10 +30,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AccessibilityNew
 import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.DataUsage
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Shield
@@ -59,19 +57,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.BuildConfig
-import com.example.R
 import com.example.data.local.AppPreferences
-import com.example.data.local.AppearanceMode
 import com.example.data.model.InterventionMode
-import com.example.data.model.ProtectionStatus
 import com.example.data.repository.OutloopBackupPreview
+import com.example.service.LaunchableAppInfo
 import com.example.ui.MainUiState
-import com.example.ui.components.OutloopBrandTopBar
 import com.example.ui.components.OutloopHairlineDivider
 import com.example.ui.components.OutloopIconBadge
 import com.example.ui.components.OutloopListNavRow
@@ -84,6 +78,7 @@ import com.example.ui.components.OutloopSegmentedControl
 import com.example.ui.components.OutloopStaggeredEntrance
 import com.example.ui.components.OutloopStatusPill
 import com.example.ui.components.OutloopSwitch
+import com.example.ui.components.OutloopTabHeader
 import com.example.ui.components.OutloopTonalCard
 import com.example.ui.components.PillTone
 import com.example.ui.components.outloopPressScale
@@ -101,7 +96,6 @@ fun SettingsScreen(
     onOpenPrivacy: () -> Unit,
     onOpenDiagnostics: () -> Unit,
     onSelectDefaultMode: (InterventionMode) -> Unit,
-    onSelectAppearanceMode: (AppearanceMode) -> Unit,
     onSetReclaimedSeconds: (Int) -> Unit,
     onSetHapticFeedback: (Boolean) -> Unit,
     onSetShowBanner: (Boolean) -> Unit,
@@ -117,22 +111,18 @@ fun SettingsScreen(
     onAcceptDisclosure: () -> Unit = {},
     onToggleGlobalPause: (Boolean) -> Unit = {},
     onSetStrictModeEnabled: (Boolean) -> Unit = {},
-    onSetGlobalFeedTimeBudgetMinutes: (Int) -> Unit = {},
     onToggleAlwaysOpenApp: (String, Boolean) -> Unit = { _, _ -> },
     bottomContentPadding: Dp = OutloopMetrics.BottomNavContentPadding
 ) {
     val context = LocalContext.current
     val colors = OutloopTheme.colors
     val haptic = rememberOutloopHaptic()
-    val privacyPolicyUrl = stringResource(R.string.privacy_policy_url)
 
     var showScheduleSheet by rememberSaveable { mutableStateOf(false) }
     var showAlwaysOpenSheet by rememberSaveable { mutableStateOf(false) }
-    var showThemeSheet by rememberSaveable { mutableStateOf(false) }
     var showAboutSheet by rememberSaveable { mutableStateOf(false) }
     var showDefaultResponseSheet by rememberSaveable { mutableStateOf(false) }
     var showDailyBudgetSheet by rememberSaveable { mutableStateOf(false) }
-    var showFeedTimeBudgetSheet by rememberSaveable { mutableStateOf(false) }
     var showClearHistorySheet by rememberSaveable { mutableStateOf(false) }
     var showAccessibilityDisclosureSheet by rememberSaveable { mutableStateOf(false) }
     var pendingBackupPreview by remember { mutableStateOf<OutloopBackupPreview?>(null) }
@@ -167,30 +157,24 @@ fun SettingsScreen(
         "All day"
     }
 
-    val alwaysOpenSummary = remember(uiState.preferences.alwaysOpenApps, uiState.launchableApps) {
+    val alwaysOpenSummary = remember(
+        uiState.preferences.alwaysOpenApps,
+        uiState.utilityApps,
+        uiState.launchableApps
+    ) {
+        val utilityMap = uiState.utilityApps.associateBy { it.packageName }
+        val launchableMap = uiState.launchableApps.associateBy { it.packageName }
         val list = uiState.preferences.alwaysOpenApps.map { id ->
-            uiState.launchableApps.firstOrNull { it.packageName == id }?.displayName ?: id
-        }.sorted()
+            utilityMap[id]?.displayName
+                ?: launchableMap[id]?.displayName
+                ?: AppPreferences.ALWAYS_OPEN_FRIENDLY_NAMES[id]
+                ?: id
+        }.distinct().sorted()
         when {
             list.isEmpty() -> "None"
             list.size <= 3 -> list.joinToString(", ")
             else -> "${list.take(3).joinToString(", ")} and ${list.size - 3} more"
         }
-    }
-
-    val statusPill = when (uiState.protectionStatus) {
-        ProtectionStatus.OPERATIONAL -> "Guard on" to PillTone.SUCCESS
-        ProtectionStatus.PAUSED -> "Guard paused" to PillTone.WARNING
-        ProtectionStatus.QUIET_HOURS -> "Quiet hours" to PillTone.NEUTRAL
-        ProtectionStatus.NO_APPS_ACTIVE -> "No apps guarded" to PillTone.NEUTRAL
-        ProtectionStatus.PERMISSION_NEEDED -> "Setup needed" to PillTone.WARNING
-        ProtectionStatus.SERVICE_DISCONNECTED -> "Needs attention" to PillTone.WARNING
-    }
-
-    val themeSubtitle = when (uiState.preferences.appearanceMode) {
-        AppearanceMode.LIGHT -> "Light"
-        AppearanceMode.DARK -> "Dark"
-        AppearanceMode.SYSTEM -> "Follow system"
     }
 
     val selectedSeconds = when (uiState.preferences.reclaimedSecondsPerCut) {
@@ -218,12 +202,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                OutloopBrandTopBar(
-                    title = "Settings",
-                    statusText = statusPill.first,
-                    statusTone = statusPill.second,
-                    statusTestTag = "settings_status_pill"
-                )
+                OutloopTabHeader(title = "Settings")
             }
 
             // Card 1: Guard
@@ -256,23 +235,30 @@ fun SettingsScreen(
                                 onCheckedChange = onSetStrictModeEnabled,
                                 switchTestTag = "settings_strict_mode_switch"
                             )
-                            val feedBudgetSubtitle = when (uiState.preferences.globalFeedTimeBudgetMinutes) {
-                                0 -> "Off"
-                                else -> "${uiState.preferences.globalFeedTimeBudgetMinutes} min/day"
-                            }
-                            SettingsNavBentoRow(
-                                icon = Icons.Outlined.DataUsage,
-                                title = "Daily feed time budget",
-                                subtitle = feedBudgetSubtitle,
-                                onClick = { showFeedTimeBudgetSheet = true },
-                                modifier = Modifier.testTag("settings_feed_budget_row")
-                            )
                             SettingsNavBentoRow(
                                 icon = Icons.Outlined.Schedule,
                                 title = "Schedule",
                                 subtitle = scheduleSubtitle,
                                 onClick = { showScheduleSheet = true },
                                 modifier = Modifier.testTag("settings_quiet_hours")
+                            )
+                            OutloopHairlineDivider()
+                            OutloopListNavRow(
+                                title = "Default response",
+                                valueText = uiState.preferences.defaultInterventionMode.shortLabel,
+                                onClick = { showDefaultResponseSheet = true },
+                                modifier = Modifier.testTag("settings_default_response")
+                            )
+                            OutloopHairlineDivider()
+                            OutloopListNavRow(
+                                title = "Daily pause target",
+                                valueText = if (uiState.preferences.dailyBudgetCuts > 0) {
+                                    "${uiState.preferences.dailyBudgetCuts} / day"
+                                } else {
+                                    "Off"
+                                },
+                                onClick = { showDailyBudgetSheet = true },
+                                modifier = Modifier.testTag("settings_daily_budget")
                             )
                         }
                     }
@@ -360,7 +346,7 @@ fun SettingsScreen(
                 }
             }
 
-            // Card 3: General
+            // Card 3: Tracking and display
             item {
                 OutloopStaggeredEntrance(index = 2) {
                     OutloopTonalCard(
@@ -368,27 +354,155 @@ fun SettingsScreen(
                         contentPadding = PaddingValues(18.dp)
                     ) {
                         Text(
-                            text = "General",
+                            text = "Tracking and display",
                             style = MaterialTheme.typography.titleSmall,
                             color = colors.secondaryInk
                         )
                         Spacer(modifier = Modifier.height(10.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            SettingsNavBentoRow(
-                                icon = Icons.Outlined.LightMode,
-                                title = "Theme",
-                                subtitle = themeSubtitle,
-                                onClick = { showThemeSheet = true },
-                                modifier = Modifier.testTag("settings_theme_row")
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(
+                                text = "Time estimate per loop",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = colors.ink
                             )
-                            SettingsNavBentoRow(
-                                icon = Icons.Outlined.Info,
-                                title = "About Outloop",
-                                subtitle = "Version ${BuildConfig.VERSION_NAME}",
-                                onClick = { showAboutSheet = true },
-                                modifier = Modifier.testTag("settings_about_row")
+                            OutloopSegmentedControl(
+                                options = listOf(60 to "1m", 120 to "2m", 180 to "3m", 300 to "5m"),
+                                selected = selectedSeconds,
+                                onSelect = onSetReclaimedSeconds,
+                                modifier = Modifier.testTag("settings_estimate_selector")
+                            )
+                            OutloopHairlineDivider()
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 52.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Haptic feedback",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
+                                    color = colors.ink
+                                )
+                                OutloopSwitch(
+                                    checked = uiState.preferences.hapticFeedbackEnabled,
+                                    onCheckedChange = onSetHapticFeedback,
+                                    contentDescription = "Haptic feedback",
+                                    modifier = Modifier.testTag("settings_haptics_switch")
+                                )
+                            }
+                            OutloopHairlineDivider()
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 52.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Intervention banner",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
+                                    color = colors.ink
+                                )
+                                OutloopSwitch(
+                                    checked = uiState.preferences.showInterventionBanner,
+                                    onCheckedChange = onSetShowBanner,
+                                    contentDescription = "Intervention banner",
+                                    modifier = Modifier.testTag("settings_notifications_switch")
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Card 4: Data and diagnostics
+            item {
+                OutloopStaggeredEntrance(index = 3) {
+                    OutloopTonalCard(
+                        cornerRadius = OutloopMetrics.CardCornerRadius,
+                        contentPadding = PaddingValues(18.dp)
+                    ) {
+                        Text(
+                            text = "Data and diagnostics",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = colors.secondaryInk
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        OutloopListNavRow(
+                            title = "How detection works",
+                            onClick = onOpenPrivacy,
+                            modifier = Modifier.testTag("settings_privacy")
+                        )
+                        OutloopHairlineDivider()
+                        OutloopListNavRow(
+                            title = "Diagnostics",
+                            onClick = onOpenDiagnostics,
+                            modifier = Modifier.testTag("settings_diagnostics")
+                        )
+                        OutloopHairlineDivider()
+                        OutloopListNavRow(
+                            title = "Export local backup",
+                            valueText = "JSON",
+                            onClick = {
+                                haptic()
+                                val dateStamp = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                                exportBackupLauncher.launch("outloop-backup-$dateStamp.json")
+                            },
+                            modifier = Modifier.testTag("settings_export_backup")
+                        )
+                        OutloopHairlineDivider()
+                        OutloopListNavRow(
+                            title = "Restore from backup",
+                            onClick = {
+                                haptic()
+                                importBackupLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+                            },
+                            modifier = Modifier.testTag("settings_restore_backup")
+                        )
+                        OutloopHairlineDivider()
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 52.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable {
+                                    haptic()
+                                    showClearHistorySheet = true
+                                }
+                                .testTag("settings_clear_history_button"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Clear activity history",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = colors.destructive
                             )
                         }
+                    }
+                }
+            }
+
+            // Card 5: About
+            item {
+                OutloopStaggeredEntrance(index = 4) {
+                    OutloopTonalCard(
+                        cornerRadius = OutloopMetrics.CardCornerRadius,
+                        contentPadding = PaddingValues(18.dp)
+                    ) {
+                        Text(
+                            text = "About",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = colors.secondaryInk
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        SettingsNavBentoRow(
+                            icon = Icons.Outlined.Info,
+                            title = "About Outloop",
+                            subtitle = "Version ${BuildConfig.VERSION_NAME}",
+                            onClick = { showAboutSheet = true },
+                            modifier = Modifier.testTag("settings_about_row")
+                        )
                     }
                 }
             }
@@ -415,76 +529,15 @@ fun SettingsScreen(
         )
     }
 
-    if (showFeedTimeBudgetSheet) {
-        var budgetMinutes by rememberSaveable {
-            mutableIntStateOf(uiState.preferences.globalFeedTimeBudgetMinutes)
-        }
-        OutloopModalSheet(
-            title = "Daily feed time budget",
-            onDismiss = { showFeedTimeBudgetSheet = false }
-        ) {
-            Text(
-                text = "Caps measured feed time per day across guarded apps. 0 = off.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.secondaryInk
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            OutloopSegmentedControl(
-                options = listOf(0, 15, 30, 45, 60, 90, 120).map { minute ->
-                    minute to (if (minute == 0) "Off" else "${minute}m")
-                },
-                selected = budgetMinutes,
-                onSelect = { budgetMinutes = it },
-                modifier = Modifier.testTag("settings_feed_budget_selector")
-            )
-            Spacer(modifier = Modifier.height(14.dp))
-            OutloopSecondaryButton(
-                text = "Save budget",
-                onClick = {
-                    onSetGlobalFeedTimeBudgetMinutes(budgetMinutes)
-                    showFeedTimeBudgetSheet = false
-                }
-            )
-        }
-    }
-
     if (showAlwaysOpenSheet) {
         AlwaysOpenSheet(
             alwaysOpenApps = uiState.preferences.alwaysOpenApps,
+            utilityApps = uiState.utilityApps,
             launchableApps = uiState.launchableApps,
             monitoredPackages = uiState.rules.map { it.packageName }.toSet(),
             onToggleApp = onToggleAlwaysOpenApp,
             onDismiss = { showAlwaysOpenSheet = false }
         )
-    }
-
-    if (showThemeSheet) {
-        OutloopModalSheet(
-            title = "Theme",
-            onDismiss = { showThemeSheet = false }
-        ) {
-            Text(
-                text = "Choose how Outloop looks. Light Tonal Bento is the signature daylight theme.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.secondaryInk
-            )
-            OutloopSegmentedControl(
-                options = listOf(
-                    AppearanceMode.LIGHT to AppearanceMode.LIGHT.label,
-                    AppearanceMode.DARK to AppearanceMode.DARK.label,
-                    AppearanceMode.SYSTEM to AppearanceMode.SYSTEM.label
-                ),
-                selected = uiState.preferences.appearanceMode,
-                onSelect = onSelectAppearanceMode,
-                modifier = Modifier.testTag("settings_appearance_selector")
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            OutloopPrimaryButton(
-                text = "Done",
-                onClick = { showThemeSheet = false },
-                modifier = Modifier.testTag("settings_theme_done_button")
-            )
-        }
     }
 
     if (showAboutSheet) {
@@ -495,99 +548,13 @@ fun SettingsScreen(
             Text(
                 text = "Outloop ${BuildConfig.VERSION_NAME} \u00B7 On-device digital wellbeing",
                 style = MaterialTheme.typography.bodyMedium,
+                color = colors.ink
+            )
+            Text(
+                text = "All feed detection, usage tracking, and activity insights run strictly on your device. Outloop never uploads screen activity, browsing habits, or account data. Optional rule updates only check public selector definitions over HTTPS.",
+                style = MaterialTheme.typography.bodyMedium,
                 color = colors.secondaryInk
             )
-
-            OutloopTonalCard(
-                cornerRadius = OutloopMetrics.SubCardCornerRadius,
-                contentPadding = PaddingValues(0.dp)
-            ) {
-                OutloopListNavRow(
-                    title = "Default response",
-                    valueText = uiState.preferences.defaultInterventionMode.shortLabel,
-                    onClick = {
-                        showAboutSheet = false
-                        showDefaultResponseSheet = true
-                    },
-                    modifier = Modifier.testTag("settings_default_response")
-                )
-                OutloopHairlineDivider()
-                OutloopListNavRow(
-                    title = "Daily pause target",
-                    valueText = if (uiState.preferences.dailyBudgetCuts > 0) {
-                        "${uiState.preferences.dailyBudgetCuts} / day"
-                    } else {
-                        "Off"
-                    },
-                    onClick = {
-                        showAboutSheet = false
-                        showDailyBudgetSheet = true
-                    },
-                    modifier = Modifier.testTag("settings_daily_budget")
-                )
-                OutloopHairlineDivider()
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "Time estimate per loop",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = colors.ink
-                    )
-                    OutloopSegmentedControl(
-                        options = listOf(60 to "1m", 120 to "2m", 180 to "3m", 300 to "5m"),
-                        selected = selectedSeconds,
-                        onSelect = onSetReclaimedSeconds,
-                        modifier = Modifier.testTag("settings_estimate_selector")
-                    )
-                }
-                OutloopHairlineDivider()
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 52.dp)
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "Haptic feedback",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
-                        color = colors.ink
-                    )
-                    OutloopSwitch(
-                        checked = uiState.preferences.hapticFeedbackEnabled,
-                        onCheckedChange = onSetHapticFeedback,
-                        contentDescription = "Haptic feedback",
-                        modifier = Modifier.testTag("settings_haptics_switch")
-                    )
-                }
-                OutloopHairlineDivider()
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 52.dp)
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "Intervention banner",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
-                        color = colors.ink
-                    )
-                    OutloopSwitch(
-                        checked = uiState.preferences.showInterventionBanner,
-                        onCheckedChange = onSetShowBanner,
-                        contentDescription = "Intervention banner",
-                        modifier = Modifier.testTag("settings_notifications_switch")
-                    )
-                }
-            }
-
             OutloopTonalCard(
                 cornerRadius = OutloopMetrics.SubCardCornerRadius,
                 contentPadding = PaddingValues(0.dp)
@@ -598,74 +565,14 @@ fun SettingsScreen(
                         showAboutSheet = false
                         onOpenPrivacy()
                     },
-                    modifier = Modifier.testTag("settings_privacy")
+                    modifier = Modifier.testTag("about_privacy_row")
                 )
-                OutloopHairlineDivider()
-                OutloopListNavRow(
-                    title = "Privacy policy",
-                    onClick = {
-                        val opened = runCatching {
-                            context.startActivity(
-                                Intent(Intent.ACTION_VIEW, Uri.parse(privacyPolicyUrl)).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                            )
-                            true
-                        }.getOrDefault(false)
-                        if (!opened) {
-                            onShowToast("No browser available. See How detection works for our local privacy guarantee.")
-                        }
-                    }
-                )
-                OutloopHairlineDivider()
-                OutloopListNavRow(
-                    title = "Diagnostics",
-                    onClick = {
-                        showAboutSheet = false
-                        onOpenDiagnostics()
-                    },
-                    modifier = Modifier.testTag("settings_diagnostics")
-                )
-                OutloopHairlineDivider()
-                OutloopListNavRow(
-                    title = "Export local backup",
-                    valueText = "JSON",
-                    onClick = {
-                        haptic()
-                        val dateStamp = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-                        exportBackupLauncher.launch("outloop-backup-$dateStamp.json")
-                    },
-                    modifier = Modifier.testTag("settings_export_backup")
-                )
-                OutloopHairlineDivider()
-                OutloopListNavRow(
-                    title = "Restore from backup",
-                    onClick = {
-                        haptic()
-                        importBackupLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
-                    },
-                    modifier = Modifier.testTag("settings_restore_backup")
-                )
-                OutloopHairlineDivider()
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 52.dp)
-                        .clickable {
-                            haptic()
-                            showAboutSheet = false
-                            showClearHistorySheet = true
-                        }
-                        .testTag("settings_clear_history_button"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Clear activity history",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = colors.destructive
-                    )
-                }
             }
+            OutloopPrimaryButton(
+                text = "Done",
+                onClick = { showAboutSheet = false },
+                modifier = Modifier.testTag("about_done_button")
+            )
         }
     }
 
@@ -796,50 +703,27 @@ fun SettingsScreen(
             onDismiss = { showAccessibilityDisclosureSheet = false }
         ) {
             Text(
-                text = "Outloop uses Android\u2019s Accessibility Service to recognise technical screen labels and view IDs in the apps you choose so it can step in when a Shorts, Reels, or Watch feed opens.",
+                text = "Outloop uses Android\u2019s Accessibility Service to check on-screen view IDs, active app names, and navigation tab labels only in the apps you select, so it can pause Shorts, Reels, or Watch feeds, return to the app\u2019s Home tab, and track your local daily limits.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = colors.secondaryInk
             )
             Text(
-                text = "It never reads your messages, passwords, or videos. Detection runs strictly on your phone\u2014no personal or screen data is collected off-device or shared with third parties.",
+                text = "It never reads your messages, passwords, or video content. All detection runs strictly on your device\u2014no personal or screen data is collected, stored off-device, or shared with third parties. You can turn access off anytime in Android Settings.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.secondaryInk
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(
-                    text = "How detection works",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = colors.textAction,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable {
-                            showAccessibilityDisclosureSheet = false
-                            onOpenPrivacy()
-                        }
-                        .padding(vertical = 4.dp)
-                )
-                Text(
-                    text = "Privacy policy",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = colors.textAction,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable {
-                            val opened = runCatching {
-                                context.startActivity(
-                                    Intent(Intent.ACTION_VIEW, Uri.parse(privacyPolicyUrl)).apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
-                                )
-                                true
-                            }.getOrDefault(false)
-                            if (!opened) {
-                                onShowToast("No browser available. See How detection works for our full local privacy guarantee.")
-                            }
-                        }
-                        .padding(vertical = 4.dp)
-                )
-            }
+            Text(
+                text = "How detection works",
+                style = MaterialTheme.typography.labelLarge,
+                color = colors.textAction,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable {
+                        showAccessibilityDisclosureSheet = false
+                        onOpenPrivacy()
+                    }
+                    .padding(vertical = 4.dp)
+            )
             OutloopPrimaryButton(
                 text = "Agree and continue",
                 onClick = {
@@ -948,15 +832,30 @@ private fun SettingsNavBentoRow(
 @Composable
 private fun AlwaysOpenSheet(
     alwaysOpenApps: Set<String>,
-    launchableApps: List<com.example.service.LaunchableAppInfo>,
+    utilityApps: List<LaunchableAppInfo>,
+    launchableApps: List<LaunchableAppInfo>,
     monitoredPackages: Set<String>,
     onToggleApp: (String, Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
     val colors = OutloopTheme.colors
-    val curatedDefaults = AppPreferences.DEFAULT_ALWAYS_OPEN_APPS.toList().sorted()
+    val essentialTools = remember(utilityApps) {
+        if (utilityApps.isNotEmpty()) {
+            utilityApps
+        } else {
+            AppPreferences.DEFAULT_ALWAYS_OPEN_APPS
+                .map { pkg ->
+                    LaunchableAppInfo(
+                        packageName = pkg,
+                        displayName = AppPreferences.ALWAYS_OPEN_FRIENDLY_NAMES[pkg] ?: pkg
+                    )
+                }
+                .sortedBy { it.displayName.lowercase() }
+        }
+    }
+    val essentialPackages = remember(essentialTools) { essentialTools.map { it.packageName }.toSet() }
     val installedOthers = launchableApps
-        .filter { it.packageName !in monitoredPackages }
+        .filter { it.packageName !in monitoredPackages && it.packageName !in essentialPackages }
         .take(20)
 
     OutloopModalSheet(
@@ -979,27 +878,28 @@ private fun AlwaysOpenSheet(
                 color = colors.secondaryInk
             )
             Spacer(modifier = Modifier.height(6.dp))
-            curatedDefaults.forEachIndexed { idx, name ->
+            essentialTools.forEachIndexed { idx, utility ->
                 if (idx > 0) OutloopHairlineDivider()
-                val isChecked = name in alwaysOpenApps
+                val isChecked = utility.packageName in alwaysOpenApps
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 48.dp)
-                        .clickable { onToggleApp(name, !isChecked) }
+                        .clickable { onToggleApp(utility.packageName, !isChecked) }
                         .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = name,
+                        text = utility.displayName,
                         style = MaterialTheme.typography.titleSmall,
-                        color = colors.ink
+                        color = colors.ink,
+                        modifier = Modifier.weight(1f)
                     )
                     OutloopRoundedCheckbox(
                         checked = isChecked,
-                        onCheckedChange = { onToggleApp(name, it) },
-                        contentDescription = "Keep $name always open"
+                        onCheckedChange = { onToggleApp(utility.packageName, it) },
+                        contentDescription = "Keep ${utility.displayName} always open"
                     )
                 }
             }
@@ -1127,7 +1027,7 @@ private fun QuietHoursSheet(
                             Text(
                                 text = label,
                                 style = MaterialTheme.typography.labelLarge,
-                                color = if (active) Color(0xFFFAF8F2) else colors.ink
+                                color = if (active) colors.onPrimaryTint else colors.ink
                             )
                         }
                     }

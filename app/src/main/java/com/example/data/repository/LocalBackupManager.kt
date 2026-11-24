@@ -28,8 +28,7 @@ data class BackupPreferencesDto(
     val dailyBudgetCuts: Int = 0,
     val strictModeEnabled: Boolean = true,
     val alwaysOpenApps: List<String> = emptyList(),
-    val preferredPauseMinutes: Int = 15,
-    val globalFeedTimeBudgetMinutes: Int = 0
+    val preferredPauseMinutes: Int = 15
 )
 
 data class BackupRuleDto(
@@ -42,7 +41,8 @@ data class BackupRuleDto(
     val homeTabLabel: String,
     val viewIdsRaw: String,
     val tabFallbackLabel: String,
-    val isBuiltIn: Boolean
+    val isBuiltIn: Boolean,
+    val dailyLimitMinutes: Int = 0
 )
 
 data class BackupEventDto(
@@ -116,8 +116,7 @@ class LocalBackupManager(
                 dailyBudgetCuts = prefs.dailyBudgetCuts,
                 strictModeEnabled = prefs.strictModeEnabled,
                 alwaysOpenApps = prefs.alwaysOpenApps.sorted(),
-                preferredPauseMinutes = prefs.preferredPauseMinutes,
-                globalFeedTimeBudgetMinutes = prefs.globalFeedTimeBudgetMinutes
+                preferredPauseMinutes = prefs.preferredPauseMinutes
             ),
             rules = rules.map { rule ->
                 BackupRuleDto(
@@ -130,7 +129,8 @@ class LocalBackupManager(
                     homeTabLabel = rule.homeTabLabel,
                     viewIdsRaw = rule.viewIdsRaw,
                     tabFallbackLabel = rule.tabFallbackLabel,
-                    isBuiltIn = rule.isBuiltIn
+                    isBuiltIn = rule.isBuiltIn,
+                    dailyLimitMinutes = rule.dailyLimitMinutes
                 )
             },
             events = events.map { ev ->
@@ -190,7 +190,8 @@ class LocalBackupManager(
                 isBuiltIn = dto.isBuiltIn || cleanPkg in FeedSurgeonDatabase.BUILT_IN_PACKAGE_NAMES,
                 matchedSelectorCount = cleanViewIds.size,
                 totalSelectorCount = cleanViewIds.size,
-                isOutdated = false
+                isOutdated = false,
+                dailyLimitMinutes = dto.dailyLimitMinutes.coerceIn(0, 720)
             )
         }
 
@@ -250,8 +251,7 @@ class LocalBackupManager(
             dailyBudgetCuts = prefDto.dailyBudgetCuts,
             strictModeEnabled = prefDto.strictModeEnabled,
             alwaysOpenApps = restoredAlwaysOpen,
-            preferredPauseMinutes = prefDto.preferredPauseMinutes,
-            globalFeedTimeBudgetMinutes = prefDto.globalFeedTimeBudgetMinutes
+            preferredPauseMinutes = prefDto.preferredPauseMinutes
         )
 
         BackupRestoreResult.Success(

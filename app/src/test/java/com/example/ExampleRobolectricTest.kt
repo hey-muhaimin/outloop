@@ -4,6 +4,8 @@ import android.app.Notification
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
+import android.provider.Settings
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
@@ -30,15 +32,23 @@ import com.example.data.model.InterventionOutcome
 import com.example.data.model.LiveTreeSnapshot
 import com.example.data.model.ProtectionStatus
 import com.example.data.repository.BackupRestoreResult
+import com.example.data.repository.ControlledAppsRepository
 import com.example.data.repository.InterventionRepository
 import com.example.data.repository.LocalBackupManager
 import com.example.data.repository.RulesetRepository
 import com.example.data.repository.RulesetSyncResult
 import com.example.service.AccessibilityEventLogger
+import com.example.service.AppSessionTimeTracker
 import com.example.service.ForegroundProtectionNotifier
 import com.example.service.InstalledAppDetector
+import com.example.service.OverlayPresentationConfig
+import com.example.service.OverlayTriggerMode
 import com.example.service.ProtectionActionReceiver
+import com.example.service.ProtectionHealthHelper
 import com.example.service.SelectorMatcher
+import com.example.service.TransparentPauseDimOverlay
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import com.example.ui.MainUiState
@@ -77,10 +87,9 @@ import java.io.File
 class ExampleRobolectricTest {
 
     @Test
-    fun `read app name and privacy url from context`() {
+    fun `read app name from context`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         assertEquals("Outloop", context.getString(R.string.app_name))
-        assertEquals("https://suprbuild.com/privacy", context.getString(R.string.privacy_policy_url))
     }
 
     @Test
@@ -193,29 +202,35 @@ class ExampleRobolectricTest {
     }
 
     @Test
-    fun `accessibility event logger writes reads and clears local file`() = runTest {
+    fun `accessibility event logger enforces strict zero data logging without disk writes`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val logger = AccessibilityEventLogger(context)
         logger.clear()
         assertEquals(0L, logger.getFileSizeBytes())
 
+        // Seed a legacy file to confirm clear() and getFileSizeBytes() purge it
+        logger.getFile().writeText("legacy_entry\n")
+        assertTrue(logger.getFile().exists())
+        logger.clear()
+        assertFalse(logger.getFile().exists())
+
         logger.logEvent(
             packageName = "com.google.android.youtube",
-            eventType = 32,
-            eventClassName = "com.google.android.apps.youtube.app.WatchWhileActivity",
+            eventType = AccessibilityEvent.TYPE_VIEW_SCROLLED,
+            eventClassName = "androidx.recyclerview.widget.RecyclerView",
             rootNode = null,
             matchedSelector = "com.google.android.youtube:id/reel_recycler",
             outcome = "TRIGGERED:OVERLAY"
         )
 
-        val tail = logger.readTail(20)
-        assertTrue(tail.contains("pkg=com.google.android.youtube"))
-        assertTrue(tail.contains("match=com.google.android.youtube:id/reel_recycler"))
-        assertTrue(tail.contains("outcome=TRIGGERED:OVERLAY"))
-        assertTrue(logger.getFileSizeBytes() > 0L)
-
-        logger.clear()
         assertEquals("", logger.readTail(20))
+        assertEquals(0L, logger.getFileSizeBytes())
+        assertFalse(logger.getFile().exists())
+        assertNull(logger.getShareUri())
+        val snapshot = logger.captureSnapshot(null)
+        assertEquals("redacted", snapshot.rootPackage)
+        assertTrue(snapshot.visibleViewIds.isEmpty())
+        assertTrue(snapshot.selectedTabs.isEmpty())
     }
 
     @Test
@@ -784,6 +799,98 @@ class ExampleRobolectricTest {
         assertNull(noMatch)
     }
 
+    @Suppress("DEPRECATION")
+    @Test
+    fun `detectShortFormFeedPattern detects vertical feed containers and ignores messages or search`() {
+        val igRule = FeedSurgeonDatabase.defaultBuiltInRules().first {
+            it.packageName == "com.instagram.android"
+        }
+        val rootNode = AccessibilityNodeInfo().apply {
+            packageName = "com.instagram.android"
+            isVisibleToUser = true
+            setBoundsInScreen(android.graphics.Rect(0, 0, 1080, 2400))
+        }
+
+        // Scroll container with unknown exact ID but vertical short-form layout tag hint
+        val verticalShortFormPager = AccessibilityNodeInfo().apply {
+            packageName = "com.instagram.android"
+            className = "androidx.viewpager2.widget.ViewPager2"
+            viewIdResourceName = "com.instagram.android:id/vertical_reels_feed_pager"
+            isScrollable = true
+            isVisibleToUser = true
+            setBoundsInScreen(android.graphics.Rect(0, 100, 1080, 2300))
+        }
+        val detected = SelectorMatcher.detectShortFormFeedPattern(
+            eventType = AccessibilityEvent.TYPE_VIEW_SCROLLED,
+            sourceNode = verticalShortFormPager,
+            root = rootNode,
+            rule = igRule
+        )
+        assertEquals(SelectorMatcher.PATTERN_VERTICAL_FEED_CONTAINER, detected)
+
+        // DM inbox RecyclerView must NOT match even though scrollable and full screen
+        val dmInboxList = AccessibilityNodeInfo().apply {
+            packageName = "com.instagram.android"
+            className = "androidx.recyclerview.widget.RecyclerView"
+            viewIdResourceName = "com.instagram.android:id/dm_inbox_thread_list"
+            isScrollable = true
+            isVisibleToUser = true
+            setBoundsInScreen(android.graphics.Rect(0, 100, 1080, 2300))
+        }
+        val dmMatch = SelectorMatcher.detectShortFormFeedPattern(
+            eventType = AccessibilityEvent.TYPE_VIEW_SCROLLED,
+            sourceNode = dmInboxList,
+            root = rootNode,
+            rule = igRule
+        )
+        assertNull(dmMatch)
+    }
+
+    @Suppress("DEPRECATION")
+    @Test
+    fun `detectShortFormFeedPattern ignores scroll events from unmonitored packages and non-scrolling views`() {
+        val ytRule = FeedSurgeonDatabase.defaultBuiltInRules().first {
+            it.packageName == "com.google.android.youtube"
+        }
+        val rootNode = AccessibilityNodeInfo().apply {
+            packageName = "com.google.android.youtube"
+            isVisibleToUser = true
+            setBoundsInScreen(android.graphics.Rect(0, 0, 1080, 2400))
+        }
+
+        // Scroll event from an unmonitored package (e.g. settings) must return null
+        val unmonitoredNode = AccessibilityNodeInfo().apply {
+            packageName = "com.android.settings"
+            className = "androidx.recyclerview.widget.RecyclerView"
+            isScrollable = true
+            isVisibleToUser = true
+            setBoundsInScreen(android.graphics.Rect(0, 100, 1080, 2300))
+        }
+        val unmonitoredMatch = SelectorMatcher.detectShortFormFeedPattern(
+            eventType = AccessibilityEvent.TYPE_VIEW_SCROLLED,
+            sourceNode = unmonitoredNode,
+            root = rootNode,
+            rule = ytRule
+        )
+        assertNull(unmonitoredMatch)
+
+        // Non-scrolling container without layout ID hint must return null
+        val staticView = AccessibilityNodeInfo().apply {
+            packageName = "com.google.android.youtube"
+            className = "android.widget.FrameLayout"
+            isScrollable = false
+            isVisibleToUser = true
+            setBoundsInScreen(android.graphics.Rect(0, 100, 1080, 2300))
+        }
+        val staticMatch = SelectorMatcher.detectShortFormFeedPattern(
+            eventType = AccessibilityEvent.TYPE_VIEW_SCROLLED,
+            sourceNode = staticView,
+            root = rootNode,
+            rule = ytRule
+        )
+        assertNull(staticMatch)
+    }
+
     @Test
     fun `cold start MainViewModel initializes cleanly and resolves initial state`() {
         val app = ApplicationProvider.getApplicationContext<FeedSurgeonApp>()
@@ -924,5 +1031,500 @@ class ExampleRobolectricTest {
         assertNull(DiagnosticsBridge.foregroundMonitoredAppLabel.value)
 
         controller.unbind().destroy()
+    }
+
+    @Test
+    fun `controlled apps repository seeds observes and toggles controlled packages in Room`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = FeedSurgeonDatabase.getInstance(context)
+        val settings = SettingsDataStore(context)
+        val repo: ControlledAppsRepository = InterventionRepository(db.feedSurgeonDao(), settings)
+
+        repo.ensureDefaultRulesSeeded()
+        val all = repo.allRules.first()
+        assertTrue(all.size >= 7)
+        assertTrue(repo.isControlledPackage("com.google.android.youtube"))
+        assertTrue(repo.isControlledPackage("com.zhiliaoapp.musically"))
+        assertFalse(repo.isControlledPackage("com.android.calculator2"))
+
+        repo.setRuleEnabled("com.google.android.youtube", false)
+        assertFalse(repo.getRule("com.google.android.youtube")!!.enabled)
+        assertFalse(repo.activeRules.first().any { it.packageName == "com.google.android.youtube" })
+
+        repo.setRuleEnabled("com.google.android.youtube", true)
+        assertTrue(repo.activeRules.first().any { it.packageName == "com.google.android.youtube" })
+
+        repo.upsertCustomRule(
+            packageName = "com.custom.reelsapp",
+            displayName = "ReelsApp",
+            feedLabel = "Clips",
+            viewIds = listOf("com.custom.reelsapp:id/clips_pager"),
+            tabFallbackLabel = "Clips",
+            homeTabLabel = "Home",
+            interventionMode = InterventionMode.OVERLAY
+        )
+        assertTrue(repo.isControlledPackage("com.custom.reelsapp"))
+        repo.deleteCustomRule("com.custom.reelsapp")
+        assertFalse(repo.isControlledPackage("com.custom.reelsapp"))
+    }
+
+    @Suppress("DEPRECATION")
+    @Test
+    fun `FeedSurgeonService recognizes short-form packages and scroll monitoring events`() {
+        val controller = Robolectric.buildService(FeedSurgeonService::class.java)
+        val service = controller.create().get()
+
+        assertTrue(service.isControlledPackage("com.instagram.android"))
+        assertTrue(service.isControlledPackage("com.google.android.youtube"))
+        assertTrue(service.isControlledPackage("com.zhiliaoapp.musically"))
+        assertTrue(service.isControlledPackage("com.twitter.android"))
+        assertFalse(service.isControlledPackage("com.android.settings"))
+
+        assertTrue(service.isScrollMonitoringEvent(AccessibilityEvent.TYPE_VIEW_SCROLLED))
+        assertFalse(service.isScrollMonitoringEvent(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED))
+
+        val scrollEvent = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_VIEW_SCROLLED).apply {
+            packageName = "com.zhiliaoapp.musically"
+            className = "androidx.recyclerview.widget.RecyclerView"
+        }
+        service.onAccessibilityEvent(scrollEvent)
+
+        controller.unbind().destroy()
+    }
+
+    @Test
+    fun `migration 3 to 4 adds dailyLimitMinutes column and creates app_daily_usage table`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val dbName = "migration_3_4_test.db"
+        context.deleteDatabase(dbName)
+        val callback = object : SupportSQLiteOpenHelper.Callback(3) {
+            override fun onCreate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS target_app_rules (
+                        packageName TEXT NOT NULL PRIMARY KEY,
+                        displayName TEXT NOT NULL,
+                        feedLabel TEXT NOT NULL,
+                        enabled INTEGER NOT NULL,
+                        interventionMode TEXT NOT NULL,
+                        cooldownMs INTEGER NOT NULL,
+                        homeTabLabel TEXT NOT NULL,
+                        viewIdsRaw TEXT NOT NULL,
+                        tabFallbackLabel TEXT NOT NULL,
+                        snoozeUntilMs INTEGER NOT NULL,
+                        allowOnceUntilMs INTEGER NOT NULL,
+                        isBuiltIn INTEGER NOT NULL,
+                        matchedSelectorCount INTEGER NOT NULL,
+                        totalSelectorCount INTEGER NOT NULL,
+                        isOutdated INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS intervention_events (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        packageName TEXT NOT NULL,
+                        appName TEXT NOT NULL,
+                        feedLabel TEXT NOT NULL,
+                        matchedSelector TEXT NOT NULL,
+                        actionTaken TEXT NOT NULL,
+                        timestampMs INTEGER NOT NULL,
+                        reclaimedSeconds INTEGER NOT NULL,
+                        wasAllowedOnce INTEGER NOT NULL,
+                        outcome TEXT NOT NULL DEFAULT 'CONFIRMED'
+                    )
+                    """.trimIndent()
+                )
+            }
+
+            override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+        }
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(dbName)
+                .callback(callback)
+                .build()
+        )
+        val db = helper.writableDatabase
+        FeedSurgeonDatabase.MIGRATION_3_4.migrate(db)
+
+        val ruleCursor = db.query("PRAGMA table_info(target_app_rules)")
+        var foundDailyLimitColumn = false
+        while (ruleCursor.moveToNext()) {
+            if (ruleCursor.getString(1) == "dailyLimitMinutes") {
+                foundDailyLimitColumn = true
+            }
+        }
+        ruleCursor.close()
+        assertTrue(foundDailyLimitColumn)
+
+        val usageCursor = db.query("PRAGMA table_info(app_daily_usage)")
+        val usageColumns = mutableSetOf<String>()
+        while (usageCursor.moveToNext()) {
+            usageColumns.add(usageCursor.getString(1))
+        }
+        usageCursor.close()
+        assertTrue(usageColumns.containsAll(listOf("packageName", "dateKey", "trackedSeconds", "lastUpdatedMs")))
+        helper.close()
+        context.deleteDatabase(dbName)
+    }
+
+    @Test
+    fun `controlled apps repository tracks daily usage seconds and configures per-app daily limits`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = FeedSurgeonDatabase.getInstance(context)
+        val settings = SettingsDataStore(context)
+        val repo: ControlledAppsRepository = InterventionRepository(db.feedSurgeonDao(), settings)
+
+        repo.ensureDefaultRulesSeeded()
+        repo.setDailyLimitMinutes("com.google.android.youtube", 25)
+        assertEquals(25, repo.getRule("com.google.android.youtube")!!.dailyLimitMinutes)
+
+        val dateKey = InterventionRepository.dateKeyForMs(System.currentTimeMillis())
+        val initial = repo.getTodayUsageSeconds("com.google.android.youtube", dateKey)
+        repo.addTrackedUsageSeconds("com.google.android.youtube", dateKey, 90L)
+        repo.addTrackedUsageSeconds("com.google.android.youtube", dateKey, 45L)
+        assertEquals(initial + 135L, repo.getTodayUsageSeconds("com.google.android.youtube", dateKey))
+
+        val rows = repo.observeDailyUsageForDate(dateKey).first()
+        assertTrue(rows.any { it.packageName == "com.google.android.youtube" && it.trackedSeconds >= 135L })
+
+        repo.setDailyLimitMinutes("com.google.android.youtube", 0)
+        assertEquals(0, repo.getRule("com.google.android.youtube")!!.dailyLimitMinutes)
+    }
+
+    @Test
+    fun `app session time tracker accumulates foreground duration and handles app switches`() {
+        val tracker = AppSessionTimeTracker()
+        val nowWall = System.currentTimeMillis()
+
+        assertTrue(tracker.onPackageEntered("com.instagram.android", nowElapsedMs = 1_000L, nowWallMs = nowWall).isEmpty())
+        assertEquals("com.instagram.android", tracker.activePackage())
+        assertEquals(15L, tracker.getPendingSeconds("com.instagram.android", nowElapsedMs = 16_500L))
+
+        // Switching to YouTube flushes whole seconds (15s) for Instagram and retains anchor cleanly
+        val switchSlices = tracker.onPackageEntered("com.google.android.youtube", nowElapsedMs = 16_500L, nowWallMs = nowWall + 15_500L)
+        assertEquals(1, switchSlices.size)
+        assertEquals("com.instagram.android", switchSlices.first().packageName)
+        assertEquals(15L, switchSlices.first().deltaSeconds)
+        assertEquals("com.google.android.youtube", tracker.activePackage())
+
+        val exitSlices = tracker.onPackageExited("com.google.android.youtube", nowElapsedMs = 46_800L, nowWallMs = nowWall + 45_800L)
+        assertEquals(1, exitSlices.size)
+        assertEquals("com.google.android.youtube", exitSlices.first().packageName)
+        assertEquals(30L, exitSlices.first().deltaSeconds)
+        assertNull(tracker.activePackage())
+    }
+
+    @Test
+    fun `transparent pause dim overlay renders translucent scrim and handles daily limit mode`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val overlay = TransparentPauseDimOverlay(context)
+        var goHomeClicked = false
+        var exitAppClicked = false
+        var snoozeMinutesRequested: Int? = null
+
+        val handles = overlay.buildOverlayViews(
+            config = OverlayPresentationConfig(
+                appName = "Instagram",
+                feedLabel = "Reels",
+                triggerMode = OverlayTriggerMode.DAILY_LIMIT_REACHED,
+                dimAlpha = 0.80f,
+                dailyUsedSeconds = 1860L,
+                dailyLimitMinutes = 30,
+                preferredPauseMinutes = 15
+            ),
+            onDismissRequest = {},
+            onGoHome = { goHomeClicked = true },
+            onExitApp = { exitAppClicked = true },
+            onSnoozeMinutes = { snoozeMinutesRequested = it }
+        )
+
+        val scrimBg = handles.dimScrim.background as ColorDrawable
+        assertTrue(Color.alpha(scrimBg.color) in 180..220)
+        assertTrue(handles.root.contentDescription.toString().contains("Daily limit reached"))
+
+        val actionDock = handles.modalCard.findViewWithTag<android.view.View>(
+            TransparentPauseDimOverlay.TAG_ACTION_DOCK
+        )
+        val homeBtn = handles.modalCard.findViewWithTag<android.view.View>(
+            TransparentPauseDimOverlay.TAG_HOME_ACTION_BTN
+        )
+        val exitBtn = handles.modalCard.findViewWithTag<android.view.View>(
+            TransparentPauseDimOverlay.TAG_EXIT_ACTION_BTN
+        )
+        val pauseBtn = handles.modalCard.findViewWithTag<android.widget.Button>(
+            TransparentPauseDimOverlay.TAG_PAUSE_GUARD_BTN
+        )
+        assertNotNull(actionDock)
+        assertNotNull(homeBtn)
+        assertNotNull(exitBtn)
+        assertNotNull(pauseBtn)
+        assertEquals("Extend limit \u00B7 15 min", pauseBtn.text.toString())
+
+        homeBtn.performClick()
+        assertTrue(goHomeClicked)
+        assertFalse(exitAppClicked)
+
+        exitBtn.performClick()
+        assertTrue(exitAppClicked)
+        assertNull(snoozeMinutesRequested)
+    }
+
+    @Test
+    fun `transparent pause dim overlay supports feed guard pause flow and strict mode countdown`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val overlay = TransparentPauseDimOverlay(context)
+        var snoozeMinutesRequested: Int? = null
+
+        val instantHandles = overlay.buildOverlayViews(
+            config = OverlayPresentationConfig(
+                appName = "YouTube",
+                feedLabel = "Shorts",
+                triggerMode = OverlayTriggerMode.FEED_GUARD,
+                strictModeEnabled = false,
+                preferredPauseMinutes = 15
+            ),
+            onDismissRequest = {},
+            onGoHome = {},
+            onExitApp = {},
+            onSnoozeMinutes = { snoozeMinutesRequested = it }
+        )
+        val instantPauseBtn = instantHandles.modalCard.findViewWithTag<android.widget.Button>(
+            TransparentPauseDimOverlay.TAG_PAUSE_GUARD_BTN
+        )
+        assertEquals("Pause for 15 min", instantPauseBtn.text.toString())
+        instantPauseBtn.performClick()
+        assertEquals(15, snoozeMinutesRequested)
+
+        val strictHandles = overlay.buildOverlayViews(
+            config = OverlayPresentationConfig(
+                appName = "YouTube",
+                feedLabel = "Shorts",
+                triggerMode = OverlayTriggerMode.FEED_GUARD,
+                strictModeEnabled = true,
+                preferredPauseMinutes = 15
+            ),
+            onDismissRequest = {},
+            onGoHome = {},
+            onExitApp = {},
+            onSnoozeMinutes = {}
+        )
+        val strictPauseBtn = strictHandles.modalCard.findViewWithTag<android.widget.Button>(
+            TransparentPauseDimOverlay.TAG_PAUSE_GUARD_BTN
+        )
+        strictPauseBtn.performClick()
+        assertNull(
+            strictHandles.modalCard.findViewWithTag<android.view.View>(
+                TransparentPauseDimOverlay.TAG_ACTION_DOCK
+            )
+        )
+    }
+
+    @Test
+    fun `FeedSurgeonService evaluates per-app daily limit against tracked usage`() {
+        val controller = Robolectric.buildService(FeedSurgeonService::class.java)
+        val service = controller.create().get()
+        val limitedRule = FeedSurgeonDatabase.defaultBuiltInRules()
+            .first { it.packageName == "com.instagram.android" }
+            .copy(dailyLimitMinutes = 15)
+
+        service.seedTrackedUsageForTesting("com.instagram.android", 600L)
+        assertEquals(600L, service.getTodayTrackedSeconds("com.instagram.android"))
+        assertFalse(service.isDailyLimitReached(limitedRule))
+
+        service.seedTrackedUsageForTesting("com.instagram.android", 900L)
+        assertTrue(service.isDailyLimitReached(limitedRule))
+
+        assertTrue(service.exitCompleteAppToDeviceHome())
+        val shadowService = org.robolectric.Shadows.shadowOf(service)
+        assertTrue(
+            shadowService.globalActionsPerformed.contains(
+                android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME
+            )
+        )
+
+        controller.unbind().destroy()
+    }
+
+    @Test
+    fun `SelectorMatcher findHomeTabNode selects target app Home tab over feed captions and ignores Outloop window`() {
+        fun makeNode(
+            pkg: String,
+            cls: String = "android.view.View",
+            viewId: String? = null,
+            desc: String? = null,
+            text: String? = null,
+            clickable: Boolean = false,
+            selected: Boolean = false
+        ): AccessibilityNodeInfo = AccessibilityNodeInfo().apply {
+            packageName = pkg
+            className = cls
+            viewIdResourceName = viewId
+            contentDescription = desc
+            this.text = text
+            isClickable = clickable
+            isSelected = selected
+            isVisibleToUser = true
+        }
+
+        val ytRoot = makeNode("com.google.android.youtube", "android.widget.FrameLayout")
+        val feedCaptionHome = makeNode(
+            pkg = "com.google.android.youtube",
+            cls = "android.widget.TextView",
+            text = "Home",
+            clickable = true
+        )
+        val pivotBar = makeNode(
+            pkg = "com.google.android.youtube",
+            cls = "android.widget.LinearLayout",
+            viewId = "com.google.android.youtube:id/pivot_bar"
+        )
+        val ytHomeTab = makeNode(
+            pkg = "com.google.android.youtube",
+            cls = "android.widget.Button",
+            viewId = "com.google.android.youtube:id/tab_home",
+            desc = "Home, tab 1 of 4",
+            clickable = true,
+            selected = false
+        )
+        val ytShortsTab = makeNode(
+            pkg = "com.google.android.youtube",
+            cls = "android.widget.Button",
+            desc = "Shorts, tab 2 of 4",
+            clickable = true,
+            selected = true
+        )
+        org.robolectric.Shadows.shadowOf(pivotBar).addChild(ytHomeTab)
+        org.robolectric.Shadows.shadowOf(pivotBar).addChild(ytShortsTab)
+        org.robolectric.Shadows.shadowOf(ytRoot).addChild(feedCaptionHome)
+        // Add >650 feed nodes before pivotBar to ensure deep feed trees still reach bottom tabs
+        val feedContainer = makeNode("com.google.android.youtube", "androidx.recyclerview.widget.RecyclerView")
+        repeat(650) {
+            org.robolectric.Shadows.shadowOf(feedContainer)
+                .addChild(makeNode("com.google.android.youtube", "android.widget.FrameLayout"))
+        }
+        org.robolectric.Shadows.shadowOf(ytRoot).addChild(feedContainer)
+        org.robolectric.Shadows.shadowOf(ytRoot).addChild(pivotBar)
+
+        val outloopWindow = makeNode("com.suprbuild.outloop", "android.widget.FrameLayout")
+        val outloopHomeTab = makeNode(
+            pkg = "com.suprbuild.outloop",
+            desc = "Home",
+            clickable = true
+        )
+        org.robolectric.Shadows.shadowOf(outloopWindow).addChild(outloopHomeTab)
+
+        val matchedYtHome = SelectorMatcher.findHomeTabNode(
+            root = ytRoot,
+            homeTabLabel = "Home",
+            packageName = "com.google.android.youtube",
+            additionalRoots = listOf(outloopWindow)
+        )
+        assertNotNull(matchedYtHome)
+        assertEquals(ytHomeTab.viewIdResourceName, matchedYtHome?.viewIdResourceName)
+        assertEquals(ytHomeTab.contentDescription, matchedYtHome?.contentDescription)
+
+        val fbWindow = makeNode("com.facebook.katana", "android.widget.FrameLayout")
+        val fbTabBar = makeNode("com.facebook.katana", "android.widget.TabWidget")
+        val fbNewsFeedTab = makeNode(
+            pkg = "com.facebook.katana",
+            desc = "News Feed, tab 1 of 6",
+            clickable = true
+        )
+        val fbReelsTab = makeNode(
+            pkg = "com.facebook.katana",
+            desc = "Reels, tab 2 of 6",
+            clickable = true,
+            selected = true
+        )
+        org.robolectric.Shadows.shadowOf(fbTabBar).addChild(fbNewsFeedTab)
+        org.robolectric.Shadows.shadowOf(fbTabBar).addChild(fbReelsTab)
+        org.robolectric.Shadows.shadowOf(fbWindow).addChild(fbTabBar)
+
+        val matchedFbHome = SelectorMatcher.findHomeTabNode(
+            root = fbWindow,
+            homeTabLabel = "Home",
+            packageName = "com.facebook.katana",
+            additionalRoots = listOf(outloopWindow)
+        )
+        assertNotNull(matchedFbHome)
+        assertEquals(fbNewsFeedTab.contentDescription, matchedFbHome?.contentDescription)
+        assertEquals("com.facebook.katana", matchedFbHome?.packageName?.toString())
+
+        // Ensure Outloop's own window is never matched when searching for Facebook's Home tab
+        assertNull(
+            SelectorMatcher.findHomeTabNode(
+                root = outloopWindow,
+                homeTabLabel = "Home",
+                packageName = "com.facebook.katana"
+            )
+        )
+
+        val fbReelsFullscreen = makeNode("com.facebook.katana", "android.widget.FrameLayout")
+        val backIconBtn = makeNode(
+            pkg = "com.facebook.katana",
+            desc = "Navigate up",
+            clickable = true
+        )
+        org.robolectric.Shadows.shadowOf(fbReelsFullscreen).addChild(backIconBtn)
+        val matchedBack = SelectorMatcher.findInAppBackNode(fbReelsFullscreen, "com.facebook.katana")
+        assertNotNull(matchedBack)
+        assertEquals(backIconBtn.contentDescription, matchedBack?.contentDescription)
+    }
+
+    @Test
+    fun `battery optimization compliance excludes restricted permission and uses safe settings intent`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        @Suppress("DEPRECATION")
+        val packageInfo = context.packageManager.getPackageInfo(
+            context.packageName,
+            PackageManager.GET_PERMISSIONS
+        )
+        val requested = packageInfo.requestedPermissions?.toSet().orEmpty()
+        assertFalse(
+            "Restricted permission REQUEST_IGNORE_BATTERY_OPTIMIZATIONS must not be declared",
+            "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" in requested
+        )
+
+        val intent = ProtectionHealthHelper.createAppBatterySettingsIntent(context)
+        assertFalse(intent.action == Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+        assertTrue(
+            intent.action in setOf(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS,
+                Settings.ACTION_SETTINGS
+            )
+        )
+    }
+
+    @Test
+    fun `manifest declares AccessibilityService and specialUse foreground service metadata cleanly`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        @Suppress("DEPRECATION")
+        val packageInfo = context.packageManager.getPackageInfo(
+            context.packageName,
+            PackageManager.GET_PERMISSIONS or PackageManager.GET_SERVICES or PackageManager.GET_META_DATA
+        )
+        val requested = packageInfo.requestedPermissions?.toSet().orEmpty()
+        assertTrue("android.permission.FOREGROUND_SERVICE" in requested)
+        assertTrue("android.permission.FOREGROUND_SERVICE_SPECIAL_USE" in requested)
+        assertTrue("android.permission.POST_NOTIFICATIONS" in requested)
+        assertTrue("android.permission.INTERNET" in requested)
+
+        val serviceInfo = packageInfo.services?.firstOrNull {
+            it.name == FeedSurgeonService::class.java.name
+        }
+        assertNotNull("FeedSurgeonService must be declared in manifest", serviceInfo)
+        assertEquals(android.Manifest.permission.BIND_ACCESSIBILITY_SERVICE, serviceInfo!!.permission)
+        assertEquals(
+            android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+            serviceInfo.foregroundServiceType
+        )
+        assertTrue(
+            context.getString(R.string.accessibility_service_desc)
+                .contains("strictly on-device", ignoreCase = true)
+        )
     }
 }

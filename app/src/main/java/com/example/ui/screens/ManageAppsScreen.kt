@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -199,7 +200,12 @@ fun ManageAppsScreen(
                                     Box(
                                         modifier = Modifier
                                             .clip(CircleShape)
-                                            .background(if (rule.enabled) colors.mintTile else colors.surfaceSubtle)
+                                            .background(if (rule.enabled) colors.heroDark else colors.surfaceSubtle)
+                                            .border(
+                                                width = 1.dp,
+                                                color = if (rule.enabled) colors.heroDark else colors.hairlineBorder,
+                                                shape = CircleShape
+                                            )
                                             .padding(horizontal = 16.dp, vertical = 7.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
@@ -208,7 +214,7 @@ fun ManageAppsScreen(
                                             style = MaterialTheme.typography.labelLarge.copy(
                                                 fontWeight = FontWeight.SemiBold
                                             ),
-                                            color = if (rule.enabled) colors.ink else colors.secondaryInk
+                                            color = if (rule.enabled) colors.onPrimaryTint else colors.secondaryInk
                                         )
                                     }
                                 }

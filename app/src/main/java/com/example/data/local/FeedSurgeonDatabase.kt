@@ -13,7 +13,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Database(
-    entities = [TargetAppRuleEntity::class, InterventionEventEntity::class, AppFeedUsageEntity::class],
+    entities = [
+        TargetAppRuleEntity::class,
+        InterventionEventEntity::class,
+        AppDailyUsageEntity::class
+    ],
     version = 4,
     exportSchema = false
 )
@@ -45,12 +49,15 @@ abstract class FeedSurgeonDatabase : RoomDatabase() {
                     "ALTER TABLE target_app_rules ADD COLUMN dailyLimitMinutes INTEGER NOT NULL DEFAULT 0"
                 )
                 db.execSQL(
-                    "CREATE TABLE IF NOT EXISTS `app_feed_usage` (" +
-                        "`packageName` TEXT NOT NULL, " +
-                        "`dateKey` TEXT NOT NULL, " +
-                        "`trackedSeconds` INTEGER NOT NULL, " +
-                        "`lastUpdatedMs` INTEGER NOT NULL, " +
-                        "PRIMARY KEY(`packageName`, `dateKey`))"
+                    """
+                    CREATE TABLE IF NOT EXISTS app_daily_usage (
+                        packageName TEXT NOT NULL,
+                        dateKey TEXT NOT NULL,
+                        trackedSeconds INTEGER NOT NULL,
+                        lastUpdatedMs INTEGER NOT NULL,
+                        PRIMARY KEY(packageName, dateKey)
+                    )
+                    """.trimIndent()
                 )
             }
         }
@@ -213,7 +220,7 @@ abstract class FeedSurgeonDatabase : RoomDatabase() {
                             super.onCreate(db)
                             CoroutineScope(Dispatchers.IO).launch {
                                 runCatching {
-                                    getInstance(appContext).feedSurgeonDao().upsertRules(defaultBuiltInRules())
+                                    getInstance(appContext).feedSurgeonDao().insertRulesIfMissing(defaultBuiltInRules())
                                 }.onFailure { err ->
                                     android.util.Log.e("FeedSurgeonDatabase", "Failed to seed built-in rules", err)
                                 }

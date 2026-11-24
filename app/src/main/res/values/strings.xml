@@ -1,8 +1,6 @@
 <resources>
     <string name="app_name">Outloop</string>
-    <string name="accessibility_service_desc">Inspects active screen labels and view IDs in the apps you choose (YouTube, Instagram, Facebook, TikTok, X, Snapchat, Reddit) strictly on-device to tell when a Shorts, Reels, For You, Spotlight, or Watch feed opens. Your messages, passwords, and videos are never read or sent off your phone.</string>
-    <string name="privacy_policy_url">https://suprbuild.com/privacy</string>
-    <string name="privacy_policy_label">Privacy Policy</string>
+    <string name="accessibility_service_desc">Inspects technical screen labels and view IDs only in the apps you choose (YouTube, Instagram, Facebook, TikTok, X, Snapchat, Reddit, or custom apps) strictly on-device to recognize Shorts, Reels, For You, Spotlight, or Watch feeds, show pause controls or return to the app’s Home tab, and track local limits. Messages, passwords, and videos are never read, stored off-device, or shared. Turn off anytime here.</string>
 
     <!-- Navigation -->
     <string name="nav_home">Home</string>

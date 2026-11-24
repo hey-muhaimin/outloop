@@ -1,51 +1,95 @@
-# Outloop
+# AGENTS.md — Outloop Engineering & Compliance Guide
 
-Android app (Kotlin + Jetpack Compose) that interrupts short-form video feeds (YouTube Shorts, IG/FB Reels, etc.) via an accessibility service + overlay shield. Single Gradle module `:app`; `applicationId = com.suprbuild.outloop`, source namespace stays `com.example` (legacy FeedSurgeon class names are intentional — do not rename). Room + KSP, Moshi codegen, DataStore preferences, WorkManager ruleset sync, Robolectric UI tests. Gradle 9.3.1 wrapper, AGP 9.1.1, Kotlin 2.4.21, compileSdk 36 / minSdk 24.
+This file defines mandatory project conventions, architecture boundaries, Google Play Policy guardrails, testing rules, and release workflows for AI coding agents and contributors working on **Outloop**.
 
-## Dev environment (Windows, git-bash)
+---
 
-- Shell is git-bash; pass native `C:/...` paths to native tools (gradle, java), not `/c/...`.
-- `local.properties` (gitignored, absent after AI Studio re-imports): `sdk.dir=C\:/Users/mahmu/Android/Sdk` — the colon MUST be escaped or lint aborts with `PropertyEscape`.
-- Java is not on PATH: JDK 17 at `C:/Program Files/Eclipse Adoptium/jdk-17.0.21.9-hotspot` (set `JAVA_HOME`); a Foojay-provisioned JDK 21 lives in `~/.gradle/jdks`.
-- `debug.keystore` at project root (gitignored) is required by the debug signingConfig (alias `androiddebugkey`, store/key pass `android`). Recreate with:
-  `keytool -genkey -v -keystore E:/Dev/Projects/outloop/debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android, OU=Android, O=Android, L=Unknown, ST=Unknown, C=US"`
-- `.env` is optional (secrets plugin falls back to `.env.example`); no `google-services.json` needed — plugin is set to WARN.
-- Do not remove/modify the `signingConfigs` or their assignments in `app/build.gradle.kts` (AI Studio build compatibility).
-- Git root is the PARENT dir `E:/Dev/Projects`, not this folder; `outloop/` files are currently untracked there and the old root-level layout shows as deleted. Check `git rev-parse --show-toplevel` before committing.
+## 1. Project Identity & Immutable Build Rules
 
-## Build & test
+- **App Name**: `Outloop` (`app/src/main/res/values/strings.xml` and root `metadata.json` **must stay in sync**).
+- **Application ID**: `com.suprbuild.outloop` (set in `app/build.gradle.kts`). **Do not change `applicationId` unless explicitly requested.**
+- **Internal Namespace**: `com.example` (keep Kotlin source directories and `R` package under `com/example` — never rename `namespace`).
+- **Current Release Version**: `versionCode = 7`, `versionName = "7.0"`.
+- **Toolchain**: Kotlin, Jetpack Compose, AGP `9.1.1`, Gradle `9.3.1`, JDK 21, `compileSdk = 36` (`minSdk = 24`, `targetSdk = 36`).
+- **Protected Files & Signing Blocks**:
+  - **NEVER** modify, delete, or overwrite `debug.keystore` or `debug.keystore.base64`.
+  - **NEVER** modify `signingConfigs` (`release` and `debugConfig`) or `buildTypes` signing assignments in `app/build.gradle.kts`.
+  - **NEVER** remove `MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API` from `metadata.json`.
+  - **NEVER** create or commit `local.properties`, `*.jks`, `*.keystore`, or `.env` files containing secrets.
 
-- Debug APK: `./gradlew :app:assembleDebug` → `app/build/outputs/apk/debug/app-debug.apk`. Always build it after implementing changes and verify the APK exists.
-- Unit + Robolectric tests: `./gradlew :app:testDebugUnitTest`; lint: `./gradlew :app:lintDebug`.
-- Full check (what CI runs): `./scripts/verify.sh` (ruleset validation + tests + lint).
-- Packaged builds: `./scripts/build-debug.sh` / `./scripts/package-release.sh --mode debug|release|all` → `build-output/` with `.sha256` files. Release needs `KEYSTORE_PATH`, `STORE_PASSWORD`, `KEY_PASSWORD` env vars.
-- Release verify: with those env vars set, `./gradlew :app:assembleRelease :app:bundleRelease` (auto-runs `lintVitalRelease` + `minifyReleaseWithR8`). Outputs: `app/build/outputs/apk/release/app-release.apk`, `app/build/outputs/bundle/release/app-release.aab`, R8 map `app/build/outputs/mapping/release/mapping.txt` (upload to Play Console). Signing alias is `upload`; for verification use a throwaway keystore and delete it after — never commit real keys. Permanent-key workflow: `powershell_keystore_workflow.md`; Play forms: `play_submission_checklist.md`.
-- Signature checks: `jarsigner -verify <aab>` ("jar verified."; AAB JarInputStream warnings are normal), `C:/Users/mahmu/Android/Sdk/build-tools/36.0.0/apksigner.bat verify --verbose <apk>`, same dir `aapt2.exe dump badging <apk>` (expect `com.suprbuild.outloop`, label `Outloop`).
-- Version bumps: `./scripts/bump-version.sh --patch|--minor|--major` (edits `app/build.gradle.kts`).
-- Verify test results from `app/build/test-results/testDebugUnitTest/TEST-*.xml` (tests/failures/errors attrs), not just BUILD SUCCESSFUL — a failed `packageDebug` can abort before tests run and Gradle then reports stale UP-TO-DATE tests.
-- Single test class: `./gradlew :app:testDebugUnitTest --tests "com.example.ExampleRobolectricTest"`. Test methods use backtick names with spaces — camel-case wildcards match nothing.
+---
 
-## Pitfalls
+## 2. Architecture & Core Modules (`app/src/main/java/com/example/`)
 
-- `scripts/*.sh` pass git-bash `/e/...` paths to native Windows `python3` → FileNotFoundError. Run them with a `python3` shim on PATH that `cygpath -w`-converts existing absolute-path args (shim kept at `C:/Users/mahmu/AppData/Local/hermes/cache/scratch/outloop-verify/python3`).
-- Lint caches its analysis and `local.properties` is not a declared lint input — after fixing it, force `./gradlew :app:lintAnalyzeDebug --rerun` or lint keeps reporting the stale error.
-- Robolectric tests are `@Config(sdk = [36])` → need a Java 21 test JVM; host JDK is 17. `app/build.gradle.kts` sets a Foojay-provisioned Java 21 `javaLauncher` on all `Test` tasks (resolver in `settings.gradle.kts`). CI (JDK 17) relies on this block.
-- `packageDebug` fails with "Unable to delete directory" when another process holds `app-debug.apk` (seen: Phone Link / PhoneExperienceHost.exe). Don't kill user processes; redirect the build dir via a Gradle init script (`-I script --no-configuration-cache`).
-- Configuration cache is ON (`gradle.properties`); Kotlin compiles in-process; workers capped at 4.
-- `IMPLEMENTATION_PLAN.md` and `README.md` are stale AI Studio artifacts (wrong applicationId/version) — trust `app/build.gradle.kts` and `scripts/README.md` instead.
-- Compose tests: `assertTextContains` on a tagged container needs `semantics(mergeDescendants = true)`; tags inside `clickable` ancestors need `useUnmergedTree = true`; `performScrollTo()` before clicking scrollable content, but pinned bottom-bar buttons have no scroll parent (throws). `captureToImage()` times out under Robolectric — assert layout bounds instead.
-- Never collect `dataStore.preferencesFlow` infinitely in `MainViewModel.init` — it starves the `stateIn(WhileSubscribed)` uiState combine. Sync globals from UI `LaunchedEffect` instead.
+- **Entry & Navigation**:
+  - `FeedSurgeonApp.kt`: Initializes `FeedSurgeonDatabase`, `SettingsDataStore`, `InterventionRepository`, `RulesetRepository`, and schedules `RulesetSyncWorker`.
+  - `MainActivity.kt`: Enables `enableEdgeToEdge()`, hosts Compose navigation across Onboarding, Tabs (`Today`, `Insights`, `Settings`), and sub-screens (`ManageApps`, `AppDetail`, `Privacy`, `Diagnostics`), and respects `BackHandler`.
+  - `ui/MainViewModel.kt`: Single source of truth exposing `StateFlow<MainUiState>`.
+- **Local Persistence (`data/`)**:
+  - **Room (`FeedSurgeonDatabase`, `FeedSurgeonDao`)**: Stores `TargetAppRuleEntity`, `InterventionEventEntity`, and `AppDailyUsageEntity`.
+    - *Invariant*: Built-in rule seeding uses `insertRulesIfMissing` (`OnConflictStrategy.IGNORE`) so user settings like `dailyLimitMinutes` and `enabled` are never overwritten on database open.
+  - **DataStore (`SettingsDataStore`, `AppPreferences`)**: Stores onboarding/disclosure acceptance, strict mode, quiet hours, preferred pause duration, daily pause target, appearance, and cached ruleset metadata.
+  - **Repositories**: `InterventionRepository` (rules, events, usage tracking), `RulesetRepository` (bundled + conditional `ETag` HTTPS Gist sync), `LocalBackupManager` (SAF JSON export/preview/restore).
+- **Accessibility & Overlay Engine (`service/`)**:
+  - `FeedSurgeonService.kt`: `AccessibilityService` paired with `specialUse` foreground service lifecycle; tracks foreground packages (`ForegroundPackageMonitor`), enforces cooldowns/daily limits (`AppSessionTimeTracker`), and dispatches `OVERLAY`, `HOME_TAB`, or `BACK` interventions.
+  - `SelectorMatcher.kt`: Inspects view IDs, fallback tab descriptions, target-app Home tab navigation (`findHomeTabNode`, ignoring Outloop's own overlay window), and single-step in-app back exit (`findInAppBackNode`).
+  - `AccessibilityOverlayShield.kt` & `TransparentPauseDimOverlay.kt`: Renders `TYPE_ACCESSIBILITY_OVERLAY` with the 2-row action dock (inline `Home | Exit` + full-width `Pause`).
+  - `ForegroundProtectionNotifier.kt` & `ProtectionActionReceiver.kt`: Posts silent ongoing notification (`Outloop active`) with `Pause 15 min` / `Resume` broadcast actions.
+  - `ProtectionHealthHelper.kt`: Checks Accessibility/Notification/Battery status and launches compliant App Info / Battery settings.
+  - `AccessibilityEventLogger.kt`: Opt-in (`eventCaptureEnabled = false` by default) local log writer + `FileProvider` share URI generator.
 
-## Ruleset pipeline
+---
 
-- Source of truth: `ruleset/ruleset.json` (per-app viewIds/selectors). Edit it, then run `./scripts/sync-ruleset.sh` — validates schema, copies to `app/src/main/assets/ruleset.json`, and with `--sync-app-version` updates `DEFAULT_RULESET_VERSION` in `SettingsDataStore.kt`. Never hand-edit the assets copy.
-- `--push` updates the remote GitHub Gist; requires `GITHUB_PAT` exported. Never commit or hardcode a PAT.
-- `RulesetRepository` enforces trusted HTTPS endpoints and falls back to bundled JSON on repeated network failures — keep those behaviors when editing.
+## 3. Google Play Policy & Privacy Guardrails (CRITICAL)
 
-## Conventions
+Every code or manifest change **must** preserve Google Play Production compliance:
 
-- Layout under `app/src/main/java/com/example/`: `data/local` (Room entities/DAO + `SettingsDataStore`), `data/model`, `data/repository`, `service/` (accessibility service, overlay shield, selectors), `ui/screens` + `ui/components` + `MainViewModel.kt`, `worker/`.
-- Theming: `FeedSurgeonTheme(appearanceMode)` provides `OutloopTheme.colors` (`LightOutloopColors`/`DarkOutloopColors` semantic palette via `LocalOutloopColors`). Use palette tokens, not hardcoded colors — both light and dark must work.
-- Screens expose `testTag`s for the Robolectric Compose tests in `app/src/test/java/com/example/`; after replacing a screen, grep main + test for old tags and removed symbols before reporting done.
-- Commits: lowercase conventional style — `feat:`, `fix:`, `refactor:`, `chore:`, `ui:` (optional scope, e.g. `feat(logging):`).
-- Play-compliance invariants (don't break): Settings' Accessibility row stays gated on `disclosureAccepted || isAccessibilityEnabled` with the disclosure sheet (`SettingsScreen.kt`); battery-optimization exemption only from user taps in troubleshooting (Onboarding PROBLEM step / Diagnostics); keep `<queries>` scoped to the 5 feed packages + launcher intent — no `QUERY_ALL_PACKAGES`, no storage permissions; accessibility config must not set `isAccessibilityTool`.
+1. **No Restricted Permissions**:
+   - **DO NOT** add `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` or launch `Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`. Always route battery guidance via `ProtectionHealthHelper.openBatterySettings(context)` (`ACTION_APPLICATION_DETAILS_SETTINGS` / `ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS`).
+   - **DO NOT** add `QUERY_ALL_PACKAGES`, `SYSTEM_ALERT_WINDOW`, `READ_EXTERNAL_STORAGE`, or `READ_MEDIA_*`. Keep `<queries>` scoped to supported packages + launcher intent; use SAF (`CreateDocument`/`OpenDocument`) and `FileProvider` for files.
+2. **Accessibility API Rules (`FeedSurgeonService`)**:
+   - **NEVER** set `android:isAccessibilityTool="true"` in `res/xml/accessibility_service_config.xml` (Outloop is a digital wellbeing app, not an assistive disability tool).
+   - Every entry point to `Settings.ACTION_ACCESSIBILITY_SETTINGS` (`OnboardingScreen` and `SettingsScreen`) **MUST** remain gated behind an un-prechecked **Accessibility disclosure** modal requiring explicit user confirmation (`Agree and continue` vs `Not now`) when `!disclosureAccepted`.
+   - Keep inspection strictly on-device; never log, transmit, or store message text, passwords, or media streams.
+3. **Foreground Service (`specialUse`) Rules**:
+   - Keep `android:foregroundServiceType="specialUse"` and `android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE` in `AndroidManifest.xml` synchronized with `ForegroundProtectionNotifier` and `PrivacyScreen`.
+4. **Network & Data Safety Honesty**:
+   - `INTERNET` is strictly for optional, unauthenticated, read-only HTTPS `HEAD`/`GET` (`ETag`) selector-ruleset checks (`RulesetRepository`). Keep `android:allowBackup="false"` and ensure `PrivacyScreen`, `About Outloop`, and `play_submission_checklist.md` stay consistent whenever behavior changes.
+
+---
+
+## 4. UI, Design System & Accessibility Conventions
+
+- **Design Tokens**: Use `OutloopTheme.colors`, `MaterialTheme.typography`, and `OutloopMetrics` (`ui/theme/Theme.kt`). Do not hardcode hex colors inside screen composables.
+- **Shared Components**: Reuse `OutloopTabHeader`, `OutloopSubScreenScaffold`, `OutloopTonalCard`, `OutloopModalSheet`, `OutloopPrimaryButton`, `OutloopSecondaryButton`, and `OutloopSwitch`.
+- **Interactivity & A11y**:
+  - Minimum `48.dp` touch target on all clickable elements.
+  - Non-null `contentDescription` on meaningful icons/images.
+  - Assign snake_case `Modifier.testTag("...")` to primary interactive UI elements and sub-screen actions.
+  - Wrap secondary/sub-screen composables with `BackHandler` to return cleanly.
+
+---
+
+## 5. Testing Rules (Robolectric-Only)
+
+- **NO Emulator / ADB / Espresso**: Never write `androidTest/` instrumentation tests or invoke `adb`.
+- **Use Robolectric (`@Config(sdk = [36])`)**: All unit, Room migration, Service lifecycle, and Compose UI tests live in `app/src/test/java/com/example/` (`ExampleRobolectricTest.kt`, `FeedSurgeonUiRobolectricTest.kt`, `ExampleUnitTest.kt`).
+- **Keep Shared State Clean**: Any test mutating Room rules or `SettingsDataStore` in shared Robolectric contexts must reset mutations before finishing so subsequent tests stay deterministic.
+- **Always wait in Compose tests**: Call `composeRule.waitForIdle()` before assertions.
+
+---
+
+## 6. Build, Verification & Release Scripts
+
+- **Prefer `gradle` over `./gradlew`** inside cloud build containers (`gradle` is pre-configured on `PATH`; `scripts/common.sh` resolves `gradle` first and falls back to `./gradlew`).
+- **Primary Commands**:
+  - Fast verification: `./scripts/verify.sh`
+  - Full pre-release verification (tests + debug lint + release vital lint + Compose mapping errors): `./scripts/verify.sh --release`
+  - Direct Gradle test run: `gradle :app:testDebugUnitTest`
+  - Ruleset schema validation & asset sync (`ruleset/ruleset.json` -> `app/src/main/assets/ruleset.json`): `./scripts/sync-ruleset.sh --validate-only`
+  - Version bump: `./scripts/bump-version.sh [--major|--minor|--patch|--version X.Y.Z] [--code N]`
+  - Package debug/release outputs to `./build-output/`: `./scripts/build-debug.sh`, `./scripts/build-release.sh`, `./scripts/package-release.sh`
+- **Before Finishing Any Change**:
+  1. Verify compilation (`compile_applet` or `:app:assembleDebug`).
+  2. Run `gradle :app:testDebugUnitTest` (or `./scripts/verify.sh --release` for manifest/resource/release changes).
+  3. Keep `play_submission_checklist.md`, `powershell_keystore_workflow.md`, `README.md`, and `scripts/README.md` in sync if versions, permissions, or disclosures change.

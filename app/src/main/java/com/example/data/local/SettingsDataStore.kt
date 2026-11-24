@@ -54,8 +54,7 @@ data class AppPreferences(
     val dailyBudgetCuts: Int = 0,
     val strictModeEnabled: Boolean = true,
     val alwaysOpenApps: Set<String> = DEFAULT_ALWAYS_OPEN_APPS,
-    val preferredPauseMinutes: Int = 15,
-    val globalFeedTimeBudgetMinutes: Int = 0
+    val preferredPauseMinutes: Int = 15
 ) {
     fun isGloballyPaused(nowMs: Long = System.currentTimeMillis()): Boolean =
         globalPauseUntilMs == Long.MAX_VALUE || globalPauseUntilMs > nowMs
@@ -91,12 +90,29 @@ data class AppPreferences(
         const val DEFAULT_QUIET_END_MINUTES = 7 * 60
 
         val DEFAULT_ALWAYS_OPEN_APPS = setOf(
-            "Messages",
-            "Maps",
-            "Phone",
-            "Calendar",
-            "Camera",
-            "Notes"
+            "com.google.android.apps.messaging",
+            "com.google.android.apps.maps",
+            "com.google.android.dialer",
+            "com.google.android.calendar",
+            "com.google.android.GoogleCamera",
+            "com.google.android.deskclock"
+        )
+
+        val ALWAYS_OPEN_FRIENDLY_NAMES: Map<String, String> = mapOf(
+            "com.google.android.apps.messaging" to "Messages",
+            "com.android.messaging" to "Messages",
+            "com.samsung.android.messaging" to "Messages",
+            "com.google.android.apps.maps" to "Maps",
+            "com.google.android.dialer" to "Phone",
+            "com.android.dialer" to "Phone",
+            "com.samsung.android.dialer" to "Phone",
+            "com.google.android.calendar" to "Calendar",
+            "com.android.calendar" to "Calendar",
+            "com.google.android.GoogleCamera" to "Camera",
+            "com.android.camera" to "Camera",
+            "com.sec.android.app.camera" to "Camera",
+            "com.google.android.deskclock" to "Clock",
+            "com.android.deskclock" to "Clock"
         )
 
         fun isWithinQuietWindow(
@@ -243,7 +259,6 @@ class SettingsDataStore(private val context: Context) {
         val STRICT_MODE_ENABLED = booleanPreferencesKey("strict_mode_enabled")
         val ALWAYS_OPEN_APPS = stringSetPreferencesKey("always_open_apps")
         val PREFERRED_PAUSE_MINUTES = intPreferencesKey("preferred_pause_minutes")
-        val GLOBAL_FEED_TIME_BUDGET_MINUTES = intPreferencesKey("global_feed_time_budget_minutes")
     }
 
     val preferencesFlow: Flow<AppPreferences> = context.feedSurgeonDataStore.data.map { prefs ->
@@ -260,7 +275,7 @@ class SettingsDataStore(private val context: Context) {
             disclosureAccepted = prefs[Keys.DISCLOSURE_ACCEPTED] ?: false,
             onboardingCompleted = prefs[Keys.ONBOARDING_COMPLETED] ?: false,
             autoUpdateRules = prefs[Keys.AUTO_UPDATE_RULES] ?: true,
-            eventCaptureEnabled = prefs[Keys.EVENT_CAPTURE_ENABLED] ?: false,
+            eventCaptureEnabled = false,
             rulesetVersion = prefs[Keys.RULESET_VERSION] ?: AppPreferences.DEFAULT_RULESET_VERSION,
             rulesetEndpointUrl = prefs[Keys.RULESET_ENDPOINT_URL] ?: AppPreferences.DEFAULT_GIST_URL,
             rulesetEtag = prefs[Keys.RULESET_ETAG] ?: "",
@@ -284,9 +299,7 @@ class SettingsDataStore(private val context: Context) {
                     5, 15, 30 -> it
                     else -> 15
                 }
-            },
-            globalFeedTimeBudgetMinutes =
-                (prefs[Keys.GLOBAL_FEED_TIME_BUDGET_MINUTES] ?: 0).coerceIn(0, 480)
+            }
         )
     }
 
@@ -310,7 +323,7 @@ class SettingsDataStore(private val context: Context) {
 
     suspend fun setEventCaptureEnabled(enabled: Boolean) {
         context.feedSurgeonDataStore.edit { prefs ->
-            prefs[Keys.EVENT_CAPTURE_ENABLED] = enabled
+            prefs[Keys.EVENT_CAPTURE_ENABLED] = false
         }
     }
 
@@ -396,12 +409,6 @@ class SettingsDataStore(private val context: Context) {
         }
     }
 
-    suspend fun setGlobalFeedTimeBudgetMinutes(minutes: Int) {
-        context.feedSurgeonDataStore.edit { prefs ->
-            prefs[Keys.GLOBAL_FEED_TIME_BUDGET_MINUTES] = minutes.coerceIn(0, 480)
-        }
-    }
-
     suspend fun restoreBackupPreferences(
         appearanceMode: AppearanceMode,
         defaultInterventionMode: InterventionMode,
@@ -415,8 +422,7 @@ class SettingsDataStore(private val context: Context) {
         dailyBudgetCuts: Int,
         strictModeEnabled: Boolean = true,
         alwaysOpenApps: Set<String> = AppPreferences.DEFAULT_ALWAYS_OPEN_APPS,
-        preferredPauseMinutes: Int = 15,
-        globalFeedTimeBudgetMinutes: Int = 0
+        preferredPauseMinutes: Int = 15
     ) {
         context.feedSurgeonDataStore.edit { prefs ->
             prefs[Keys.APPEARANCE_MODE] = appearanceMode.name
@@ -436,7 +442,6 @@ class SettingsDataStore(private val context: Context) {
                 5, 15, 30 -> preferredPauseMinutes
                 else -> 15
             }
-            prefs[Keys.GLOBAL_FEED_TIME_BUDGET_MINUTES] = globalFeedTimeBudgetMinutes.coerceIn(0, 480)
         }
     }
 

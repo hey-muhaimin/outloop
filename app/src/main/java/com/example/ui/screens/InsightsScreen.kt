@@ -7,9 +7,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,30 +35,29 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.example.data.model.ProtectionStatus
+import androidx.compose.ui.unit.sp
 import com.example.ui.MainUiState
 import com.example.ui.components.ChartColumnData
-import com.example.ui.components.OutloopBentoStatTile
-import com.example.ui.components.OutloopBrandTopBar
-import com.example.ui.components.OutloopInsightsDarkChartCard
+import com.example.ui.components.OutloopInsightsLightChartCard
+import com.example.ui.components.OutloopMetricCell
 import com.example.ui.components.OutloopSegmentedControl
 import com.example.ui.components.OutloopStaggeredEntrance
+import com.example.ui.components.OutloopTabHeader
 import com.example.ui.components.OutloopTonalCard
-import com.example.ui.components.PillTone
 import com.example.ui.theme.OutloopMetrics
 import com.example.ui.theme.OutloopTheme
+import java.util.Locale
 
 enum class InsightsRange(val label: String) {
-    TODAY("Day"),
-    SEVEN_DAYS("Week"),
-    THIRTY_DAYS("Month")
+    TODAY("Today"),
+    SEVEN_DAYS("7 days"),
+    THIRTY_DAYS("30 days")
 }
 
 @Composable
 fun InsightsScreen(
     uiState: MainUiState,
-    bottomContentPadding: Dp = OutloopMetrics.BottomNavContentPadding,
-    onStatusClick: () -> Unit = {}
+    bottomContentPadding: Dp = OutloopMetrics.BottomNavContentPadding
 ) {
     val colors = OutloopTheme.colors
     var selectedRange by rememberSaveable { mutableStateOf(InsightsRange.SEVEN_DAYS) }
@@ -88,29 +89,32 @@ fun InsightsScreen(
         InsightsRange.SEVEN_DAYS -> uiState.weeklyReclaimedText
         InsightsRange.THIRTY_DAYS -> uiState.thirtyDayReclaimedText
     }
-    val chartSubtitle = when (selectedRange) {
-        InsightsRange.TODAY -> "Time kept today"
-        InsightsRange.SEVEN_DAYS -> "Time kept this week"
-        InsightsRange.THIRTY_DAYS -> "Time kept this month"
-    }
-    val deltaPillText = when (selectedRange) {
-        InsightsRange.SEVEN_DAYS -> uiState.weeklyDeltaText
-        else -> null
-    }
     val byApp = when (selectedRange) {
         InsightsRange.TODAY -> uiState.todayByAppBreakdown
         InsightsRange.SEVEN_DAYS -> uiState.byAppBreakdown
         InsightsRange.THIRTY_DAYS -> uiState.thirtyDayByAppBreakdown
     }
 
-    val statusPill = when (uiState.protectionStatus) {
-        ProtectionStatus.OPERATIONAL -> "Guard on" to PillTone.SUCCESS
-        ProtectionStatus.PAUSED -> "Guard paused" to PillTone.WARNING
-        ProtectionStatus.QUIET_HOURS -> "Quiet hours" to PillTone.NEUTRAL
-        ProtectionStatus.NO_APPS_ACTIVE -> "No apps guarded" to PillTone.NEUTRAL
-        ProtectionStatus.PERMISSION_NEEDED -> "Setup needed" to PillTone.WARNING
-        ProtectionStatus.SERVICE_DISCONNECTED -> "Needs attention" to PillTone.WARNING
+    val summaryHeadline = when {
+        totalCount == 0 && selectedRange == InsightsRange.TODAY -> "Quiet day so far."
+        totalCount == 0 -> "No feeds interrupted in this period."
+        totalCount in 1..4 && selectedRange == InsightsRange.TODAY -> "Staying mindful today."
+        else -> "Your attention had a little more room."
     }
+
+    val thirdMetricValue = when (selectedRange) {
+        InsightsRange.TODAY -> {
+            val s = uiState.streakDays
+            if (s == 1) "1 day" else "$s days"
+        }
+        InsightsRange.SEVEN_DAYS -> String.format(Locale.US, "%.1f", totalCount / 7f)
+        InsightsRange.THIRTY_DAYS -> String.format(Locale.US, "%.1f", totalCount / 28f)
+    }
+    val thirdMetricLabel = when (selectedRange) {
+        InsightsRange.TODAY -> "current streak"
+        InsightsRange.SEVEN_DAYS, InsightsRange.THIRTY_DAYS -> "daily average"
+    }
+    val mostInterruptedApp = byApp.firstOrNull { it.count > 0 }?.displayName ?: "None yet"
 
     Box(
         modifier = Modifier.fillMaxSize(),
@@ -129,13 +133,7 @@ fun InsightsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                OutloopBrandTopBar(
-                    title = "Insights",
-                    statusText = statusPill.first,
-                    statusTone = statusPill.second,
-                    onStatusClick = onStatusClick,
-                    statusTestTag = "insights_status_pill"
-                )
+                OutloopTabHeader(title = "Insights")
             }
 
             item {
@@ -151,58 +149,80 @@ fun InsightsScreen(
                 )
             }
 
-            // Dark hero chart card ("Time kept this week", big metric, chunky capsule bars)
+            // Monochrome Editorial Summary Bento Card with reflection headline + 2x2 nested bento cells
             item {
                 OutloopStaggeredEntrance(index = 0) {
-                    OutloopInsightsDarkChartCard(
-                        subtitle = chartSubtitle,
-                        durationText = reclaimedText,
-                        deltaPillText = deltaPillText,
+                    OutloopTonalCard(
+                        cornerRadius = OutloopMetrics.CardCornerRadius,
+                        contentPadding = PaddingValues(18.dp)
+                    ) {
+                        Text(
+                            text = summaryHeadline,
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            color = colors.ink
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(IntrinsicSize.Max),
+                            horizontalArrangement = Arrangement.spacedBy(OutloopMetrics.BentoGap)
+                        ) {
+                            OutloopMetricCell(
+                                value = totalCount.toString(),
+                                label = if (totalCount == 1) "feed interrupted" else "feeds interrupted",
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                            )
+                            OutloopMetricCell(
+                                value = "~$reclaimedText",
+                                label = "est. time reclaimed",
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(OutloopMetrics.BentoGap))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(IntrinsicSize.Max),
+                            horizontalArrangement = Arrangement.spacedBy(OutloopMetrics.BentoGap)
+                        ) {
+                            OutloopMetricCell(
+                                value = thirdMetricValue,
+                                label = thirdMetricLabel,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                            )
+                            OutloopMetricCell(
+                                value = mostInterruptedApp,
+                                label = "most interrupted",
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Ivory "Feeds interrupted" rounded capsule bar chart card
+            item {
+                OutloopStaggeredEntrance(index = 1) {
+                    OutloopInsightsLightChartCard(
+                        title = "Feeds interrupted",
                         columns = columns,
                         selectedIndex = selectedBarIndex,
                         onSelectIndex = { selectedBarIndex = it }
-                    )
-                }
-            }
-
-            // Twin Mint ("loops broken") + Peach ("best streak") Bento Tiles
-            item {
-                OutloopStaggeredEntrance(index = 1) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        OutloopBentoStatTile(
-                            value = totalCount.toString(),
-                            label = "loops broken",
-                            containerColor = colors.mintTile,
-                            modifier = Modifier.weight(1f)
-                        )
-                        val bestStreakVal = uiState.bestStreakDays
-                        val bestStreakText = if (bestStreakVal == 1) "1 day" else "$bestStreakVal days"
-                        OutloopBentoStatTile(
-                            value = bestStreakText,
-                            label = "best streak",
-                            containerColor = colors.peachTile,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
-
-            // Mint tile: measured time in feeds today (closes the estimation gap)
-            item {
-                OutloopStaggeredEntrance(index = 3) {
-                    val feedMinutes = uiState.totalTodayFeedSeconds.toLong() / 60
-                    val feedText = when {
-                        feedMinutes <= 0 -> "0m"
-                        feedMinutes < 60 -> "${feedMinutes}m"
-                        else -> "${feedMinutes / 60}h ${feedMinutes % 60}m"
-                    }
-                    OutloopBentoStatTile(
-                        value = feedText,
-                        label = "time in feeds today",
-                        containerColor = colors.mintTile
                     )
                 }
             }

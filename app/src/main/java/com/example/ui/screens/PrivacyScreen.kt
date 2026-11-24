@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +16,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccessibilityNew
 import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Visibility
@@ -29,6 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.example.ui.components.OutloopIconBadge
+import com.example.ui.components.OutloopInsetWell
 import com.example.ui.components.OutloopStaggeredEntrance
 import com.example.ui.components.OutloopSubScreenScaffold
 import com.example.ui.components.OutloopTonalCard
@@ -59,32 +63,32 @@ fun PrivacyScreen(
         }
 
         OutloopStaggeredEntrance(index = 1) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(OutloopMetrics.CardCornerRadius))
-                    .background(colors.mintTile)
-                    .padding(horizontal = 18.dp, vertical = 18.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalAlignment = Alignment.CenterVertically
+            OutloopTonalCard(
+                cornerRadius = OutloopMetrics.CardCornerRadius,
+                contentPadding = PaddingValues(18.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.Lock,
-                    contentDescription = null,
-                    tint = colors.ink
-                )
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Everything stays on your phone",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = colors.ink
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutloopIconBadge(
+                        icon = Icons.Outlined.Lock,
+                        containerColor = colors.heroDark,
+                        tint = colors.onPrimaryTint
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "No accounts, no analytics servers, and no personal content leaves this device.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.secondaryInk
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Everything stays on your phone",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = colors.ink
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "No accounts, no analytics servers, and no personal content leaves this device.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.secondaryInk
+                        )
+                    }
                 }
             }
         }
@@ -119,22 +123,33 @@ fun PrivacyScreen(
         }
         OutloopStaggeredEntrance(index = 6) {
             PrivacyDetailCard(
+                icon = Icons.Outlined.NotificationsNone,
+                title = "Persistent protection status",
+                body = "While Guard is connected, Outloop runs an Android special-use foreground service so background protection isn\u2019t silently stopped. It shows a quiet status notification with quick Pause 15 min and Resume controls."
+            )
+        }
+        OutloopStaggeredEntrance(index = 7) {
+            PrivacyDetailCard(
+                icon = Icons.Outlined.Info,
+                title = "Optional rule checks",
+                body = "When Auto-update feed rules is enabled in Diagnostics, Outloop performs read-only HTTPS checks for updated public feed selector definitions. Zero personal data, screen content, or usage stats are uploaded, and you can turn this off anytime."
+            )
+        }
+        OutloopStaggeredEntrance(index = 8) {
+            PrivacyDetailCard(
                 icon = Icons.Outlined.Tune,
                 title = "How to turn it off",
                 body = "Android Settings \u203A Accessibility \u203A Outloop, at any time."
             )
         }
 
-        OutloopStaggeredEntrance(index = 7) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(colors.peachTile)
-                    .padding(horizontal = 18.dp, vertical = 14.dp)
+        OutloopStaggeredEntrance(index = 9) {
+            OutloopInsetWell(
+                containerColor = colors.surfaceSubtle,
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
             ) {
                 Text(
-                    text = "You\u2019re in control. Pause Guard from Home or export your local history whenever you want.",
+                    text = "You\u2019re in control. Pause Guard from Today or export your local history whenever you want.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.ink
                 )

@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import com.example.data.local.FeedSurgeonDatabase
 import com.example.data.local.SettingsDataStore
+import com.example.data.repository.ControlledAppsRepository
 import com.example.data.repository.InterventionRepository
 import com.example.data.repository.RulesetRepository
 import com.example.service.AccessibilityEventLogger
@@ -32,6 +33,10 @@ class FeedSurgeonApp : Application() {
 
     val interventionRepository: InterventionRepository by lazy {
         InterventionRepository(database.feedSurgeonDao(), settingsDataStore)
+    }
+
+    val controlledAppsRepository: ControlledAppsRepository by lazy {
+        interventionRepository
     }
 
     val rulesetRepository: RulesetRepository by lazy {

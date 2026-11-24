@@ -7,6 +7,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,13 +27,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -50,21 +49,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.data.local.TargetAppRuleEntity
 import com.example.data.model.ProtectionStatus
 import com.example.ui.MainUiState
 import com.example.ui.components.OutloopAppMonogramBadge
-import com.example.ui.components.OutloopBentoStatTile
-import com.example.ui.components.OutloopBrandTopBar
 import com.example.ui.components.OutloopHairlineDivider
-import com.example.ui.components.OutloopHeroBentoCard
+import com.example.ui.components.OutloopHomeProgressCard
 import com.example.ui.components.OutloopPauseGuardDialog
 import com.example.ui.components.OutloopPrimaryButton
 import com.example.ui.components.OutloopSecondaryButton
 import com.example.ui.components.OutloopStaggeredEntrance
 import com.example.ui.components.OutloopStatusBannerCard
+import com.example.ui.components.OutloopStatusPill
+import com.example.ui.components.OutloopTabHeader
 import com.example.ui.components.OutloopTonalCard
 import com.example.ui.components.PillTone
 import com.example.ui.components.StatusBannerTone
@@ -176,57 +176,47 @@ fun HomeScreen(
                 start = OutloopMetrics.ScreenHorizontalPadding,
                 end = OutloopMetrics.ScreenHorizontalPadding,
                 top = OutloopMetrics.ScreenTopPadding,
-                bottom = bottomContentPadding + 68.dp
+                bottom = bottomContentPadding
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Brand top bar + Today heading
+            // Clean Today title + Guard status pill (tapping while operational opens Pause Guard)
             item {
-                OutloopBrandTopBar(
+                OutloopTabHeader(
                     title = "Today",
-                    statusText = statusPill.first,
-                    statusTone = statusPill.second,
-                    onStatusClick = onStatusClick,
-                    statusTestTag = "status_pill"
+                    trailing = {
+                        OutloopStatusPill(
+                            text = statusPill.first,
+                            tone = statusPill.second,
+                            onClick = {
+                                if (uiState.protectionStatus == ProtectionStatus.OPERATIONAL) {
+                                    haptic()
+                                    showPauseGuardDialog = true
+                                } else {
+                                    onStatusClick()
+                                }
+                            },
+                            modifier = Modifier.testTag("status_pill")
+                        )
+                    }
                 )
             }
 
-            // Hero Dark Bento KPI ("14 loops broken" + open-loop mark)
+            // Progress ring + feeds interrupted today + 2-up target/streak bento + 7-day strip
             item {
                 OutloopStaggeredEntrance(index = 0) {
-                    OutloopHeroBentoCard(
+                    OutloopHomeProgressCard(
                         count = uiState.todayCutsCount,
-                        dailyBudgetCuts = uiState.preferences.dailyBudgetCuts
+                        reclaimedText = uiState.todayReclaimedText,
+                        dayBars = uiState.weeklyDayBars,
+                        dailyBudgetCuts = uiState.preferences.dailyBudgetCuts,
+                        streakDays = uiState.streakDays,
+                        onReclaimedInfoClick = {
+                            onShowEstimateToast(
+                                "Estimated from confirmed exits and your per-visit estimate in Settings. It isn\u2019t measured screen time."
+                            )
+                        }
                     )
-                }
-            }
-
-            // Twin Mint ("time kept") + Peach ("streak") Bento Tiles
-            item {
-                OutloopStaggeredEntrance(index = 1) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        OutloopBentoStatTile(
-                            value = uiState.todayReclaimedText,
-                            label = "time kept",
-                            containerColor = colors.mintTile,
-                            onClick = {
-                                onShowEstimateToast(
-                                    "Estimated from confirmed exits and your per-visit estimate in Settings. It isn\u2019t measured screen time."
-                                )
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                        val streakText = if (uiState.streakDays == 1) "1 day" else "${uiState.streakDays} days"
-                        OutloopBentoStatTile(
-                            value = streakText,
-                            label = "streak",
-                            containerColor = colors.peachTile,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
                 }
             }
 
@@ -299,13 +289,13 @@ fun HomeScreen(
                                 modifier = Modifier
                                     .size(38.dp)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(colors.peachTile),
+                                    .background(colors.warnBg),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Pause,
                                     contentDescription = null,
-                                    tint = colors.ink,
+                                    tint = colors.warnText,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -399,70 +389,9 @@ fun HomeScreen(
                 }
             }
 
-            // Weekly time saved chart
-            item {
-                OutloopStaggeredEntrance(index = 2) {
-                    val maxMinutes = (uiState.weeklyDayBars.maxOfOrNull { it.reclaimedMinutes } ?: 1).coerceAtLeast(1)
-                    OutloopTonalCard(
-                        cornerRadius = OutloopMetrics.CardCornerRadius,
-                        contentPadding = PaddingValues(18.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    text = "Time saved this week",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = colors.secondaryInk
-                                )
-                                Text(
-                                    text = uiState.weeklyReclaimedText,
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = colors.ink
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(72.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.Bottom
-                        ) {
-                            uiState.weeklyDayBars.forEach { bar ->
-                                val barHeight = (bar.reclaimedMinutes.toFloat() / maxMinutes.toFloat() * 56f).coerceAtLeast(4f).dp
-                                Column(
-                                    modifier = Modifier.weight(1f),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Bottom
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth(0.6f)
-                                            .height(barHeight)
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(if (bar.isToday) colors.heroDark else colors.mintTile)
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = bar.dayLetter,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = if (bar.isToday) colors.ink else colors.secondaryInk
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
             // Guarded apps ivory bento card matching C · Tonal Bento.png
             item {
-                OutloopStaggeredEntrance(index = 3) {
+                OutloopStaggeredEntrance(index = 2) {
                     OutloopTonalCard(
                         cornerRadius = OutloopMetrics.CardCornerRadius,
                         contentPadding = PaddingValues(18.dp)
@@ -494,31 +423,33 @@ fun HomeScreen(
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 installedRules.forEach { rule ->
                                     val snoozed = rule.snoozeUntilMs > nowMs
-                                    val feedSummary = buildString {
-                                        append(homeUsefulSubtitle(rule))
-                                        val feedText = uiState.todayFeedSecondsByPackage[rule.packageName]?.let { seconds ->
-                                            val minutes = seconds / 60
-                                            when {
-                                                minutes <= 0 -> "1m"
-                                                minutes < 60 -> "${minutes}m"
-                                                else -> "${minutes / 60}h ${minutes % 60}m"
-                                            }
-                                        }
-                                        if (feedText != null) append(" · $feedText")
-                                        if (rule.hasDailyLimit()) append(" / ${rule.dailyLimitMinutes}m")
+                                    val usedSeconds = uiState.todayUsageSecondsByPackage[rule.packageName] ?: 0L
+                                    val usedCompact = com.example.data.repository.InterventionRepository.formatDurationCompact(usedSeconds)
+                                    val isLimitReached = rule.hasDailyLimit() && usedSeconds >= rule.dailyLimitSeconds
+                                    val limitProgress = if (rule.hasDailyLimit() && rule.dailyLimitSeconds > 0L) {
+                                        (usedSeconds.toFloat() / rule.dailyLimitSeconds.toFloat()).coerceIn(0f, 1f)
+                                    } else {
+                                        0f
                                     }
                                     val subtitle = when {
                                         !rule.enabled -> "Off"
                                         snoozed -> "Paused ${formatRemainingCountdown(rule.snoozeUntilMs - nowMs)}"
-                                        else -> feedSummary
+                                        isLimitReached ->
+                                            "Limit reached \u00B7 $usedCompact / ${rule.dailyLimitMinutes}m"
+                                        rule.hasDailyLimit() ->
+                                            "${homeUsefulSubtitle(rule)} \u00B7 $usedCompact/${rule.dailyLimitMinutes}m"
+                                        else -> homeUsefulSubtitle(rule)
                                     }
+                                    val rowShape = RoundedCornerShape(OutloopMetrics.WellCornerRadius)
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .heightIn(min = 56.dp)
-                                            .clip(RoundedCornerShape(14.dp))
+                                            .heightIn(min = 60.dp)
+                                            .clip(rowShape)
+                                            .background(colors.canvas)
+                                            .border(1.dp, colors.hairlineBorder, rowShape)
                                             .clickable { onAppClick(rule.packageName) }
-                                            .padding(vertical = 4.dp)
+                                            .padding(horizontal = 12.dp, vertical = 10.dp)
                                             .testTag("home_app_row_${rule.packageName}"),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -537,10 +468,32 @@ fun HomeScreen(
                                             Text(
                                                 text = subtitle,
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = colors.secondaryInk
+                                                color = if (isLimitReached) colors.warnText else colors.secondaryInk,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
+                                            if (rule.enabled && rule.hasDailyLimit()) {
+                                                Spacer(modifier = Modifier.height(6.dp))
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(4.dp)
+                                                        .clip(CircleShape)
+                                                        .background(colors.surfaceSubtle)
+                                                ) {
+                                                    if (usedSeconds > 0L) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .fillMaxWidth(limitProgress.coerceAtLeast(0.05f))
+                                                                .fillMaxHeight()
+                                                                .clip(CircleShape)
+                                                                .background(if (isLimitReached) colors.warnText else colors.heroDark)
+                                                        )
+                                                    }
+                                                }
+                                            }
                                         }
-                                        // On / Off tonal capsule pill with full 48dp min touch height
+                                        // On / Off Monochrome Editorial capsule pill with full 48dp min touch height
                                         Box(
                                             modifier = Modifier
                                                 .heightIn(min = 48.dp)
@@ -555,7 +508,12 @@ fun HomeScreen(
                                                 modifier = Modifier
                                                     .clip(CircleShape)
                                                     .background(
-                                                        if (rule.enabled) colors.mintTile else colors.surfaceSubtle
+                                                        if (rule.enabled) colors.heroDark else colors.surfaceSubtle
+                                                    )
+                                                    .border(
+                                                        width = 1.dp,
+                                                        color = if (rule.enabled) colors.heroDark else colors.hairlineBorder,
+                                                        shape = CircleShape
                                                     )
                                                     .padding(horizontal = 16.dp, vertical = 7.dp),
                                                 contentAlignment = Alignment.Center
@@ -565,7 +523,7 @@ fun HomeScreen(
                                                     style = MaterialTheme.typography.labelLarge.copy(
                                                         fontWeight = FontWeight.SemiBold
                                                     ),
-                                                    color = if (rule.enabled) colors.ink else colors.secondaryInk
+                                                    color = if (rule.enabled) colors.onPrimaryTint else colors.secondaryInk
                                                 )
                                             }
                                         }
@@ -587,7 +545,7 @@ fun HomeScreen(
             // Uninstalled supported apps tucked calmly below Guarded apps
             if (notInstalledRules.isNotEmpty()) {
                 item {
-                    OutloopStaggeredEntrance(index = 4) {
+                    OutloopStaggeredEntrance(index = 3) {
                         OutloopTonalCard(
                             cornerRadius = OutloopMetrics.CardCornerRadius,
                             contentPadding = PaddingValues(18.dp),
@@ -631,39 +589,6 @@ fun HomeScreen(
                         }
                     }
                 }
-            }
-        }
-
-        // Floating bottom-right "Pause guard · 15 min" pill FAB matching C · Tonal Bento.png
-        if (!uiState.isGloballyPaused && uiState.isAccessibilityEnabled) {
-            Button(
-                onClick = {
-                    haptic()
-                    showPauseGuardDialog = true
-                },
-                shape = CircleShape,
-                elevation = ButtonDefaults.buttonElevation(
-                    defaultElevation = 6.dp,
-                    pressedElevation = 2.dp
-                ),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = colors.heroDark,
-                    contentColor = Color(0xFFFAF8F2)
-                ),
-                contentPadding = PaddingValues(horizontal = 22.dp, vertical = 14.dp),
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(
-                        end = OutloopMetrics.ScreenHorizontalPadding,
-                        bottom = bottomContentPadding + 14.dp
-                    )
-                    .heightIn(min = 52.dp)
-                    .testTag("home_pause_guard_fab")
-            ) {
-                Text(
-                    text = "Pause guard \u00B7 $pauseMins min",
-                    style = MaterialTheme.typography.titleMedium
-                )
             }
         }
     }
