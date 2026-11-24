@@ -9,7 +9,7 @@ This file defines mandatory project conventions, architecture boundaries, Google
 - **App Name**: `Outloop` (`app/src/main/res/values/strings.xml` and root `metadata.json` **must stay in sync**).
 - **Application ID**: `com.suprbuild.outloop` (set in `app/build.gradle.kts`). **Do not change `applicationId` unless explicitly requested.**
 - **Internal Namespace**: `com.example` (keep Kotlin source directories and `R` package under `com/example` — never rename `namespace`).
-- **Current Release Version**: `versionCode = 7`, `versionName = "7.0"`.
+- **Current Release Version**: `versionCode = 8`, `versionName = "8.0"`.
 - **Toolchain**: Kotlin, Jetpack Compose, AGP `9.1.1`, Gradle `9.3.1`, JDK 21, `compileSdk = 36` (`minSdk = 24`, `targetSdk = 36`).
 - **Protected Files & Signing Blocks**:
   - **NEVER** modify, delete, or overwrite `debug.keystore` or `debug.keystore.base64`.
@@ -37,6 +37,42 @@ This file defines mandatory project conventions, architecture boundaries, Google
   - `ForegroundProtectionNotifier.kt` & `ProtectionActionReceiver.kt`: Posts silent ongoing notification (`Outloop active`) with `Pause 15 min` / `Resume` broadcast actions.
   - `ProtectionHealthHelper.kt`: Checks Accessibility/Notification/Battery status and launches compliant App Info / Battery settings.
   - `AccessibilityEventLogger.kt`: Opt-in (`eventCaptureEnabled = false` by default) local log writer + `FileProvider` share URI generator.
+
+---
+
+## 3. Accessibility Service Architecture, Feed Pausing Mechanics & Limitations
+
+Outloop’s core functionality relies on `FeedSurgeonService` (extending Android `AccessibilityService`) to detect and pause short-form video loops (Reels, Shorts, TikTok, Spotlight, Watch feeds) in user-selected target applications.
+
+### A. Purpose & Core Mission
+- **Mission**: Break involuntary dopamine loops on short-form feeds while keeping messaging, search, profiles, and deliberate utility completely accessible.
+- **Privacy Guarantee**: Operates 100% on-device with zero telemetry, zero cloud logging, and zero message/password inspection.
+
+### B. Dual-Layer Detection Pipeline (`SelectorMatcher.kt`)
+1. **Layer 1: Explicit Selector Matching**:
+   - Inspects `viewIdResourceName` against configured `TargetAppRuleEntity.viewIds`.
+   - Evaluates scroll source events (`AccessibilityEvent.TYPE_VIEW_SCROLLED`) against specific feed recycler view IDs.
+   - Falls back to active tab content descriptions (`homeTabLabel` vs active tab labels).
+2. **Layer 2: Structural Container Heuristics (`detectShortFormFeedPattern`)**:
+   - Detects full-bleed vertical pagers (`ViewPager2`, `RecyclerView`) whose bounds fill `>= 55%` of screen height and `>= 70%` of screen width.
+   - Matches layout hint tokens (`short`, `shorts`, `reel`, `reels`, `clips`, `spotlight`, `opera`, `watch_feed`, `vertical_pager`).
+   - **Safe Exclusions**: Strictly filters out messages, direct chats, inboxes, search, comments, profiles, and settings via `NON_FEED_CONTAINER_HINTS`.
+
+### C. Intervention & Pausing Mechanics
+When a short-form feed or daily limit (`dailyLimitMinutes`) is triggered (subject to active cooldowns and snooze timers):
+- **`OVERLAY` Mode**: Attaches `TYPE_ACCESSIBILITY_OVERLAY` via `AccessibilityOverlayShield` / `TransparentPauseDimOverlay`, displaying the 2-row action dock (`Go to Home`, `Exit App`, and `Pause Guard`).
+- **`HOME_TAB` Mode**: Programmatically invokes `ACTION_CLICK` on the target app's root Home tab node (`findHomeTabNode`) or in-app back arrow (`findInAppBackNode`).
+- **`BACK` Mode**: Fires `GLOBAL_ACTION_BACK` for single-step exit.
+
+### D. Strict Zero-Data Privacy Architecture
+- **No Disk Logging**: `AccessibilityEventLogger` does not write captured node trees or screen text to disk. Snapshots are explicitly stubbed (`CapturedTreeSnapshot("redacted", emptyList(), emptyList())`) to guarantee absolute user privacy.
+- **Scoped Permissions**: No broad storage, query-all-packages, or overlay window permissions beyond `BIND_ACCESSIBILITY_SERVICE` and `specialUse` foreground service.
+
+### E. Technical Limitations & OEM Countermeasures
+- **OEM Background Task Kills**: Aggressive battery management on Xiaomi (MIUI/HyperOS), Samsung (OneUI), and Huawei can terminate accessibility bindings when swiped from recents. **Countermeasures**: `START_STICKY`, `onTaskRemoved` state re-assertion, `specialUse` ongoing notification, and `ProtectionHealthHelper` battery settings guidance.
+- **Dynamic Layout Shifts & Obfuscation**: Apps frequently rename view IDs or run server-driven A/B tests. Handled by fallback tab matching, heuristic container checks, and conditional Gist ruleset sync (`RulesetRepository`).
+- **WebViews & Canvas Feeds**: Custom-drawn Canvas views or obfuscated DOM inside embedded webviews cannot be inspected by accessibility node traversal.
+
 
 ---
 
