@@ -703,9 +703,9 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 isAllCaps = false
                 textSize = 15f
                 typeface = Typeface.create(headingTypeface, Typeface.BOLD)
-                setTextColor(ivoryInk)
+                setTextColor(Color.parseColor("#141514"))
                 background = GradientDrawable().apply {
-                    setColor(darkHeroBg)
+                    setColor(Color.parseColor("#9DE8B2"))
                     cornerRadius = dpF(100f)
                 }
                 layoutParams = LinearLayout.LayoutParams(

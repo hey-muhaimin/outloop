@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Outloop — Insights</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <style>
+    .bento-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .bento-row-top {
+      display: grid;
+      grid-template-columns: 1.35fr 0.85fr;
+      gap: 10px;
+    }
+    .bento-row-bottom {
+      display: grid;
+      grid-template-columns: 0.85fr 1.35fr;
+      gap: 10px;
+    }
+    .trigger-tile {
+      border-radius: var(--radius-card);
+      padding: 17px;
+      min-height: 122px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: transform 0.14s ease;
+    }
+    .trigger-tile:active { transform: scale(0.98); }
+    .tile-yt   { background: var(--accent-peach); }
+    .tile-ig   { background: var(--accent-mint-card); }
+    .tile-tt   { background: var(--accent-yellow); }
+    .tile-misc { background: var(--accent-sky); }
+
+    .t-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: rgba(20, 21, 20, 0.65);
+    }
+    .t-value {
+      font-size: 27px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .t-sub {
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(20, 21, 20, 0.78);
+    }
+
+    /* Pattern Card */
+    .pattern-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-card);
+      padding: 18px 20px;
+      box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .pattern-title {
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .pattern-desc {
+      font-size: 12.5px;
+      line-height: 1.45;
+      color: var(--text-secondary);
+    }
+    .peak-box {
+      margin-top: 4px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(20, 21, 20, 0.06);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .peak-time {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    /* Intervention Outcomes Progress Card */
+    .drivers-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-card);
+      padding: 18px 20px;
+      box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .driver-row {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .driver-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .driver-meta span:first-child { color: var(--text-secondary); }
+    .track {
+      width: 100%;
+      height: 6px;
+      border-radius: 99px;
+      background: var(--bg-card-subtle);
+      overflow: hidden;
+    }
+    .fill {
+      height: 100%;
+      border-radius: 99px;
+    }
+  </style>
+</head>
+<body>
+  <div class="device-frame">
+    <div class="screen-main">
+      <header>
+        <p class="eyebrow">Last 7 Days · Stored in Room</p>
+        <h1 class="page-title">Your loop insights</h1>
+      </header>
+
+      <section class="bento-grid">
+        <div class="bento-row-top">
+          <div class="trigger-tile tile-yt" onclick="inspectApp('YouTube Shorts', '38 overlay pauses triggered; 84% returned directly to YouTube Home tab.', '9:30–11:30 PM')">
+            <span class="t-label">YouTube Shorts</span>
+            <div class="t-value">42%</div>
+            <span class="t-sub">38 pauses · 1h 45m saved</span>
+          </div>
+          <div class="trigger-tile tile-ig" onclick="inspectApp('Instagram Reels', '25 overlay pauses triggered while DMs and Feed stayed uninterrupted.', '1:00–2:30 PM')">
+            <span class="t-label">IG Reels</span>
+            <div class="t-value">28%</div>
+            <span class="t-sub">25 pauses</span>
+          </div>
+        </div>
+
+        <div class="bento-row-bottom">
+          <div class="trigger-tile tile-tt" onclick="inspectApp('TikTok For You', '16 pause overlays triggered on cold launches; 13 exited immediately.', '10:00–11:45 PM')">
+            <span class="t-label">TikTok</span>
+            <div class="t-value">18%</div>
+            <span class="t-sub">16 pauses</span>
+          </div>
+          <div class="trigger-tile tile-misc" onclick="inspectApp('FB Reels, X & Spotlight', '11 short-form feeds intercepted across secondary social apps.', '5:30–7:00 PM')">
+            <span class="t-label">FB · X · Snap</span>
+            <div class="t-value">12%</div>
+            <span class="t-sub">11 pauses</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="pattern-card">
+        <span class="eyebrow" style="margin:0;">⚡ Strongest Loop Pattern</span>
+        <div class="pattern-title" id="patternTitle">Late-night Shorts drift</div>
+        <p class="pattern-desc" id="patternDesc">38 overlay pauses triggered; 84% returned directly to YouTube Home tab.</p>
+        <div class="peak-box">
+          <span class="eyebrow" style="margin:0;">Peak Window</span>
+          <span class="peak-time" id="peakWindow">9:30–11:30 PM</span>
+        </div>
+      </section>
+
+      <section class="drivers-card">
+        <div class="driver-row">
+          <div class="driver-meta">
+            <span>Returned to App Home Tab</span>
+            <span>64%</span>
+          </div>
+          <div class="track"><div class="fill" style="width:64%; background: var(--accent-teal);"></div></div>
+        </div>
+        <div class="driver-row">
+          <div class="driver-meta">
+            <span>Exited to Device Home</span>
+            <span>27%</span>
+          </div>
+          <div class="track"><div class="fill" style="width:27%; background: var(--accent-yellow);"></div></div>
+        </div>
+        <div class="driver-row">
+          <div class="driver-meta">
+            <span>Paused / Allowed Once</span>
+            <span>9%</span>
+          </div>
+          <div class="track"><div class="fill" style="width:9%; background: var(--accent-coral);"></div></div>
+        </div>
+      </section>
+    </div>
+
+    <nav class="bottom-nav" aria-label="Primary">
+      <a href="home.html" class="nav-item">
+        <svg viewBox="0 0 24 24"><path d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9.5z"/></svg>
+        <span>Home</span>
+      </a>
+      <a href="insights.html" class="nav-item active">
+        <svg viewBox="0 0 24 24"><path d="M6 18v-5M12 18V7M18 18v-9" stroke-linecap="round"/></svg>
+        <span>Insights</span>
+      </a>
+      <a href="settings.html" class="nav-item">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Settings</span>
+      </a>
+    </nav>
+  </div>
+
+  <script>
+    function inspectApp(title, desc, windowTime) {
+      document.getElementById('patternTitle').textContent = title;
+      document.getElementById('patternDesc').textContent = desc;
+      document.getElementById('peakWindow').textContent = windowTime;
+    }
+  </script>
+</body>
+</html>

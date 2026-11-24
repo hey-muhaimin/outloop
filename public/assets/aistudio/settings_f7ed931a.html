@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Outloop — Settings</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <style>
+    /* Segmented Intervention Mode Selector */
+    .mode-selector {
+      background: var(--bg-card);
+      border-radius: var(--radius-card);
+      padding: 6px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      box-shadow: var(--shadow-card);
+    }
+    .mode-btn {
+      border: none;
+      background: transparent;
+      border-radius: 16px;
+      padding: 11px 6px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .mode-btn.active {
+      background: var(--bg-hero-dark);
+      color: var(--text-on-dark);
+    }
+
+    /* Settings List Card */
+    .settings-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-card);
+      padding: 6px 18px;
+      box-shadow: var(--shadow-card);
+    }
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(20, 21, 20, 0.06);
+    }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .setting-desc {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin-top: 2px;
+      line-height: 1.35;
+    }
+    .status-pill {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 5px 10px;
+      border-radius: 99px;
+      background: var(--accent-mint-card);
+      color: var(--text-primary);
+      white-space: nowrap;
+    }
+
+    /* SAF Backup Actions */
+    .backup-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .btn-subtle {
+      height: 46px;
+      border: none;
+      border-radius: 15px;
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      box-shadow: var(--shadow-card);
+      cursor: pointer;
+    }
+    .btn-subtle:active { transform: scale(0.985); }
+
+    .privacy-note {
+      font-size: 11px;
+      line-height: 1.45;
+      color: var(--text-muted);
+      text-align: center;
+      padding: 0 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="device-frame">
+    <div class="screen-main">
+      <header>
+        <p class="eyebrow">Guardrails & Transparency</p>
+        <h1 class="page-title">Settings</h1>
+      </header>
+
+      <section>
+        <div class="section-label">Default Intervention Mode</div>
+        <div class="mode-selector">
+          <button class="mode-btn active" onclick="selectMode(this, 'Shows calm transparent pause modal with Home & Exit dock.')">Pause Overlay</button>
+          <button class="mode-btn" onclick="selectMode(this, 'Navigates directly back to the guarded app’s own Home tab.')">Home Tab</button>
+          <button class="mode-btn" onclick="selectMode(this, 'Exits the short-form player view with a single Back action.')">Step Back</button>
+        </div>
+        <p class="setting-desc" id="modeHint" style="margin-top:8px; padding:0 4px;">
+          Shows calm transparent pause modal with Home &amp; Exit dock.
+        </p>
+      </section>
+
+      <section class="settings-card">
+        <div class="setting-row">
+          <div>
+            <div class="setting-title">Accessibility service</div>
+            <div class="setting-desc">FeedSurgeonService · View IDs only</div>
+          </div>
+          <span class="status-pill">Enabled</span>
+        </div>
+
+        <div class="setting-row">
+          <div>
+            <div class="setting-title">Strict mode</div>
+            <div class="setting-desc">10s confirmation before pausing Guard</div>
+          </div>
+          <div class="toggle-switch on" onclick="this.classList.toggle('on')"></div>
+        </div>
+
+        <div class="setting-row">
+          <div>
+            <div class="setting-title">Quiet hours</div>
+            <div class="setting-desc">10:00 PM – 7:00 AM · Instant pause</div>
+          </div>
+          <div class="toggle-switch on" onclick="this.classList.toggle('on')"></div>
+        </div>
+
+        <div class="setting-row">
+          <div>
+            <div class="setting-title">Auto-update feed rules</div>
+            <div class="setting-desc">ETag read-only ruleset.json check</div>
+          </div>
+          <div class="toggle-switch" onclick="this.classList.toggle('on')"></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-label">Local Backup (SAF)</div>
+        <div class="backup-grid">
+          <button class="btn-subtle" onclick="this.textContent='Exported JSON ✓'">Export JSON</button>
+          <button class="btn-subtle" onclick="this.textContent='Ready to Restore'">Restore JSON</button>
+        </div>
+      </section>
+
+      <p class="privacy-note">
+        100% on-device · Zero accounts, zero analytics SDKs, and zero screen content uploads.
+      </p>
+    </div>
+
+    <nav class="bottom-nav" aria-label="Primary">
+      <a href="home.html" class="nav-item">
+        <svg viewBox="0 0 24 24"><path d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9.5z"/></svg>
+        <span>Home</span>
+      </a>
+      <a href="insights.html" class="nav-item">
+        <svg viewBox="0 0 24 24"><path d="M6 18v-5M12 18V7M18 18v-9" stroke-linecap="round"/></svg>
+        <span>Insights</span>
+      </a>
+      <a href="settings.html" class="nav-item active">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Settings</span>
+      </a>
+    </nav>
+  </div>
+
+  <script>
+    function selectMode(btn, hint) {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('modeHint').textContent = hint;
+    }
+  </script>
+</body>
+</html>
