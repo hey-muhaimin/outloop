@@ -13,6 +13,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -103,6 +105,7 @@ fun SettingsScreen(
     onShowToast: (String) -> Unit,
     onSetQuietHours: (Boolean, Int, Int) -> Unit = { _, _, _ -> },
     onSetDailyBudget: (Int) -> Unit = {},
+    onSetGlobalFeedBudget: (Int) -> Unit = {},
     onExportBackupUri: (Uri, (String) -> Unit) -> Unit = { _, cb -> cb("Backup exported cleanly.") },
     onInspectBackupUri: (Uri, (OutloopBackupPreview?, String?, String?) -> Unit) -> Unit = { _, cb ->
         cb(null, null, "Backup unavailable")
@@ -123,6 +126,7 @@ fun SettingsScreen(
     var showAboutSheet by rememberSaveable { mutableStateOf(false) }
     var showDefaultResponseSheet by rememberSaveable { mutableStateOf(false) }
     var showDailyBudgetSheet by rememberSaveable { mutableStateOf(false) }
+    var showGlobalFeedBudgetSheet by rememberSaveable { mutableStateOf(false) }
     var showClearHistorySheet by rememberSaveable { mutableStateOf(false) }
     var showAccessibilityDisclosureSheet by rememberSaveable { mutableStateOf(false) }
     var pendingBackupPreview by remember { mutableStateOf<OutloopBackupPreview?>(null) }
@@ -259,6 +263,17 @@ fun SettingsScreen(
                                 },
                                 onClick = { showDailyBudgetSheet = true },
                                 modifier = Modifier.testTag("settings_daily_budget")
+                            )
+                            OutloopHairlineDivider()
+                            OutloopListNavRow(
+                                title = "Global feed budget",
+                                valueText = if (uiState.preferences.globalFeedTimeBudgetMinutes > 0) {
+                                    "${uiState.preferences.globalFeedTimeBudgetMinutes}m / day"
+                                } else {
+                                    "Off"
+                                },
+                                onClick = { showGlobalFeedBudgetSheet = true },
+                                modifier = Modifier.testTag("settings_global_feed_budget")
                             )
                         }
                     }
@@ -614,6 +629,24 @@ fun SettingsScreen(
                 )
             },
             onDismiss = { showDailyBudgetSheet = false }
+        )
+    }
+
+    if (showGlobalFeedBudgetSheet) {
+        GlobalFeedBudgetSheet(
+            initialMinutes = uiState.preferences.globalFeedTimeBudgetMinutes,
+            onSave = { minutes ->
+                onSetGlobalFeedBudget(minutes)
+                showGlobalFeedBudgetSheet = false
+                onShowToast(
+                    if (minutes > 0) {
+                        "Global feed budget set to ${minutes}m per day."
+                    } else {
+                        "Global feed budget turned off."
+                    }
+                )
+            },
+            onDismiss = { showGlobalFeedBudgetSheet = false }
         )
     }
 
@@ -1103,13 +1136,14 @@ private fun TimeStepperRow(
 private fun StepCircleIconButton(
     icon: ImageVector,
     contentDescription: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val colors = OutloopTheme.colors
     val haptic = rememberOutloopHaptic()
     val interactionSource = remember { MutableInteractionSource() }
     Box(
-        modifier = Modifier
+        modifier = modifier
             .outloopPressScale(interactionSource, 0.92f)
             .size(48.dp)
             .clip(CircleShape)
@@ -1173,5 +1207,127 @@ private fun DailyBudgetSheet(
                 )
             }
         }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun GlobalFeedBudgetSheet(
+    initialMinutes: Int,
+    onSave: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = OutloopTheme.colors
+    val haptic = rememberOutloopHaptic()
+    var draftMinutes by rememberSaveable(initialMinutes) {
+        mutableIntStateOf(
+            initialMinutes.coerceIn(
+                AppPreferences.MIN_GLOBAL_FEED_BUDGET_MINUTES,
+                AppPreferences.MAX_GLOBAL_FEED_BUDGET_MINUTES
+            )
+        )
+    }
+
+    OutloopModalSheet(
+        title = "Global feed budget",
+        onDismiss = onDismiss
+    ) {
+        Text(
+            text = "Set a combined daily time cap across all guarded apps. When reached, Outloop guards entire monitored apps with Pause Guard.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.secondaryInk
+        )
+
+        OutloopTonalCard(
+            cornerRadius = OutloopMetrics.SubCardCornerRadius,
+            contentPadding = PaddingValues(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                StepCircleIconButton(
+                    icon = Icons.Rounded.Remove,
+                    contentDescription = "Decrease global feed budget by 5 minutes",
+                    onClick = {
+                        draftMinutes = (draftMinutes - 5).coerceAtLeast(AppPreferences.MIN_GLOBAL_FEED_BUDGET_MINUTES)
+                    },
+                    modifier = Modifier.testTag("global_budget_minus_button")
+                )
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = if (draftMinutes == 0) "Off" else "$draftMinutes min",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontFeatureSettings = "tnum"
+                        ),
+                        color = colors.ink,
+                        modifier = Modifier.testTag("global_budget_draft_value")
+                    )
+                    Text(
+                        text = if (draftMinutes == 0) "No combined cap" else "per day across guarded apps",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.secondaryInk
+                    )
+                }
+
+                StepCircleIconButton(
+                    icon = Icons.Rounded.Add,
+                    contentDescription = "Increase global feed budget by 5 minutes",
+                    onClick = {
+                        draftMinutes = (draftMinutes + 5).coerceAtMost(AppPreferences.MAX_GLOBAL_FEED_BUDGET_MINUTES)
+                    },
+                    modifier = Modifier.testTag("global_budget_plus_button")
+                )
+            }
+        }
+
+        val presets = listOf(0 to "Off", 30 to "30m", 60 to "60m", 90 to "90m", 120 to "2h")
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            presets.forEach { (minutes, label) ->
+                val selected = draftMinutes == minutes
+                Box(
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .clip(CircleShape)
+                        .background(if (selected) colors.heroDark else colors.surfaceSubtle)
+                        .border(
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = if (selected) colors.heroDark else colors.hairlineBorder
+                            ),
+                            shape = CircleShape
+                        )
+                        .clickable {
+                            haptic()
+                            draftMinutes = minutes
+                        }
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                        .testTag("global_budget_preset_$minutes"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            fontFeatureSettings = "tnum"
+                        ),
+                        color = if (selected) colors.onPrimaryTint else colors.ink
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+        OutloopPrimaryButton(
+            text = "Save budget",
+            onClick = { onSave(draftMinutes) },
+            modifier = Modifier.testTag("save_global_feed_budget_button")
+        )
     }
 }

@@ -32,6 +32,8 @@ interface ControlledAppsRepository {
 
     suspend fun getTodayUsageSeconds(packageName: String, dateKey: String): Long
 
+    suspend fun getTotalTodayUsageSeconds(dateKey: String): Long
+
     suspend fun addTrackedUsageSeconds(
         packageName: String,
         dateKey: String,

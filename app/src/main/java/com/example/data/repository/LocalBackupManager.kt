@@ -28,7 +28,8 @@ data class BackupPreferencesDto(
     val dailyBudgetCuts: Int = 0,
     val strictModeEnabled: Boolean = true,
     val alwaysOpenApps: List<String> = emptyList(),
-    val preferredPauseMinutes: Int = 15
+    val preferredPauseMinutes: Int = 15,
+    val globalFeedTimeBudgetMinutes: Int = com.example.data.local.AppPreferences.DEFAULT_GLOBAL_FEED_BUDGET_MINUTES
 )
 
 data class BackupRuleDto(
@@ -116,7 +117,8 @@ class LocalBackupManager(
                 dailyBudgetCuts = prefs.dailyBudgetCuts,
                 strictModeEnabled = prefs.strictModeEnabled,
                 alwaysOpenApps = prefs.alwaysOpenApps.sorted(),
-                preferredPauseMinutes = prefs.preferredPauseMinutes
+                preferredPauseMinutes = prefs.preferredPauseMinutes,
+                globalFeedTimeBudgetMinutes = prefs.globalFeedTimeBudgetMinutes
             ),
             rules = rules.map { rule ->
                 BackupRuleDto(
@@ -251,7 +253,8 @@ class LocalBackupManager(
             dailyBudgetCuts = prefDto.dailyBudgetCuts,
             strictModeEnabled = prefDto.strictModeEnabled,
             alwaysOpenApps = restoredAlwaysOpen,
-            preferredPauseMinutes = prefDto.preferredPauseMinutes
+            preferredPauseMinutes = prefDto.preferredPauseMinutes,
+            globalFeedTimeBudgetMinutes = prefDto.globalFeedTimeBudgetMinutes
         )
 
         BackupRestoreResult.Success(

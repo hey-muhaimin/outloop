@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -147,7 +148,7 @@ class FeedSurgeonUiRobolectricTest {
         composeRule.onNodeWithTag("status_pill").assertTextContains("Guard paused")
         composeRule.onNodeWithTag("home_list")
             .performScrollToNode(hasTestTag("home_resume_now_button"))
-        composeRule.onAllNodesWithText("Guard paused").assertCountEquals(2)
+        composeRule.onNodeWithText("Guard paused").assertIsDisplayed()
         composeRule.onNodeWithTag("home_resume_now_button").performClick()
         assertTrue(resumed)
     }
@@ -336,8 +337,12 @@ class FeedSurgeonUiRobolectricTest {
         composeRule.onNodeWithText("~1 h 21 min").assertIsDisplayed()
         composeRule.onNodeWithText("3.9").assertIsDisplayed()
         composeRule.onNodeWithText("Instagram").assertIsDisplayed()
+        composeRule.onNodeWithTag("insights_list")
+            .performScrollToNode(hasText("Feeds interrupted"))
         composeRule.onNodeWithText("Feeds interrupted").assertIsDisplayed()
 
+        composeRule.onNodeWithTag("insights_list")
+            .performScrollToNode(hasTestTag("insights_range_selector"))
         composeRule.onNodeWithText("Today").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithText("~12 min").assertIsDisplayed()
@@ -1055,6 +1060,142 @@ class FeedSurgeonUiRobolectricTest {
         composeRule.onNodeWithTag("status_pill").performClick()
         composeRule.waitForIdle()
         assertEquals(2, statusClickCount)
+    }
+
+    @Test
+    fun `settings screen configures global feed budget via presets and stepper`() {
+        var savedGlobalBudget = 60
+
+        composeRule.setContent {
+            FeedSurgeonTheme {
+                SettingsScreen(
+                    uiState = MainUiState(
+                        isInitialLoading = false,
+                        preferences = AppPreferences(globalFeedTimeBudgetMinutes = savedGlobalBudget),
+                        rules = FeedSurgeonDatabase.defaultBuiltInRules(),
+                        installedPackages = setOf("com.google.android.youtube"),
+                        isAccessibilityEnabled = true,
+                        isServiceConnected = true,
+                        protectionStatus = ProtectionStatus.OPERATIONAL,
+                        activeInstalledCount = 1,
+                        installedSupportedCount = 1
+                    ),
+                    onOpenManageApps = {},
+                    onOpenPrivacy = {},
+                    onOpenDiagnostics = {},
+                    onSelectDefaultMode = {},
+                    onSetReclaimedSeconds = {},
+                    onSetHapticFeedback = {},
+                    onSetShowBanner = {},
+                    onClearHistory = {},
+                    onShowToast = {},
+                    onSetGlobalFeedBudget = { savedGlobalBudget = it }
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("settings_list")
+            .performScrollToNode(hasTestTag("settings_global_feed_budget"))
+        composeRule.onNodeWithTag("settings_global_feed_budget").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("global_budget_preset_90").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("global_budget_plus_button").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("global_budget_draft_value").assertTextContains("95 min")
+
+        composeRule.onNodeWithTag("save_global_feed_budget_button").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        assertEquals(95, savedGlobalBudget)
+    }
+
+    @Test
+    fun `home screen displays measured feed time and global budget reached badge`() {
+        val rules = FeedSurgeonDatabase.defaultBuiltInRules()
+
+        composeRule.setContent {
+            FeedSurgeonTheme {
+                HomeScreen(
+                    uiState = MainUiState(
+                        isInitialLoading = false,
+                        rules = rules,
+                        installedPackages = setOf("com.google.android.youtube", "com.instagram.android"),
+                        isAccessibilityEnabled = true,
+                        isServiceConnected = true,
+                        protectionStatus = ProtectionStatus.OPERATIONAL,
+                        activeInstalledCount = 2,
+                        installedSupportedCount = 2,
+                        todayCutsCount = 3,
+                        todayReclaimedText = "9 min",
+                        todayUsageSecondsByPackage = mapOf(
+                            "com.google.android.youtube" to 40 * 60L,
+                            "com.instagram.android" to 25 * 60L
+                        ),
+                        todayMeasuredFeedSeconds = 65 * 60L,
+                        todayMeasuredFeedText = "1h 5m",
+                        globalFeedBudgetMinutes = 60,
+                        isGlobalFeedBudgetReached = true
+                    ),
+                    onStatusClick = {},
+                    onSetupClick = {},
+                    onManageAppsClick = {},
+                    onToggleGlobalPause = {},
+                    onPauseForMinutes = {},
+                    onGlobalBreakExpired = {},
+                    onAppSnoozeExpired = {},
+                    onRefreshBlockersClick = {},
+                    onAppClick = {},
+                    onToggleApp = { _, _ -> },
+                    onShowEstimateToast = {}
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("home_reclaimed_estimate_text").assertIsDisplayed()
+        composeRule.onNodeWithTag("home_measured_feed_time").assertIsDisplayed()
+        composeRule.onNodeWithText("Daily feed budget reached").assertIsDisplayed()
+        composeRule.onNodeWithText("1h 5m / 60m").assertIsDisplayed()
+
+        composeRule.onNodeWithTag("home_list")
+            .performScrollToNode(hasTestTag("home_app_row_com.google.android.youtube"))
+        composeRule.onNodeWithText("Budget reached \u00B7 40m used").assertIsDisplayed()
+    }
+
+    @Test
+    fun `insights screen displays measured feed time alongside est time reclaimed`() {
+        composeRule.setContent {
+            FeedSurgeonTheme {
+                InsightsScreen(
+                    uiState = MainUiState(
+                        isInitialLoading = false,
+                        preferences = AppPreferences(
+                            reclaimedSecondsPerCut = 180,
+                            globalFeedTimeBudgetMinutes = 60
+                        ),
+                        installedPackages = setOf("com.instagram.android"),
+                        todayCutsCount = 4,
+                        todayReclaimedText = "12 min",
+                        weeklyCutsCount = 27,
+                        weeklyReclaimedText = "1 h 21 min",
+                        thirtyDayCutsCount = 72,
+                        thirtyDayReclaimedText = "3 h 36 min",
+                        todayMeasuredFeedSeconds = 22 * 60L,
+                        todayMeasuredFeedText = "22m",
+                        globalFeedBudgetMinutes = 60,
+                        isGlobalFeedBudgetReached = false
+                    )
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("~1 h 21 min").assertIsDisplayed()
+        composeRule.onNodeWithTag("insights_measured_feed_time").assertIsDisplayed()
+        composeRule.onNodeWithText("Time in feeds today \u00B7 of 60m budget").assertIsDisplayed()
+        composeRule.onNodeWithText("22m").assertIsDisplayed()
     }
 }
 

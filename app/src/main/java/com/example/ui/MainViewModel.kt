@@ -114,6 +114,10 @@ data class MainUiState(
     val bestStreakDays: Int = 0,
     val weeklyDeltaText: String? = null,
     val todayUsageSecondsByPackage: Map<String, Long> = emptyMap(),
+    val todayMeasuredFeedSeconds: Long = 0L,
+    val todayMeasuredFeedText: String = "0m",
+    val globalFeedBudgetMinutes: Int = AppPreferences.DEFAULT_GLOBAL_FEED_BUDGET_MINUTES,
+    val isGlobalFeedBudgetReached: Boolean = false,
     val currentTimeMs: Long = System.currentTimeMillis()
 )
 
@@ -270,6 +274,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         transientFlow
     ) { prefs, rules, events, dailyUsageRows, transient ->
         val todayUsageByPackage = dailyUsageRows.associate { it.packageName to it.trackedSeconds }
+        val todayMeasuredFeedSeconds = todayUsageByPackage.values.sum()
+        val todayMeasuredFeedText = InterventionRepository.formatDurationCompact(todayMeasuredFeedSeconds)
+        val globalBudgetMinutes = prefs.globalFeedTimeBudgetMinutes
+        val isGlobalFeedBudgetReached = prefs.hasGlobalFeedBudget() &&
+            todayMeasuredFeedSeconds >= prefs.globalFeedBudgetSeconds
         val installed = if (transient.hasScannedInstalledApps) {
             transient.installedPackages
         } else {
@@ -378,6 +387,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             bestStreakDays = bestStreak,
             weeklyDeltaText = weeklyDeltaText,
             todayUsageSecondsByPackage = todayUsageByPackage,
+            todayMeasuredFeedSeconds = todayMeasuredFeedSeconds,
+            todayMeasuredFeedText = todayMeasuredFeedText,
+            globalFeedBudgetMinutes = globalBudgetMinutes,
+            isGlobalFeedBudgetReached = isGlobalFeedBudgetReached,
             currentTimeMs = nowMs
         )
     }.stateIn(
@@ -769,6 +782,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setPreferredPauseMinutes(minutes: Int) {
         viewModelScope.launch {
             interventionRepo.setPreferredPauseMinutes(minutes)
+        }
+    }
+
+    fun setGlobalFeedTimeBudgetMinutes(minutes: Int) {
+        viewModelScope.launch {
+            interventionRepo.setGlobalFeedTimeBudgetMinutes(minutes)
         }
     }
 

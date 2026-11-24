@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.MainUiState
 import com.example.ui.components.ChartColumnData
+import com.example.ui.components.OutloopInsetWell
 import com.example.ui.components.OutloopInsightsLightChartCard
 import com.example.ui.components.OutloopMetricCell
 import com.example.ui.components.OutloopSegmentedControl
@@ -123,7 +124,8 @@ fun InsightsScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .widthIn(max = OutloopMetrics.MaxContentWidth),
+                .widthIn(max = OutloopMetrics.MaxContentWidth)
+                .testTag("insights_list"),
             contentPadding = PaddingValues(
                 start = OutloopMetrics.ScreenHorizontalPadding,
                 end = OutloopMetrics.ScreenHorizontalPadding,
@@ -210,6 +212,44 @@ fun InsightsScreen(
                                     .weight(1f)
                                     .fillMaxHeight()
                             )
+                        }
+
+                        Spacer(modifier = Modifier.height(OutloopMetrics.BentoGap))
+
+                        val measuredLabel = when {
+                            uiState.isGlobalFeedBudgetReached && uiState.globalFeedBudgetMinutes > 0 ->
+                                "Time in feeds today \u00B7 ${uiState.globalFeedBudgetMinutes}m budget reached"
+                            uiState.globalFeedBudgetMinutes > 0 ->
+                                "Time in feeds today \u00B7 of ${uiState.globalFeedBudgetMinutes}m budget"
+                            else -> "Time in feeds today"
+                        }
+                        OutloopInsetWell(
+                            containerColor = if (uiState.isGlobalFeedBudgetReached) colors.warnBg else colors.canvas,
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("insights_measured_feed_time")
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = measuredLabel,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (uiState.isGlobalFeedBudgetReached) colors.warnText else colors.secondaryInk,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    text = uiState.todayMeasuredFeedText,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontFeatureSettings = "tnum"
+                                    ),
+                                    color = if (uiState.isGlobalFeedBudgetReached) colors.warnText else colors.ink
+                                )
+                            }
                         }
                     }
                 }

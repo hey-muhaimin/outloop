@@ -409,6 +409,7 @@ class FeedSurgeonService : AccessibilityService() {
         }
 
         val dailyLimitReached = isDailyLimitReached(rule, nowElapsed)
+        val globalBudgetReached = !dailyLimitReached && isGlobalFeedBudgetReached(prefs, nowElapsed)
         val isScrollEvent = isScrollMonitoringEvent(eventType)
         val scrollSource = if (isScrollEvent) {
             runCatching { event.source }.getOrNull()
@@ -419,30 +420,40 @@ class FeedSurgeonService : AccessibilityService() {
             SelectorMatcher.matchesTargetPackage(it, pkg)
         }
 
-        if (dailyLimitReached) {
+        if (dailyLimitReached || globalBudgetReached) {
+            val activeTriggerMode = if (dailyLimitReached) {
+                OverlayTriggerMode.DAILY_LIMIT_REACHED
+            } else {
+                OverlayTriggerMode.GLOBAL_BUDGET_REACHED
+            }
+            val limitSelector = if (dailyLimitReached) {
+                "daily_limit:${rule.dailyLimitMinutes}m"
+            } else {
+                "global_feed_budget:${prefs.globalFeedTimeBudgetMinutes}m"
+            }
             if (rule.isCurrentlySnoozed(nowMs)) {
                 if (captureLogs) {
-                    logEventThrottled(pkg, eventType, eventClassName, rootNode, "daily_limit:${rule.dailyLimitMinutes}m", "SKIPPED:snoozed", nowElapsed)
+                    logEventThrottled(pkg, eventType, eventClassName, rootNode, limitSelector, "SKIPPED:snoozed", nowElapsed)
                 }
                 return
             }
             val lastBlock = lastBlockTimestamps[pkg] ?: 0L
             if (nowElapsed - lastBlock < rule.cooldownMs) {
                 if (captureLogs) {
-                    logEventThrottled(pkg, eventType, eventClassName, rootNode, "daily_limit:${rule.dailyLimitMinutes}m", "SKIPPED:cooldown", nowElapsed)
+                    logEventThrottled(pkg, eventType, eventClassName, rootNode, limitSelector, "SKIPPED:cooldown", nowElapsed)
                 }
                 return
             }
             lastBlockTimestamps[pkg] = nowElapsed
-            val limitSelector = "daily_limit:${rule.dailyLimitMinutes}m"
             if (captureLogs) {
+                val outcomePrefix = if (dailyLimitReached) "TRIGGERED_DAILY_LIMIT" else "TRIGGERED_GLOBAL_BUDGET"
                 logEventThrottled(
                     pkg = pkg,
                     eventType = eventType,
                     eventClassName = eventClassName,
                     rootNode = rootNode,
                     matchedSelector = limitSelector,
-                    outcome = "TRIGGERED_DAILY_LIMIT:${rule.interventionMode.name}",
+                    outcome = "$outcomePrefix:${rule.interventionMode.name}",
                     nowElapsed = nowElapsed,
                     force = true
                 )
@@ -452,7 +463,7 @@ class FeedSurgeonService : AccessibilityService() {
                 rule = rule,
                 matchedSelector = limitSelector,
                 nowElapsed = nowElapsed,
-                triggerMode = OverlayTriggerMode.DAILY_LIMIT_REACHED
+                triggerMode = activeTriggerMode
             )
             return
         }
@@ -779,7 +790,8 @@ class FeedSurgeonService : AccessibilityService() {
         val shield = overlayShield
         val shouldShowDimOverlay = shield != null && (
             rule.interventionMode == InterventionMode.OVERLAY ||
-                triggerMode == OverlayTriggerMode.DAILY_LIMIT_REACHED
+                triggerMode == OverlayTriggerMode.DAILY_LIMIT_REACHED ||
+                triggerMode == OverlayTriggerMode.GLOBAL_BUDGET_REACHED
             )
         if (shouldShowDimOverlay) {
             val eventIdDeferred = CompletableDeferred<Long?>()
@@ -799,6 +811,7 @@ class FeedSurgeonService : AccessibilityService() {
 
             val (primaryActionLabel, secondaryActionLabel, usefulSummary) = resolveUsefulSurfaceCopy(rule)
             val dailyUsedSeconds = getTodayTrackedSeconds(rule.packageName, nowElapsed)
+            val totalTodayFeedSeconds = getTotalTodayTrackedSeconds(nowElapsed)
 
             shield.show(
                 appName = rule.displayName,
@@ -816,6 +829,8 @@ class FeedSurgeonService : AccessibilityService() {
                 triggerMode = triggerMode,
                 dailyUsedSeconds = dailyUsedSeconds,
                 dailyLimitMinutes = rule.dailyLimitMinutes,
+                globalBudgetMinutes = currentPrefs.globalFeedTimeBudgetMinutes,
+                totalTodayFeedSeconds = totalTodayFeedSeconds,
                 onGoHome = {
                     lastBlockTimestamps[rule.packageName] = SystemClock.elapsedRealtime()
                     serviceScope.launch {
@@ -933,16 +948,26 @@ class FeedSurgeonService : AccessibilityService() {
                 ) {
                     continue
                 }
-                if (isDailyLimitReached(rule, nowElapsed)) {
+                val dailyLimitReached = isDailyLimitReached(rule, nowElapsed)
+                val globalBudgetReached = !dailyLimitReached && isGlobalFeedBudgetReached(prefs, nowElapsed)
+                if (dailyLimitReached || globalBudgetReached) {
                     val lastBlock = lastBlockTimestamps[activePkg] ?: 0L
                     if (nowElapsed - lastBlock >= rule.cooldownMs) {
                         lastBlockTimestamps[activePkg] = nowElapsed
                         executeIntervention(
                             rootNode = resolveTargetRootNode(activePkg),
                             rule = rule,
-                            matchedSelector = "daily_limit:${rule.dailyLimitMinutes}m",
+                            matchedSelector = if (dailyLimitReached) {
+                                "daily_limit:${rule.dailyLimitMinutes}m"
+                            } else {
+                                "global_feed_budget:${prefs.globalFeedTimeBudgetMinutes}m"
+                            },
                             nowElapsed = nowElapsed,
-                            triggerMode = OverlayTriggerMode.DAILY_LIMIT_REACHED
+                            triggerMode = if (dailyLimitReached) {
+                                OverlayTriggerMode.DAILY_LIMIT_REACHED
+                            } else {
+                                OverlayTriggerMode.GLOBAL_BUDGET_REACHED
+                            }
                         )
                     }
                 }
@@ -1066,6 +1091,10 @@ class FeedSurgeonService : AccessibilityService() {
         persistedTodayUsageSeconds[packageName] = persistedSeconds.coerceAtLeast(0L)
     }
 
+    internal fun seedPreferencesForTesting(prefs: AppPreferences) {
+        currentPrefs = prefs
+    }
+
     internal fun getTodayTrackedSeconds(
         packageName: String,
         nowElapsedMs: Long = SystemClock.elapsedRealtime()
@@ -1075,12 +1104,33 @@ class FeedSurgeonService : AccessibilityService() {
         return persisted + pending
     }
 
+    internal fun getTotalTodayTrackedSeconds(
+        nowElapsedMs: Long = SystemClock.elapsedRealtime()
+    ): Long {
+        val persistedTotal = persistedTodayUsageSeconds.values.sum()
+        val activePkg = sessionTracker.activePackage()
+        val pending = if (activePkg != null) {
+            sessionTracker.getPendingSeconds(activePkg, nowElapsedMs)
+        } else {
+            0L
+        }
+        return persistedTotal + pending
+    }
+
     internal fun isDailyLimitReached(
         rule: TargetAppRuleEntity,
         nowElapsedMs: Long = SystemClock.elapsedRealtime()
     ): Boolean {
         if (!rule.hasDailyLimit()) return false
         return getTodayTrackedSeconds(rule.packageName, nowElapsedMs) >= rule.dailyLimitSeconds
+    }
+
+    internal fun isGlobalFeedBudgetReached(
+        prefs: AppPreferences = currentPrefs,
+        nowElapsedMs: Long = SystemClock.elapsedRealtime()
+    ): Boolean {
+        if (!prefs.hasGlobalFeedBudget()) return false
+        return getTotalTodayTrackedSeconds(nowElapsedMs) >= prefs.globalFeedBudgetSeconds
     }
 
     companion object {

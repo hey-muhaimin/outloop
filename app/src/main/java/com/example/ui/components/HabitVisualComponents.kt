@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.data.local.AppPreferences
 import com.example.data.repository.InterventionRepository
 import com.example.ui.DayBarStat
 import com.example.ui.theme.OutloopMetrics
@@ -80,6 +81,7 @@ data class ChartColumnData(
  * Monochrome Editorial Home summary bento card:
  * Top row: circular Graphite arc around today's count + reclaimed-time estimate.
  * Middle 2-up nested bento wells: daily intention/target + streak.
+ * Measured feed-time well: today's tracked feed duration vs global feed budget.
  * Bottom inset well: 7-day M-S rhythm strip.
  */
 @Composable
@@ -89,6 +91,9 @@ fun OutloopHomeProgressCard(
     dayBars: List<DayBarStat>,
     dailyBudgetCuts: Int = 0,
     streakDays: Int = 0,
+    todayMeasuredFeedSeconds: Long = 0L,
+    globalFeedBudgetMinutes: Int = AppPreferences.DEFAULT_GLOBAL_FEED_BUDGET_MINUTES,
+    isGlobalFeedBudgetReached: Boolean = false,
     onReclaimedInfoClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -236,6 +241,76 @@ fun OutloopHomeProgressCard(
                     .weight(1f)
                     .fillMaxHeight()
             )
+        }
+
+        val measuredCompact = InterventionRepository.formatDurationCompact(todayMeasuredFeedSeconds)
+        val hasGlobalBudget = globalFeedBudgetMinutes > 0
+        val globalBudgetSeconds = (globalFeedBudgetMinutes * 60L).coerceAtLeast(1L)
+        val measuredBudgetProgress = if (hasGlobalBudget) {
+            (todayMeasuredFeedSeconds.toFloat() / globalBudgetSeconds.toFloat()).coerceIn(0f, 1f)
+        } else {
+            0f
+        }
+        val measuredValueText = if (hasGlobalBudget) {
+            "$measuredCompact / ${globalFeedBudgetMinutes}m"
+        } else {
+            measuredCompact
+        }
+        val measuredSubtitleText = when {
+            isGlobalFeedBudgetReached && hasGlobalBudget -> "Daily feed budget reached"
+            hasGlobalBudget -> "Time in feeds today \u00B7 ${globalFeedBudgetMinutes}m budget"
+            else -> "Time in feeds today"
+        }
+
+        Spacer(modifier = Modifier.height(OutloopMetrics.BentoGap))
+        OutloopInsetWell(
+            containerColor = if (isGlobalFeedBudgetReached) colors.warnBg else colors.canvas,
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("home_measured_feed_time")
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = measuredSubtitleText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isGlobalFeedBudgetReached) colors.warnText else colors.secondaryInk
+                    )
+                }
+                Text(
+                    text = measuredValueText,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontFeatureSettings = "tnum"
+                    ),
+                    color = if (isGlobalFeedBudgetReached) colors.warnText else colors.ink
+                )
+            }
+            if (hasGlobalBudget) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .clip(CircleShape)
+                        .background(colors.surfaceSubtle)
+                ) {
+                    if (todayMeasuredFeedSeconds > 0L) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(measuredBudgetProgress.coerceAtLeast(0.04f))
+                                .fillMaxHeight()
+                                .clip(CircleShape)
+                                .background(if (isGlobalFeedBudgetReached) colors.warnText else colors.heroDark)
+                        )
+                    }
+                }
+            }
         }
 
         if (dayBars.isNotEmpty()) {

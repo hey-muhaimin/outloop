@@ -1527,4 +1527,103 @@ class ExampleRobolectricTest {
                 .contains("strictly on-device", ignoreCase = true)
         )
     }
+
+    @Test
+    fun `settings data store defaults global feed budget to 60m clamps 0 to 480 and restores via backup`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = FeedSurgeonDatabase.getInstance(context)
+        val dao = db.feedSurgeonDao()
+        val settings = SettingsDataStore(context)
+        val repo = InterventionRepository(dao, settings)
+        val backupManager = LocalBackupManager(dao, settings)
+        repo.ensureDefaultRulesSeeded()
+
+        assertEquals(60, AppPreferences().globalFeedTimeBudgetMinutes)
+
+        settings.setGlobalFeedTimeBudgetMinutes(-15)
+        assertEquals(0, settings.preferencesFlow.first().globalFeedTimeBudgetMinutes)
+
+        settings.setGlobalFeedTimeBudgetMinutes(999)
+        assertEquals(480, settings.preferencesFlow.first().globalFeedTimeBudgetMinutes)
+
+        settings.setGlobalFeedTimeBudgetMinutes(90)
+        val backupJson = backupManager.exportToJson()
+        settings.setGlobalFeedTimeBudgetMinutes(15)
+        val result = backupManager.restoreFromJson(backupJson)
+        assertTrue(result is BackupRestoreResult.Success)
+        assertEquals(90, settings.preferencesFlow.first().globalFeedTimeBudgetMinutes)
+
+        // Restore clean default for subsequent tests
+        settings.setGlobalFeedTimeBudgetMinutes(AppPreferences.DEFAULT_GLOBAL_FEED_BUDGET_MINUTES)
+    }
+
+    @Test
+    fun `intervention repository sums total today tracked usage seconds across monitored apps`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = FeedSurgeonDatabase.getInstance(context)
+        val settings = SettingsDataStore(context)
+        val repo: ControlledAppsRepository = InterventionRepository(db.feedSurgeonDao(), settings)
+        val isolatedDateKey = "2099-01-01"
+
+        val baseTotal = repo.getTotalTodayUsageSeconds(isolatedDateKey)
+        repo.addTrackedUsageSeconds("com.google.android.youtube", isolatedDateKey, 400L)
+        repo.addTrackedUsageSeconds("com.instagram.android", isolatedDateKey, 500L)
+
+        assertEquals(baseTotal + 900L, repo.getTotalTodayUsageSeconds(isolatedDateKey))
+    }
+
+    @Test
+    fun `FeedSurgeonService evaluates global feed time budget across monitored apps`() {
+        val controller = Robolectric.buildService(FeedSurgeonService::class.java)
+        val service = controller.create().get()
+
+        service.seedTrackedUsageForTesting("com.instagram.android", 1_800L)
+        service.seedTrackedUsageForTesting("com.google.android.youtube", 1_200L)
+        assertEquals(3_000L, service.getTotalTodayTrackedSeconds())
+
+        service.seedPreferencesForTesting(AppPreferences(globalFeedTimeBudgetMinutes = 60))
+        assertFalse(service.isGlobalFeedBudgetReached())
+
+        service.seedTrackedUsageForTesting("com.google.android.youtube", 1_800L)
+        assertEquals(3_600L, service.getTotalTodayTrackedSeconds())
+        assertTrue(service.isGlobalFeedBudgetReached())
+
+        service.seedPreferencesForTesting(AppPreferences(globalFeedTimeBudgetMinutes = 0))
+        assertFalse(service.isGlobalFeedBudgetReached())
+
+        controller.unbind().destroy()
+    }
+
+    @Test
+    fun `transparent pause dim overlay renders global budget reached mode and extends budget`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val overlay = TransparentPauseDimOverlay(context)
+        var snoozeRequested: Int? = null
+
+        val handles = overlay.buildOverlayViews(
+            config = OverlayPresentationConfig(
+                appName = "YouTube",
+                feedLabel = "Shorts",
+                triggerMode = OverlayTriggerMode.GLOBAL_BUDGET_REACHED,
+                strictModeEnabled = false,
+                globalBudgetMinutes = 60,
+                totalTodayFeedSeconds = 3_900L,
+                preferredPauseMinutes = 15
+            ),
+            onDismissRequest = {},
+            onGoHome = {},
+            onExitApp = {},
+            onSnoozeMinutes = { snoozeRequested = it }
+        )
+
+        assertTrue(handles.root.contentDescription.toString().contains("Daily feed budget reached"))
+        val pauseBtn = handles.modalCard.findViewWithTag<android.widget.Button>(
+            TransparentPauseDimOverlay.TAG_PAUSE_GUARD_BTN
+        )
+        assertNotNull(pauseBtn)
+        assertEquals("Extend budget \u00B7 15 min", pauseBtn.text.toString())
+
+        pauseBtn.performClick()
+        assertEquals(15, snoozeRequested)
+    }
 }

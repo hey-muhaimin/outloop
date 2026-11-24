@@ -26,12 +26,14 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.widget.TextViewCompat
 import com.example.R
 import com.example.data.repository.InterventionRepository
 
 enum class OverlayTriggerMode {
     FEED_GUARD,
-    DAILY_LIMIT_REACHED
+    DAILY_LIMIT_REACHED,
+    GLOBAL_BUDGET_REACHED
 }
 
 data class OverlayPresentationConfig(
@@ -47,6 +49,8 @@ data class OverlayPresentationConfig(
     val streakDays: Int = 0,
     val dailyUsedSeconds: Long = 0L,
     val dailyLimitMinutes: Int = 0,
+    val globalBudgetMinutes: Int = 0,
+    val totalTodayFeedSeconds: Long = 0L,
     val preferredPauseMinutes: Int = 15,
     val primaryUsefulActionLabel: String = "Open DMs",
     val secondaryUsefulActionLabel: String = "Go to Search",
@@ -185,10 +189,13 @@ class TransparentPauseDimOverlay(private val context: Context) {
             isFocusable = true
             isFocusableInTouchMode = true
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
-            contentDescription = if (config.triggerMode == OverlayTriggerMode.DAILY_LIMIT_REACHED) {
-                "Daily limit reached. Outloop dimmed ${config.appName} ${config.feedLabel}."
-            } else {
-                "Loop broken. Outloop dimmed ${config.appName} ${config.feedLabel}."
+            contentDescription = when (config.triggerMode) {
+                OverlayTriggerMode.DAILY_LIMIT_REACHED ->
+                    "Daily limit reached. Outloop dimmed ${config.appName} ${config.feedLabel}."
+                OverlayTriggerMode.GLOBAL_BUDGET_REACHED ->
+                    "Daily feed budget reached. Outloop dimmed ${config.appName}."
+                OverlayTriggerMode.FEED_GUARD ->
+                    "Loop broken. Outloop dimmed ${config.appName} ${config.feedLabel}."
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 accessibilityPaneTitle = "Outloop Pause Guard"
@@ -236,7 +243,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
             }
         }
 
-        lateinit var buildPauseGuardFn: (isDailyLimitPause: Boolean) -> View
+        lateinit var buildPauseGuardFn: (triggerMode: OverlayTriggerMode) -> View
 
         fun createDockIconView(isHomeIcon: Boolean, tintColor: Int): View {
             return object : View(context) {
@@ -251,6 +258,11 @@ class TransparentPauseDimOverlay(private val context: Context) {
                     color = tintColor
                 }
 
+                private val roofPath = Path()
+                private val houseBody = Path()
+                private val framePath = Path()
+                private val headPath = Path()
+
                 override fun onDraw(canvas: Canvas) {
                     super.onDraw(canvas)
                     val w = width.toFloat()
@@ -261,45 +273,41 @@ class TransparentPauseDimOverlay(private val context: Context) {
 
                     if (isHomeIcon) {
                         // Crisp rounded house glyph matching Icons.Rounded.Home
-                        val roofPath = Path().apply {
-                            moveTo(w * 0.16f, h * 0.46f)
-                            lineTo(w * 0.50f, h * 0.17f)
-                            lineTo(w * 0.84f, h * 0.46f)
-                        }
+                        roofPath.rewind()
+                        roofPath.moveTo(w * 0.16f, h * 0.46f)
+                        roofPath.lineTo(w * 0.50f, h * 0.17f)
+                        roofPath.lineTo(w * 0.84f, h * 0.46f)
                         canvas.drawPath(roofPath, strokePaint)
 
-                        val houseBody = Path().apply {
-                            moveTo(w * 0.24f, h * 0.44f)
-                            lineTo(w * 0.24f, h * 0.82f)
-                            lineTo(w * 0.42f, h * 0.82f)
-                            lineTo(w * 0.42f, h * 0.60f)
-                            lineTo(w * 0.58f, h * 0.60f)
-                            lineTo(w * 0.58f, h * 0.82f)
-                            lineTo(w * 0.76f, h * 0.82f)
-                            lineTo(w * 0.76f, h * 0.44f)
-                        }
+                        houseBody.rewind()
+                        houseBody.moveTo(w * 0.24f, h * 0.44f)
+                        houseBody.lineTo(w * 0.24f, h * 0.82f)
+                        houseBody.lineTo(w * 0.42f, h * 0.82f)
+                        houseBody.lineTo(w * 0.42f, h * 0.60f)
+                        houseBody.lineTo(w * 0.58f, h * 0.60f)
+                        houseBody.lineTo(w * 0.58f, h * 0.82f)
+                        houseBody.lineTo(w * 0.76f, h * 0.82f)
+                        houseBody.lineTo(w * 0.76f, h * 0.44f)
                         canvas.drawPath(houseBody, strokePaint)
                     } else {
                         // Crisp exit-app door + right arrow glyph matching ExitToApp
-                        val framePath = Path().apply {
-                            moveTo(w * 0.56f, h * 0.24f)
-                            lineTo(w * 0.56f, h * 0.18f)
-                            lineTo(w * 0.22f, h * 0.18f)
-                            lineTo(w * 0.22f, h * 0.82f)
-                            lineTo(w * 0.56f, h * 0.82f)
-                            lineTo(w * 0.56f, h * 0.76f)
-                        }
+                        framePath.rewind()
+                        framePath.moveTo(w * 0.56f, h * 0.24f)
+                        framePath.lineTo(w * 0.56f, h * 0.18f)
+                        framePath.lineTo(w * 0.22f, h * 0.18f)
+                        framePath.lineTo(w * 0.22f, h * 0.82f)
+                        framePath.lineTo(w * 0.56f, h * 0.82f)
+                        framePath.lineTo(w * 0.56f, h * 0.76f)
                         canvas.drawPath(framePath, strokePaint)
 
                         // Arrow shaft
                         canvas.drawLine(w * 0.44f, h * 0.50f, w * 0.82f, h * 0.50f, strokePaint)
 
                         // Arrow head
-                        val headPath = Path().apply {
-                            moveTo(w * 0.68f, h * 0.35f)
-                            lineTo(w * 0.83f, h * 0.50f)
-                            lineTo(w * 0.68f, h * 0.65f)
-                        }
+                        headPath.rewind()
+                        headPath.moveTo(w * 0.68f, h * 0.35f)
+                        headPath.lineTo(w * 0.83f, h * 0.50f)
+                        headPath.lineTo(w * 0.68f, h * 0.65f)
                         canvas.drawPath(headPath, strokePaint)
                     }
                 }
@@ -377,7 +385,9 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 )
             }
 
-            val isLimitReached = config.triggerMode == OverlayTriggerMode.DAILY_LIMIT_REACHED
+            val isPerAppLimit = config.triggerMode == OverlayTriggerMode.DAILY_LIMIT_REACHED
+            val isGlobalBudget = config.triggerMode == OverlayTriggerMode.GLOBAL_BUDGET_REACHED
+            val isLimitReached = isPerAppLimit || isGlobalBudget
 
             val heroRow = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -403,10 +413,10 @@ class TransparentPauseDimOverlay(private val context: Context) {
             }
 
             val pillChip = TextView(context).apply {
-                text = if (isLimitReached) {
-                    "${config.appName} \u00B7 Daily limit"
-                } else {
-                    "${config.appName} \u00B7 ${config.feedLabel}"
+                text = when {
+                    isGlobalBudget -> "Daily budget \u00B7 ${config.appName}"
+                    isPerAppLimit -> "${config.appName} \u00B7 Daily limit"
+                    else -> "${config.appName} \u00B7 ${config.feedLabel}"
                 }
                 textSize = 12f
                 typeface = Typeface.create(bodyTypeface, Typeface.BOLD)
@@ -426,9 +436,13 @@ class TransparentPauseDimOverlay(private val context: Context) {
             }
 
             val heroHeadline = TextView(context).apply {
-                text = if (isLimitReached) "Daily limit\nreached" else "Loop\nbroken"
+                text = when {
+                    isGlobalBudget -> "Daily budget\nreached"
+                    isPerAppLimit -> "Daily limit\nreached"
+                    else -> "Loop\nbroken"
+                }
                 textSize = 27f
-                lineHeight = dp(31)
+                TextViewCompat.setLineHeight(this, dp(31))
                 typeface = Typeface.create(headingTypeface, Typeface.BOLD)
                 setTextColor(ivoryInk)
                 setPadding(0, dp(10), 0, 0)
@@ -445,14 +459,15 @@ class TransparentPauseDimOverlay(private val context: Context) {
                     strokeCap = Paint.Cap.ROUND
                     color = if (isLimitReached) warnBg else sageAccent
                 }
+                private val arcRect = RectF()
 
                 override fun onDraw(canvas: Canvas) {
                     super.onDraw(canvas)
                     val strokeW = dpF(9.5f)
                     paint.strokeWidth = strokeW
                     val inset = strokeW / 2f + dp(4)
-                    val rect = RectF(inset, inset, width - inset, height - inset)
-                    canvas.drawArc(rect, -27f, -324f, false, paint)
+                    arcRect.set(inset, inset, width - inset, height - inset)
+                    canvas.drawArc(arcRect, -27f, -324f, false, paint)
                 }
             }.apply {
                 layoutParams = LinearLayout.LayoutParams(dp(74), dp(74)).apply {
@@ -469,17 +484,21 @@ class TransparentPauseDimOverlay(private val context: Context) {
             val safeCount = config.todayLoopsBroken.coerceAtLeast(1)
             val loopsWord = if (safeCount == 1) "1 loop" else "$safeCount loops"
             val usedCompact = InterventionRepository.formatDurationCompact(config.dailyUsedSeconds)
+            val totalUsedCompact = InterventionRepository.formatDurationCompact(config.totalTodayFeedSeconds)
 
-            val bodyCopy = if (isLimitReached && config.dailyLimitMinutes > 0) {
-                "You reached your ${config.dailyLimitMinutes}m daily budget for ${config.appName} ($usedCompact used today). Return to Home or exit ${config.appName}."
-            } else {
-                "${config.feedLabel} is dimmed and guarded ($loopsWord broken today). ${config.usefulPartsSummary}"
+            val bodyCopy = when {
+                isGlobalBudget && config.globalBudgetMinutes > 0 ->
+                    "You reached your ${config.globalBudgetMinutes}m daily feed budget across guarded apps ($totalUsedCompact used today). Return to Home or exit ${config.appName}."
+                isPerAppLimit && config.dailyLimitMinutes > 0 ->
+                    "You reached your ${config.dailyLimitMinutes}m daily budget for ${config.appName} ($usedCompact used today). Return to Home or exit ${config.appName}."
+                else ->
+                    "${config.feedLabel} is dimmed and guarded ($loopsWord broken today). ${config.usefulPartsSummary}"
             }
 
             val bodyView = TextView(context).apply {
                 text = bodyCopy
                 textSize = 14.5f
-                lineHeight = dp(21)
+                TextViewCompat.setLineHeight(this, dp(21))
                 typeface = bodyTypeface
                 setTextColor(inkSecondary)
                 setPadding(dp(2), dp(14), dp(2), dp(14))
@@ -535,15 +554,39 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 }
             }
 
-            if (config.dailyLimitMinutes > 0) {
+            if (isGlobalBudget && config.globalBudgetMinutes > 0) {
+                val budgetText = "$totalUsedCompact / ${config.globalBudgetMinutes}m"
+                tilesRow.addView(
+                    createStatTile(
+                        bgColor = warnBg,
+                        valueText = budgetText,
+                        labelText = "in feeds today",
+                        valueColor = warnTextColor,
+                        labelColor = warnTextColor,
+                        marginEndDp = 5,
+                        marginStartDp = 0
+                    )
+                )
+                tilesRow.addView(
+                    createStatTile(
+                        bgColor = subtleTrackBg,
+                        valueText = config.timeKeptText,
+                        labelText = "time kept",
+                        valueColor = inkPrimary,
+                        labelColor = inkSecondary,
+                        marginEndDp = 0,
+                        marginStartDp = 5
+                    )
+                )
+            } else if (config.dailyLimitMinutes > 0) {
                 val limitText = "$usedCompact / ${config.dailyLimitMinutes}m"
                 tilesRow.addView(
                     createStatTile(
-                        bgColor = if (isLimitReached) warnBg else canvasColor,
+                        bgColor = if (isPerAppLimit) warnBg else canvasColor,
                         valueText = limitText,
                         labelText = "used today",
-                        valueColor = if (isLimitReached) warnTextColor else inkPrimary,
-                        labelColor = if (isLimitReached) warnTextColor else inkSecondary,
+                        valueColor = if (isPerAppLimit) warnTextColor else inkPrimary,
+                        labelColor = if (isPerAppLimit) warnTextColor else inkSecondary,
                         marginEndDp = 5,
                         marginStartDp = 0
                     )
@@ -648,10 +691,10 @@ class TransparentPauseDimOverlay(private val context: Context) {
             container.addView(dockOuterFrame)
 
             // Row 2: Full-width Pause button (52dp pill matching OutloopPrimaryButton)
-            val pauseBtnLabel = if (isLimitReached) {
-                "Extend limit \u00B7 ${config.preferredPauseMinutes} min"
-            } else {
-                "Pause for ${config.preferredPauseMinutes} min"
+            val pauseBtnLabel = when {
+                isGlobalBudget -> "Extend budget \u00B7 ${config.preferredPauseMinutes} min"
+                isPerAppLimit -> "Extend limit \u00B7 ${config.preferredPauseMinutes} min"
+                else -> "Pause for ${config.preferredPauseMinutes} min"
             }
             val pauseBtn = Button(context).apply {
                 tag = TAG_PAUSE_GUARD_BTN
@@ -676,7 +719,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                     if (config.hapticsEnabled) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     if (config.strictModeEnabled) {
                         modalCard.removeAllViews()
-                        modalCard.addView(buildPauseGuardFn(isLimitReached))
+                        modalCard.addView(buildPauseGuardFn(config.triggerMode))
                     } else {
                         onDismissRequest()
                         onSnoozeMinutes(config.preferredPauseMinutes)
@@ -688,9 +731,10 @@ class TransparentPauseDimOverlay(private val context: Context) {
             return container
         }
 
-        fun buildPauseGuardContent(isDailyLimitPause: Boolean): View {
+        fun buildPauseGuardContent(triggerMode: OverlayTriggerMode): View {
             var selectedMinutes = config.preferredPauseMinutes.let { if (it == 5 || it == 15 || it == 30) it else 15 }
             var secondsLeft = 10
+            val isLimitPause = triggerMode != OverlayTriggerMode.FEED_GUARD
 
             val container = LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
@@ -714,7 +758,11 @@ class TransparentPauseDimOverlay(private val context: Context) {
             }
 
             val strictChip = TextView(context).apply {
-                text = if (isDailyLimitPause) "Strict mode \u00B7 Daily limit" else "Strict mode"
+                text = when (triggerMode) {
+                    OverlayTriggerMode.DAILY_LIMIT_REACHED -> "Strict mode \u00B7 Daily limit"
+                    OverlayTriggerMode.GLOBAL_BUDGET_REACHED -> "Strict mode \u00B7 Daily budget"
+                    OverlayTriggerMode.FEED_GUARD -> "Strict mode"
+                }
                 textSize = 12f
                 typeface = Typeface.create(bodyTypeface, Typeface.BOLD)
                 setTextColor(ivoryInk)
@@ -747,8 +795,10 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 private val progressPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     style = Paint.Style.STROKE
                     strokeCap = Paint.Cap.ROUND
-                    color = if (isDailyLimitPause) warnBg else sageAccent
+                    color = if (isLimitPause) warnBg else sageAccent
                 }
+
+                private val arcRect = RectF()
 
                 override fun onDraw(canvas: Canvas) {
                     super.onDraw(canvas)
@@ -756,10 +806,10 @@ class TransparentPauseDimOverlay(private val context: Context) {
                     trackPaint.strokeWidth = strokeW
                     progressPaint.strokeWidth = strokeW
                     val inset = strokeW / 2f + dp(4)
-                    val rect = RectF(inset, inset, width - inset, height - inset)
-                    canvas.drawArc(rect, 0f, 360f, false, trackPaint)
+                    arcRect.set(inset, inset, width - inset, height - inset)
+                    canvas.drawArc(arcRect, 0f, 360f, false, trackPaint)
                     if (sweepProgress > 0f) {
-                        canvas.drawArc(rect, -90f, 360f * sweepProgress, false, progressPaint)
+                        canvas.drawArc(arcRect, -90f, 360f * sweepProgress, false, progressPaint)
                     }
                 }
             }.apply {
@@ -802,7 +852,11 @@ class TransparentPauseDimOverlay(private val context: Context) {
             container.addView(heroBox)
 
             container.addView(TextView(context).apply {
-                text = if (isDailyLimitPause) "Pause daily limit?" else "Pause Guard?"
+                text = when (triggerMode) {
+                    OverlayTriggerMode.DAILY_LIMIT_REACHED -> "Pause daily limit?"
+                    OverlayTriggerMode.GLOBAL_BUDGET_REACHED -> "Extend daily budget?"
+                    OverlayTriggerMode.FEED_GUARD -> "Pause Guard?"
+                }
                 textSize = 23f
                 typeface = Typeface.create(headingTypeface, Typeface.BOLD)
                 setTextColor(inkPrimary)
@@ -811,7 +865,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
             container.addView(TextView(context).apply {
                 text = "Strict mode asks you to wait 10 seconds first. Still want a break?"
                 textSize = 14.5f
-                lineHeight = dp(21)
+                TextViewCompat.setLineHeight(this, dp(21))
                 typeface = bodyTypeface
                 setTextColor(inkSecondary)
                 setPadding(dp(2), 0, dp(2), dp(14))

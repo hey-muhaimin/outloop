@@ -211,6 +211,9 @@ fun HomeScreen(
                         dayBars = uiState.weeklyDayBars,
                         dailyBudgetCuts = uiState.preferences.dailyBudgetCuts,
                         streakDays = uiState.streakDays,
+                        todayMeasuredFeedSeconds = uiState.todayMeasuredFeedSeconds,
+                        globalFeedBudgetMinutes = uiState.globalFeedBudgetMinutes,
+                        isGlobalFeedBudgetReached = uiState.isGlobalFeedBudgetReached,
                         onReclaimedInfoClick = {
                             onShowEstimateToast(
                                 "Estimated from confirmed exits and your per-visit estimate in Settings. It isn\u2019t measured screen time."
@@ -426,6 +429,7 @@ fun HomeScreen(
                                     val usedSeconds = uiState.todayUsageSecondsByPackage[rule.packageName] ?: 0L
                                     val usedCompact = com.example.data.repository.InterventionRepository.formatDurationCompact(usedSeconds)
                                     val isLimitReached = rule.hasDailyLimit() && usedSeconds >= rule.dailyLimitSeconds
+                                    val isGlobalBudgetTriggered = !isLimitReached && uiState.isGlobalFeedBudgetReached
                                     val limitProgress = if (rule.hasDailyLimit() && rule.dailyLimitSeconds > 0L) {
                                         (usedSeconds.toFloat() / rule.dailyLimitSeconds.toFloat()).coerceIn(0f, 1f)
                                     } else {
@@ -436,6 +440,8 @@ fun HomeScreen(
                                         snoozed -> "Paused ${formatRemainingCountdown(rule.snoozeUntilMs - nowMs)}"
                                         isLimitReached ->
                                             "Limit reached \u00B7 $usedCompact / ${rule.dailyLimitMinutes}m"
+                                        isGlobalBudgetTriggered ->
+                                            "Budget reached \u00B7 $usedCompact used"
                                         rule.hasDailyLimit() ->
                                             "${homeUsefulSubtitle(rule)} \u00B7 $usedCompact/${rule.dailyLimitMinutes}m"
                                         else -> homeUsefulSubtitle(rule)
@@ -468,7 +474,11 @@ fun HomeScreen(
                                             Text(
                                                 text = subtitle,
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = if (isLimitReached) colors.warnText else colors.secondaryInk,
+                                                color = if (isLimitReached || isGlobalBudgetTriggered) {
+                                                    colors.warnText
+                                                } else {
+                                                    colors.secondaryInk
+                                                },
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )

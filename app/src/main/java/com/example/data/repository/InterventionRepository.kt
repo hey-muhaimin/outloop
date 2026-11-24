@@ -68,6 +68,9 @@ class InterventionRepository(
     override suspend fun getTodayUsageSeconds(packageName: String, dateKey: String): Long =
         dao.getAppDailyUsage(packageName, dateKey)?.trackedSeconds ?: 0L
 
+    override suspend fun getTotalTodayUsageSeconds(dateKey: String): Long =
+        dao.getTotalUsageSecondsForDate(dateKey)
+
     override suspend fun addTrackedUsageSeconds(
         packageName: String,
         dateKey: String,
@@ -168,6 +171,10 @@ class InterventionRepository(
 
     suspend fun setPreferredPauseMinutes(minutes: Int) {
         settingsDataStore.setPreferredPauseMinutes(minutes)
+    }
+
+    suspend fun setGlobalFeedTimeBudgetMinutes(minutes: Int) {
+        settingsDataStore.setGlobalFeedTimeBudgetMinutes(minutes)
     }
 
     suspend fun allowOnceForEvent(eventId: Long, packageName: String) {

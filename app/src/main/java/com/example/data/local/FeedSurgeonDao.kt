@@ -80,6 +80,9 @@ interface FeedSurgeonDao {
     @Query("SELECT * FROM app_daily_usage WHERE packageName = :packageName AND dateKey = :dateKey LIMIT 1")
     suspend fun getAppDailyUsage(packageName: String, dateKey: String): AppDailyUsageEntity?
 
+    @Query("SELECT COALESCE(SUM(trackedSeconds), 0) FROM app_daily_usage WHERE dateKey = :dateKey")
+    suspend fun getTotalUsageSecondsForDate(dateKey: String): Long
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertDailyUsage(usage: AppDailyUsageEntity)
 
