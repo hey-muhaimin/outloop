@@ -41,7 +41,11 @@ data class OutloopColors(
     val heroTrack: Color,
     val sageAccent: Color,
     val mintTile: Color,
-    val peachTile: Color
+    val peachTile: Color,
+    val yellowTile: Color,
+    val skyTile: Color,
+    val coralTile: Color,
+    val tealTile: Color
 )
 
 /**
@@ -85,7 +89,11 @@ val LightOutloopColors = OutloopColors(
     heroTrack = Color(0xFF34363A),
     sageAccent = Color(0xFF9DE8B2),
     mintTile = Color(0xFFB4E6C1),
-    peachTile = Color(0xFFFBB97A)
+    peachTile = Color(0xFFFBB97A),
+    yellowTile = Color(0xFFFBE07A),
+    skyTile = Color(0xFFC4DDFB),
+    coralTile = Color(0xFFF2725C),
+    tealTile = Color(0xFF5DC4B8)
 )
 
 // Harmonized Dark fallback preserved for compatibility if referenced directly
@@ -125,5 +133,9 @@ val DarkOutloopColors = OutloopColors(
     heroTrack = Color(0xFF34363A),
     sageAccent = Color(0xFFD5DCD7),
     mintTile = Color(0xFF26282C),
-    peachTile = Color(0xFF2A2825)
+    peachTile = Color(0xFF2A2825),
+    yellowTile = Color(0xFF2A2825),
+    skyTile = Color(0xFF26282C),
+    coralTile = Color(0xFF3A2825),
+    tealTile = Color(0xFF232D27)
 )
