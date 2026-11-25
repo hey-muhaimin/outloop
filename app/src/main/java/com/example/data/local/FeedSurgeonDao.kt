@@ -123,4 +123,28 @@ interface FeedSurgeonDao {
             insertEvents(events)
         }
     }
+
+    @Transaction
+    suspend fun mergeRemoteRulesPreservingUserSettings(remoteTemplates: List<TargetAppRuleEntity>) {
+        if (remoteTemplates.isEmpty()) return
+        val existingByPkg = getAllRulesSnapshot().associateBy { it.packageName }
+        val merged = remoteTemplates.map { template ->
+            val prev = existingByPkg[template.packageName]
+            if (prev == null) {
+                template
+            } else {
+                prev.copy(
+                    displayName = template.displayName.ifBlank { prev.displayName },
+                    feedLabel = template.feedLabel,
+                    homeTabLabel = template.homeTabLabel.ifBlank { prev.homeTabLabel },
+                    viewIdsRaw = template.viewIdsRaw,
+                    tabFallbackLabel = template.tabFallbackLabel,
+                    matchedSelectorCount = template.matchedSelectorCount,
+                    totalSelectorCount = template.totalSelectorCount,
+                    isOutdated = template.isOutdated
+                )
+            }
+        }
+        upsertRules(merged)
+    }
 }

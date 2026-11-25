@@ -52,20 +52,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.BuildConfig
 import com.example.data.local.TargetAppRuleEntity
 import com.example.data.model.ProtectionStatus
 import com.example.ui.MainUiState
-import com.example.ui.components.OutloopAppMonogramBadge
 import com.example.ui.components.OutloopHairlineDivider
 import com.example.ui.components.OutloopHomeProgressCard
+import com.example.ui.components.OutloopMintButton
 import com.example.ui.components.OutloopPauseGuardDialog
 import com.example.ui.components.OutloopPrimaryButton
 import com.example.ui.components.OutloopSecondaryButton
 import com.example.ui.components.OutloopStaggeredEntrance
 import com.example.ui.components.OutloopStatusBannerCard
 import com.example.ui.components.OutloopStatusPill
+import com.example.ui.components.OutloopSwitch
 import com.example.ui.components.OutloopTabHeader
 import com.example.ui.components.OutloopTonalCard
+import com.example.ui.components.OutloopAppMonogramBadge
 import com.example.ui.components.PillTone
 import com.example.ui.components.StatusBannerTone
 import com.example.ui.components.rememberOutloopHaptic
@@ -163,6 +166,21 @@ fun HomeScreen(
         if (it == 5 || it == 15 || it == 30) it else 15
     }
 
+    val statusTagText = when (uiState.protectionStatus) {
+        ProtectionStatus.OPERATIONAL -> "\u25CF Outloop Active"
+        ProtectionStatus.PAUSED -> if (uiState.globalPauseUntilMs == Long.MAX_VALUE) {
+            "\u25CB Guard Off"
+        } else {
+            val rem = formatRemainingCountdown(uiState.globalPauseUntilMs - nowMs)
+            "\u23F8 Paused \u00B7 $rem left"
+        }
+        ProtectionStatus.QUIET_HOURS -> "\u23F8 Quiet Hours"
+        ProtectionStatus.NO_APPS_ACTIVE -> "\u25CB No Apps Guarded"
+        ProtectionStatus.PERMISSION_NEEDED -> "\u25CF Setup Needed"
+        ProtectionStatus.SERVICE_DISCONNECTED -> "\u25CF Needs Attention"
+    }
+    val isHeroStatusWarning = uiState.protectionStatus != ProtectionStatus.OPERATIONAL
+
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.TopCenter
@@ -178,12 +196,13 @@ fun HomeScreen(
                 top = OutloopMetrics.ScreenTopPadding,
                 bottom = bottomContentPadding
             ),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Clean Today title + Guard status pill (tapping while operational opens Pause Guard)
+            // Eyebrow + Page title + Guard status pill
             item {
                 OutloopTabHeader(
-                    title = "Today",
+                    eyebrow = "Outloop v${BuildConfig.VERSION_NAME} \u00B7 On-Device",
+                    title = "Break the loop",
                     trailing = {
                         OutloopStatusPill(
                             text = statusPill.first,
@@ -202,7 +221,7 @@ fun HomeScreen(
                 )
             }
 
-            // Progress ring + feeds interrupted today + 2-up target/streak bento + 7-day strip
+            // Dark Hero Guard Card with 4-color segment bars, target/streak wells, & measured feed time
             item {
                 OutloopStaggeredEntrance(index = 0) {
                     OutloopHomeProgressCard(
@@ -214,6 +233,10 @@ fun HomeScreen(
                         todayMeasuredFeedSeconds = uiState.todayMeasuredFeedSeconds,
                         globalFeedBudgetMinutes = uiState.globalFeedBudgetMinutes,
                         isGlobalFeedBudgetReached = uiState.isGlobalFeedBudgetReached,
+                        activeAppsCount = uiState.activeInstalledCount,
+                        statusTagText = statusTagText,
+                        modeBadgeText = uiState.preferences.defaultInterventionMode.shortLabel,
+                        isStatusWarning = isHeroStatusWarning,
                         onReclaimedInfoClick = {
                             onShowEstimateToast(
                                 "Estimated from confirmed exits and your per-visit estimate in Settings. It isn\u2019t measured screen time."
@@ -392,22 +415,21 @@ fun HomeScreen(
                 }
             }
 
-            // Guarded apps ivory bento card matching C · Tonal Bento.png
+            // Guarded Short-Form Feeds white card matching home.html
             item {
                 OutloopStaggeredEntrance(index = 2) {
-                    OutloopTonalCard(
-                        cornerRadius = OutloopMetrics.CardCornerRadius,
-                        contentPadding = PaddingValues(18.dp)
-                    ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 2.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Guarded apps",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = colors.secondaryInk
+                                text = "GUARDED SHORT-FORM FEEDS",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = colors.mutedInk
                             )
                             Text(
                                 text = "Manage",
@@ -420,11 +442,14 @@ fun HomeScreen(
                                     .testTag("home_manage_apps_link")
                             )
                         }
-                        Spacer(modifier = Modifier.height(10.dp))
 
-                        if (installedRules.isNotEmpty()) {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                installedRules.forEach { rule ->
+                        OutloopTonalCard(
+                            cornerRadius = OutloopMetrics.CardCornerRadius,
+                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp)
+                        ) {
+                            if (installedRules.isNotEmpty()) {
+                                installedRules.forEachIndexed { idx, rule ->
+                                    if (idx > 0) OutloopHairlineDivider()
                                     val snoozed = rule.snoozeUntilMs > nowMs
                                     val usedSeconds = uiState.todayUsageSecondsByPackage[rule.packageName] ?: 0L
                                     val usedCompact = com.example.data.repository.InterventionRepository.formatDurationCompact(usedSeconds)
@@ -446,29 +471,38 @@ fun HomeScreen(
                                             "${homeUsefulSubtitle(rule)} \u00B7 $usedCompact/${rule.dailyLimitMinutes}m"
                                         else -> homeUsefulSubtitle(rule)
                                     }
-                                    val rowShape = RoundedCornerShape(OutloopMetrics.WellCornerRadius)
+                                    val (badgeText, badgeBg) = homePastelBadgeSpec(rule.packageName, rule.displayName)
+
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .heightIn(min = 60.dp)
-                                            .clip(rowShape)
-                                            .background(colors.canvas)
-                                            .border(1.dp, colors.hairlineBorder, rowShape)
+                                            .clip(RoundedCornerShape(14.dp))
                                             .clickable { onAppClick(rule.packageName) }
-                                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                                            .padding(vertical = 10.dp)
                                             .testTag("home_app_row_${rule.packageName}"),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
-                                        OutloopAppMonogramBadge(
-                                            appName = rule.displayName,
-                                            packageName = rule.packageName,
-                                            preferDarkMonogram = true
-                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .size(34.dp)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(badgeBg),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = badgeText,
+                                                style = MaterialTheme.typography.labelLarge.copy(
+                                                    fontWeight = FontWeight.ExtraBold
+                                                ),
+                                                color = colors.ink
+                                            )
+                                        }
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
                                                 text = rule.displayName,
-                                                style = MaterialTheme.typography.titleMedium,
+                                                style = MaterialTheme.typography.titleSmall,
                                                 color = colors.ink
                                             )
                                             Text(
@@ -477,7 +511,7 @@ fun HomeScreen(
                                                 color = if (isLimitReached || isGlobalBudgetTriggered) {
                                                     colors.warnText
                                                 } else {
-                                                    colors.secondaryInk
+                                                    colors.mutedInk
                                                 },
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
@@ -503,52 +537,37 @@ fun HomeScreen(
                                                 }
                                             }
                                         }
-                                        // On / Off Monochrome Editorial capsule pill with full 48dp min touch height
-                                        Box(
-                                            modifier = Modifier
-                                                .heightIn(min = 48.dp)
-                                                .clickable {
-                                                    haptic()
-                                                    onToggleApp(rule.packageName, !rule.enabled)
-                                                }
-                                                .testTag("home_app_switch_${rule.packageName}"),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .clip(CircleShape)
-                                                    .background(
-                                                        if (rule.enabled) colors.heroDark else colors.surfaceSubtle
-                                                    )
-                                                    .border(
-                                                        width = 1.dp,
-                                                        color = if (rule.enabled) colors.heroDark else colors.hairlineBorder,
-                                                        shape = CircleShape
-                                                    )
-                                                    .padding(horizontal = 16.dp, vertical = 7.dp),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(
-                                                    text = if (rule.enabled) "On" else "Off",
-                                                    style = MaterialTheme.typography.labelLarge.copy(
-                                                        fontWeight = FontWeight.SemiBold
-                                                    ),
-                                                    color = if (rule.enabled) colors.onPrimaryTint else colors.secondaryInk
-                                                )
-                                            }
-                                        }
+                                        OutloopSwitch(
+                                            checked = rule.enabled,
+                                            onCheckedChange = { enabled -> onToggleApp(rule.packageName, enabled) },
+                                            contentDescription = "Guard ${rule.displayName}",
+                                            modifier = Modifier.testTag("home_app_switch_${rule.packageName}")
+                                        )
                                     }
                                 }
+                            } else {
+                                Text(
+                                    text = "None of the built-in guarded apps are installed on this phone yet. Tap Manage to add a custom app.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = colors.secondaryInk,
+                                    modifier = Modifier
+                                        .clickable(onClick = onManageAppsClick)
+                                        .padding(vertical = 12.dp)
+                                )
                             }
-                        } else {
-                            Text(
-                                text = "None of the built-in guarded apps are installed on this phone yet. Tap Manage to add a custom app.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = colors.secondaryInk,
-                                modifier = Modifier.clickable(onClick = onManageAppsClick)
-                            )
                         }
                     }
+                }
+            }
+
+            // Primary 52dp Mint Pause CTA matching home.html
+            if (uiState.protectionStatus == ProtectionStatus.OPERATIONAL) {
+                item {
+                    OutloopMintButton(
+                        text = "Pause $pauseMins min",
+                        onClick = { showPauseGuardDialog = true },
+                        modifier = Modifier.testTag("home_pause_guard_button")
+                    )
                 }
             }
 
@@ -614,6 +633,28 @@ fun HomeScreen(
             },
             onDismiss = { showPauseGuardDialog = false }
         )
+    }
+}
+
+@Composable
+private fun homePastelBadgeSpec(packageName: String, displayName: String): Pair<String, Color> {
+    val colors = OutloopTheme.colors
+    return when (packageName) {
+        "com.google.android.youtube" -> "YT" to colors.peachTile
+        "com.instagram.android" -> "IG" to colors.yellowTile
+        "com.zhiliaoapp.musically" -> "TT" to colors.skyTile
+        "com.facebook.katana" -> "FB" to colors.mintTile
+        "com.twitter.android" -> "X" to colors.surfaceSubtle
+        "com.reddit.frontpage" -> "RD" to colors.surfaceSubtle
+        else -> {
+            val letters = displayName.trim()
+                .split(Regex("\\s+"))
+                .filter { it.isNotEmpty() }
+                .take(2)
+                .joinToString("") { it.first().uppercaseChar().toString() }
+                .ifEmpty { "AP" }
+            letters to colors.surfaceSubtle
+        }
     }
 }
 

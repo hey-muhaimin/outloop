@@ -348,10 +348,12 @@ class FeedSurgeonUiRobolectricTest {
         }
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText("Your attention had a little more room.").assertIsDisplayed()
         composeRule.onNodeWithText("~1 h 21 min").assertIsDisplayed()
         composeRule.onNodeWithText("3.9").assertIsDisplayed()
         composeRule.onNodeWithText("Instagram").assertIsDisplayed()
+        composeRule.onNodeWithTag("insights_list")
+            .performScrollToNode(hasText("Your attention had a little more room."))
+        composeRule.onNodeWithText("Your attention had a little more room.").assertIsDisplayed()
         composeRule.onNodeWithTag("insights_list")
             .performScrollToNode(hasText("Feeds interrupted"))
         composeRule.onNodeWithText("Feeds interrupted").assertIsDisplayed()
@@ -1212,6 +1214,8 @@ class FeedSurgeonUiRobolectricTest {
         composeRule.waitForIdle()
 
         composeRule.onNodeWithText("~1 h 21 min").assertIsDisplayed()
+        composeRule.onNodeWithTag("insights_list")
+            .performScrollToNode(hasTestTag("insights_measured_feed_time"))
         composeRule.onNodeWithTag("insights_measured_feed_time").assertIsDisplayed()
         composeRule.onNodeWithText("Time in feeds today \u00B7 of 60m budget").assertIsDisplayed()
         composeRule.onNodeWithText("22m").assertIsDisplayed()

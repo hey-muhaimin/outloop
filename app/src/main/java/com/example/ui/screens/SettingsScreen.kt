@@ -207,7 +207,10 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                OutloopTabHeader(title = "Settings")
+                OutloopTabHeader(
+                    eyebrow = "Preferences & Guard Rules",
+                    title = "Settings"
+                )
             }
 
             // Card 1: Guard
@@ -218,9 +221,9 @@ fun SettingsScreen(
                         contentPadding = PaddingValues(18.dp)
                     ) {
                         Text(
-                            text = "Guard",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = colors.secondaryInk
+                            text = "GUARD",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = colors.mutedInk
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -232,6 +235,7 @@ fun SettingsScreen(
                                 onCheckedChange = { guardOn -> onToggleGlobalPause(!guardOn) },
                                 switchTestTag = "settings_guard_switch"
                             )
+                            OutloopHairlineDivider()
                             SettingsToggleBentoRow(
                                 icon = Icons.Outlined.Lock,
                                 title = "Strict mode",
@@ -240,6 +244,7 @@ fun SettingsScreen(
                                 onCheckedChange = onSetStrictModeEnabled,
                                 switchTestTag = "settings_strict_mode_switch"
                             )
+                            OutloopHairlineDivider()
                             SettingsNavBentoRow(
                                 icon = Icons.Outlined.Schedule,
                                 title = "Schedule",
@@ -253,6 +258,18 @@ fun SettingsScreen(
                                 valueText = uiState.preferences.defaultInterventionMode.shortLabel,
                                 onClick = { showDefaultResponseSheet = true },
                                 modifier = Modifier.testTag("settings_default_response")
+                            )
+                            OutloopSegmentedControl(
+                                options = listOf(
+                                    InterventionMode.OVERLAY to "Overlay",
+                                    InterventionMode.HOME_TAB to "Home tab",
+                                    InterventionMode.BACK to "Back"
+                                ),
+                                selected = uiState.preferences.defaultInterventionMode,
+                                onSelect = onSelectDefaultMode,
+                                modifier = Modifier
+                                    .padding(vertical = 4.dp)
+                                    .testTag("settings_mode_segmented_control")
                             )
                             OutloopHairlineDivider()
                             OutloopListNavRow(
@@ -289,9 +306,9 @@ fun SettingsScreen(
                         contentPadding = PaddingValues(18.dp)
                     ) {
                         Text(
-                            text = "Apps and access",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = colors.secondaryInk
+                            text = "APPS AND ACCESS",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = colors.mutedInk
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -302,6 +319,7 @@ fun SettingsScreen(
                                 onClick = onOpenManageApps,
                                 modifier = Modifier.testTag("settings_protected_apps")
                             )
+                            OutloopHairlineDivider()
                             SettingsNavBentoRow(
                                 icon = Icons.Outlined.CheckCircle,
                                 title = "Always open",
@@ -309,6 +327,7 @@ fun SettingsScreen(
                                 onClick = { showAlwaysOpenSheet = true },
                                 modifier = Modifier.testTag("settings_always_open")
                             )
+                            OutloopHairlineDivider()
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -370,9 +389,9 @@ fun SettingsScreen(
                         contentPadding = PaddingValues(18.dp)
                     ) {
                         Text(
-                            text = "Tracking and display",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = colors.secondaryInk
+                            text = "TRACKING AND DISPLAY",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = colors.mutedInk
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -440,9 +459,9 @@ fun SettingsScreen(
                         contentPadding = PaddingValues(18.dp)
                     ) {
                         Text(
-                            text = "Data and diagnostics",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = colors.secondaryInk
+                            text = "DATA AND DIAGNOSTICS",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = colors.mutedInk
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         OutloopListNavRow(
@@ -514,9 +533,9 @@ fun SettingsScreen(
                         contentPadding = PaddingValues(18.dp)
                     ) {
                         Text(
-                            text = "About",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = colors.secondaryInk
+                            text = "ABOUT",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = colors.mutedInk
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                         SettingsNavBentoRow(
@@ -715,7 +734,7 @@ fun SettingsScreen(
                     onShowToast("Activity history cleared.")
                 },
                 interactionSource = destructiveInteraction,
-                shape = CircleShape,
+                shape = RoundedCornerShape(OutloopMetrics.ButtonCornerRadius),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = colors.destructive,
                     contentColor = Color.White
@@ -723,12 +742,12 @@ fun SettingsScreen(
                 modifier = Modifier
                     .outloopPressScale(destructiveInteraction)
                     .fillMaxWidth()
-                    .heightIn(min = 52.dp)
+                    .heightIn(min = OutloopMetrics.ButtonMinHeight)
                     .testTag("confirm_clear_history_button")
             ) {
                 Text(
                     text = "Clear history",
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             }
             OutloopSecondaryButton(

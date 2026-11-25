@@ -9,8 +9,11 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 
 val PlusJakartaSansFontFamily = FontFamily(
+    Font(R.font.plus_jakarta_sans, FontWeight.Normal),
+    Font(R.font.plus_jakarta_sans, FontWeight.Medium),
     Font(R.font.plus_jakarta_sans, FontWeight.SemiBold),
-    Font(R.font.plus_jakarta_sans, FontWeight.Bold)
+    Font(R.font.plus_jakarta_sans, FontWeight.Bold),
+    Font(R.font.plus_jakarta_sans, FontWeight.ExtraBold)
 )
 
 val InterFontFamily = FontFamily(
@@ -26,90 +29,91 @@ val ManropeFontFamily = FontFamily(
 )
 
 val OutloopTypography = Typography(
-    // Primary tab title ("Today", "Insights", "Settings")
+    // .page-title (26px Bold, -0.025em tracking, 1.18 line height)
     displayLarge = TextStyle(
         fontFamily = PlusJakartaSansFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 31.sp,
-        lineHeight = 36.sp,
-        letterSpacing = (-0.7).sp
+        fontSize = 26.sp,
+        lineHeight = 31.sp,
+        letterSpacing = (-0.65).sp
     ),
-    // Sub-screen, Onboarding & Hero headlines
+    // Hero KPI & sub-screen headline
     headlineLarge = TextStyle(
         fontFamily = PlusJakartaSansFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 27.sp,
+        fontSize = 28.sp,
         lineHeight = 32.sp,
-        letterSpacing = (-0.5).sp
+        letterSpacing = (-0.65).sp
     ),
     // Card KPI / Sheet / Overlay titles
     headlineMedium = TextStyle(
         fontFamily = PlusJakartaSansFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 21.sp,
-        lineHeight = 26.sp,
-        letterSpacing = (-0.35).sp
+        fontSize = 22.sp,
+        lineHeight = 27.sp,
+        letterSpacing = (-0.4).sp
     ),
-    // Brand wordmark / card headline
+    // Pattern title / card headline
     titleLarge = TextStyle(
         fontFamily = PlusJakartaSansFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 18.sp,
-        lineHeight = 23.sp,
+        fontSize = 17.sp,
+        lineHeight = 22.sp,
         letterSpacing = (-0.25).sp
     ),
-    // Primary row / button title
+    // Primary button (.btn-mint / .btn-dark) & row title (14px SemiBold/Bold)
     titleMedium = TextStyle(
-        fontFamily = InterFontFamily,
+        fontFamily = PlusJakartaSansFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 15.sp,
+        fontSize = 14.5.sp,
         lineHeight = 20.sp
     ),
     // Secondary item title
     titleSmall = TextStyle(
-        fontFamily = InterFontFamily,
+        fontFamily = PlusJakartaSansFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 14.5.sp,
+        fontSize = 14.sp,
         lineHeight = 19.sp
     ),
     // Body paragraph
     bodyLarge = TextStyle(
-        fontFamily = InterFontFamily,
+        fontFamily = PlusJakartaSansFontFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 14.5.sp,
-        lineHeight = 21.sp
+        fontSize = 14.sp,
+        lineHeight = 20.sp
     ),
     // Card paragraph / row value
     bodyMedium = TextStyle(
-        fontFamily = InterFontFamily,
+        fontFamily = PlusJakartaSansFontFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 13.5.sp,
+        fontSize = 13.sp,
         lineHeight = 19.sp
     ),
-    // Footnote / secondary metadata
+    // Footnote / secondary metadata (.app-meta / .si-sub)
     bodySmall = TextStyle(
-        fontFamily = InterFontFamily,
+        fontFamily = PlusJakartaSansFontFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 12.sp,
+        fontSize = 11.5.sp,
         lineHeight = 16.sp
     ),
     // Pill / segment / chip label
     labelLarge = TextStyle(
-        fontFamily = InterFontFamily,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 12.5.sp,
-        lineHeight = 16.sp
-    ),
-    // Eyebrow / Section Header
-    labelMedium = TextStyle(
-        fontFamily = InterFontFamily,
-        fontWeight = FontWeight.SemiBold,
+        fontFamily = PlusJakartaSansFontFamily,
+        fontWeight = FontWeight.Bold,
         fontSize = 12.sp,
         lineHeight = 16.sp
     ),
-    // Tab bar item label
+    // .eyebrow & .section-label (11px Bold, uppercase-ready tracking)
+    labelMedium = TextStyle(
+        fontFamily = PlusJakartaSansFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 11.sp,
+        lineHeight = 15.sp,
+        letterSpacing = 0.8.sp
+    ),
+    // .nav-item label (11px SemiBold)
     labelSmall = TextStyle(
-        fontFamily = InterFontFamily,
+        fontFamily = PlusJakartaSansFontFamily,
         fontWeight = FontWeight.SemiBold,
         fontSize = 11.sp,
         lineHeight = 14.sp

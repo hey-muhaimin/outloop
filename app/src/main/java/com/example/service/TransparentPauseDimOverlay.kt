@@ -159,30 +159,31 @@ class TransparentPauseDimOverlay(private val context: Context) {
         val headingTypeface = runCatching {
             ResourcesCompat.getFont(context, R.font.plus_jakarta_sans)
         }.getOrNull() ?: Typeface.DEFAULT_BOLD
-        val bodyTypeface = runCatching {
-            ResourcesCompat.getFont(context, R.font.inter)
-        }.getOrNull() ?: Typeface.SANS_SERIF
+        val bodyTypeface = headingTypeface
 
         val clampedDimAlpha = config.dimAlpha.coerceIn(0.35f, 0.92f)
         val dimAlphaInt = (clampedDimAlpha * 255f).toInt().coerceIn(80, 235)
-        val scrimColor = Color.argb(dimAlphaInt, 0x11, 0x12, 0x14)
+        val scrimColor = Color.argb(dimAlphaInt, 0x12, 0x13, 0x12)
 
         val isDark = config.useDarkTheme
-        val canvasColor = if (isDark) Color.parseColor("#111214") else Color.parseColor("#F2F2EF")
-        val modalBg = if (isDark) Color.parseColor("#1A1B1E") else Color.parseColor("#FAFAF8")
-        val elevatedBg = if (isDark) Color.parseColor("#232529") else Color.parseColor("#FFFFFF")
-        val modalStroke = if (isDark) Color.parseColor("#1AFAFAF8") else Color.parseColor("#14111214")
-        val darkHeroBg = Color.parseColor("#1C1D1F")
-        val darkPillBg = Color.parseColor("#2B2D30")
-        val sageAccent = Color.parseColor("#D5DCD7")
-        val heroTrack = Color.parseColor("#34363A")
-        val subtleTrackBg = if (isDark) Color.parseColor("#26282C") else Color.parseColor("#E7E7E3")
-        val warnBg = if (isDark) Color.parseColor("#2F2821") else Color.parseColor("#EFE9E1")
-        val warnTextColor = if (isDark) Color.parseColor("#E8D8C6") else Color.parseColor("#7A4E27")
-        val inkPrimary = if (isDark) Color.parseColor("#FAFAF8") else Color.parseColor("#111214")
-        val inkSecondary = if (isDark) Color.parseColor("#A7AAB0") else Color.parseColor("#5B5E63")
-        val ivoryInk = Color.parseColor("#FAFAF8")
-        val outlineStroke = if (isDark) Color.parseColor("#33FAFAF8") else Color.parseColor("#14111214")
+        val canvasColor = if (isDark) Color.parseColor("#121312") else Color.parseColor("#F4F5F3")
+        val modalBg = if (isDark) Color.parseColor("#1A1B1A") else Color.parseColor("#FFFFFF")
+        val elevatedBg = if (isDark) Color.parseColor("#242624") else Color.parseColor("#FFFFFF")
+        val modalStroke = if (isDark) Color.parseColor("#1AFFFFFF") else Color.parseColor("#0F141514")
+        val darkHeroBg = Color.parseColor("#121312")
+        val darkPillBg = Color.parseColor("#1AFFFFFF")
+        val sageAccent = Color.parseColor("#9DE8B2")
+        val mintTileBg = if (isDark) Color.parseColor("#213026") else Color.parseColor("#E3F7E9")
+        val peachTileBg = if (isDark) Color.parseColor("#33271E") else Color.parseColor("#FFF0DF")
+        val peachAccent = Color.parseColor("#FBB97A")
+        val heroTrack = Color.parseColor("#2D302D")
+        val subtleTrackBg = if (isDark) Color.parseColor("#262826") else Color.parseColor("#EAECE9")
+        val warnBg = if (isDark) Color.parseColor("#33271E") else Color.parseColor("#FFF0DF")
+        val warnTextColor = if (isDark) Color.parseColor("#FBB97A") else Color.parseColor("#7A4E27")
+        val inkPrimary = if (isDark) Color.parseColor("#FFFFFF") else Color.parseColor("#141514")
+        val inkSecondary = if (isDark) Color.parseColor("#9BA09B") else Color.parseColor("#5C5F5C")
+        val ivoryInk = Color.parseColor("#FFFFFF")
+        val outlineStroke = if (isDark) Color.parseColor("#29FFFFFF") else Color.parseColor("#14141514")
 
         val root = FrameLayout(context).apply {
             tag = TAG_OVERLAY_ROOT
@@ -238,7 +239,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
             setPadding(dp(18), dp(18), dp(18), dp(18))
             background = GradientDrawable().apply {
                 setColor(modalBg)
-                cornerRadius = dpF(28f)
+                cornerRadius = dpF(22f)
                 setStroke(dp(1), modalStroke)
             }
         }
@@ -336,11 +337,14 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 background = if (isElevatedPill) {
                     GradientDrawable().apply {
                         setColor(elevatedBg)
-                        cornerRadius = dpF(100f)
+                        cornerRadius = dpF(16f)
                         setStroke(dp(1), modalStroke)
                     }
                 } else {
-                    null
+                    GradientDrawable().apply {
+                        setColor(Color.TRANSPARENT)
+                        cornerRadius = dpF(16f)
+                    }
                 }
                 layoutParams = LinearLayout.LayoutParams(
                     0,
@@ -395,7 +399,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 setPadding(dp(20), dp(18), dp(20), dp(18))
                 background = GradientDrawable().apply {
                     setColor(darkHeroBg)
-                    cornerRadius = dpF(26f)
+                    cornerRadius = dpF(22f)
                 }
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
@@ -418,15 +422,12 @@ class TransparentPauseDimOverlay(private val context: Context) {
                     isPerAppLimit -> "${config.appName} \u00B7 Daily limit"
                     else -> "${config.appName} \u00B7 ${config.feedLabel}"
                 }
-                textSize = 12f
+                textSize = 11.5f
                 typeface = Typeface.create(bodyTypeface, Typeface.BOLD)
-                setTextColor(
-                    if (isLimitReached) warnTextColor
-                    else Color.argb(235, Color.red(ivoryInk), Color.green(ivoryInk), Color.blue(ivoryInk))
-                )
+                setTextColor(if (isLimitReached) peachAccent else sageAccent)
                 setPadding(dp(12), dp(5), dp(12), dp(5))
                 background = GradientDrawable().apply {
-                    setColor(if (isLimitReached) warnBg else darkPillBg)
+                    setColor(darkPillBg)
                     cornerRadius = dpF(100f)
                 }
                 layoutParams = LinearLayout.LayoutParams(
@@ -457,7 +458,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     style = Paint.Style.STROKE
                     strokeCap = Paint.Cap.ROUND
-                    color = if (isLimitReached) warnBg else sageAccent
+                    color = if (isLimitReached) peachAccent else sageAccent
                 }
                 private val arcRect = RectF()
 
@@ -527,7 +528,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                     setPadding(dp(18), dp(16), dp(18), dp(16))
                     background = GradientDrawable().apply {
                         setColor(bgColor)
-                        cornerRadius = dpF(22f)
+                        cornerRadius = dpF(16f)
                         setStroke(dp(1), modalStroke)
                     }
                     layoutParams = LinearLayout.LayoutParams(
@@ -569,7 +570,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 )
                 tilesRow.addView(
                     createStatTile(
-                        bgColor = subtleTrackBg,
+                        bgColor = mintTileBg,
                         valueText = config.timeKeptText,
                         labelText = "time kept",
                         valueColor = inkPrimary,
@@ -582,7 +583,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 val limitText = "$usedCompact / ${config.dailyLimitMinutes}m"
                 tilesRow.addView(
                     createStatTile(
-                        bgColor = if (isPerAppLimit) warnBg else canvasColor,
+                        bgColor = if (isPerAppLimit) warnBg else peachTileBg,
                         valueText = limitText,
                         labelText = "used today",
                         valueColor = if (isPerAppLimit) warnTextColor else inkPrimary,
@@ -593,7 +594,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 )
                 tilesRow.addView(
                     createStatTile(
-                        bgColor = subtleTrackBg,
+                        bgColor = mintTileBg,
                         valueText = config.timeKeptText,
                         labelText = "time kept",
                         valueColor = inkPrimary,
@@ -606,7 +607,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 val streakLabel = if (config.streakDays == 1) "1 day" else "${config.streakDays} days"
                 tilesRow.addView(
                     createStatTile(
-                        bgColor = canvasColor,
+                        bgColor = mintTileBg,
                         valueText = config.timeKeptText,
                         labelText = "time kept",
                         valueColor = inkPrimary,
@@ -617,7 +618,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 )
                 tilesRow.addView(
                     createStatTile(
-                        bgColor = subtleTrackBg,
+                        bgColor = peachTileBg,
                         valueText = streakLabel,
                         labelText = "streak",
                         valueColor = inkPrimary,
@@ -629,19 +630,19 @@ class TransparentPauseDimOverlay(private val context: Context) {
             }
             container.addView(tilesRow)
 
-            // Row 1: Nav-dock-style inline Home | Exit bar (64dp pill dock matching FloatingPillNavBar)
+            // Row 1: Nav-dock-style inline Home | Exit bar (22dp outer tray + 16dp buttons)
             val dockOuterFrame = FrameLayout(context).apply {
                 tag = TAG_ACTION_DOCK
                 setPadding(dp(4), dp(4), dp(4), dp(4))
                 background = GradientDrawable().apply {
-                    setColor(modalBg)
-                    cornerRadius = dpF(100f)
+                    setColor(canvasColor)
+                    cornerRadius = dpF(22f)
                     setStroke(dp(1), modalStroke)
                 }
-                elevation = dpF(4f)
+                elevation = dpF(2f)
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
-                    dp(64)
+                    dp(60)
                 ).apply {
                     topMargin = dp(16)
                 }
@@ -650,10 +651,10 @@ class TransparentPauseDimOverlay(private val context: Context) {
             val dockInnerTrack = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(3), dp(3), dp(3), dp(3))
+                setPadding(dp(2), dp(2), dp(2), dp(2))
                 background = GradientDrawable().apply {
                     setColor(subtleTrackBg)
-                    cornerRadius = dpF(100f)
+                    cornerRadius = dpF(18f)
                 }
                 layoutParams = FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
@@ -701,12 +702,12 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 text = pauseBtnLabel
                 contentDescription = "Open Pause Guard options for ${config.preferredPauseMinutes} minutes"
                 isAllCaps = false
-                textSize = 15f
+                textSize = 14.5f
                 typeface = Typeface.create(headingTypeface, Typeface.BOLD)
                 setTextColor(Color.parseColor("#141514"))
                 background = GradientDrawable().apply {
-                    setColor(Color.parseColor("#9DE8B2"))
-                    cornerRadius = dpF(100f)
+                    setColor(sageAccent)
+                    cornerRadius = dpF(16f)
                 }
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
@@ -749,7 +750,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 setPadding(dp(20), dp(18), dp(20), dp(22))
                 background = GradientDrawable().apply {
                     setColor(darkHeroBg)
-                    cornerRadius = dpF(26f)
+                    cornerRadius = dpF(22f)
                 }
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
@@ -763,7 +764,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                     OverlayTriggerMode.GLOBAL_BUDGET_REACHED -> "Strict mode \u00B7 Daily budget"
                     OverlayTriggerMode.FEED_GUARD -> "Strict mode"
                 }
-                textSize = 12f
+                textSize = 11.5f
                 typeface = Typeface.create(bodyTypeface, Typeface.BOLD)
                 setTextColor(ivoryInk)
                 setPadding(dp(12), dp(5), dp(12), dp(5))
@@ -795,7 +796,7 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 private val progressPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     style = Paint.Style.STROKE
                     strokeCap = Paint.Cap.ROUND
-                    color = if (isLimitPause) warnBg else sageAccent
+                    color = if (isLimitPause) peachAccent else sageAccent
                 }
 
                 private val arcRect = RectF()
@@ -873,14 +874,15 @@ class TransparentPauseDimOverlay(private val context: Context) {
 
             val segRow = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
+                setPadding(dp(4), dp(4), dp(4), dp(4))
                 background = GradientDrawable().apply {
-                    setColor(modalBg)
-                    cornerRadius = dpF(100f)
+                    setColor(subtleTrackBg)
+                    cornerRadius = dpF(16f)
                     setStroke(dp(1), outlineStroke)
                 }
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
-                    dp(48)
+                    dp(50)
                 )
             }
 
@@ -892,12 +894,13 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 durations.forEach { mins ->
                     val btn = segButtons[mins] ?: return@forEach
                     val isSel = mins == selectedMinutes
-                    btn.setTextColor(inkPrimary)
+                    btn.setTextColor(if (isSel) inkPrimary else inkSecondary)
                     btn.typeface = Typeface.create(bodyTypeface, if (isSel) Typeface.BOLD else Typeface.NORMAL)
                     btn.background = if (isSel) {
                         GradientDrawable().apply {
-                            setColor(subtleTrackBg)
-                            cornerRadius = dpF(100f)
+                            setColor(elevatedBg)
+                            cornerRadius = dpF(12f)
+                            setStroke(dp(1), modalStroke)
                         }
                     } else {
                         null
@@ -934,12 +937,12 @@ class TransparentPauseDimOverlay(private val context: Context) {
             val keepGuardingBtn = Button(context).apply {
                 text = "Keep guarding"
                 isAllCaps = false
-                textSize = 15f
+                textSize = 14.5f
                 typeface = Typeface.create(headingTypeface, Typeface.BOLD)
                 setTextColor(ivoryInk)
                 background = GradientDrawable().apply {
                     setColor(darkHeroBg)
-                    cornerRadius = dpF(100f)
+                    cornerRadius = dpF(16f)
                 }
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
@@ -960,12 +963,12 @@ class TransparentPauseDimOverlay(private val context: Context) {
                 text = "Pause in 10 s"
                 isAllCaps = false
                 isEnabled = false
-                textSize = 15f
+                textSize = 14.5f
                 typeface = Typeface.create(headingTypeface, Typeface.BOLD)
                 setTextColor(inkSecondary)
                 background = GradientDrawable().apply {
-                    setColor(modalBg)
-                    cornerRadius = dpF(100f)
+                    setColor(subtleTrackBg)
+                    cornerRadius = dpF(16f)
                     setStroke(dp(1), outlineStroke)
                 }
                 layoutParams = LinearLayout.LayoutParams(
@@ -997,11 +1000,10 @@ class TransparentPauseDimOverlay(private val context: Context) {
                         ringCanvas.invalidate()
                         if (secondsLeft == 0) {
                             confirmPauseBtn.isEnabled = true
-                            confirmPauseBtn.setTextColor(inkPrimary)
+                            confirmPauseBtn.setTextColor(Color.parseColor("#141514"))
                             confirmPauseBtn.background = GradientDrawable().apply {
-                                setColor(subtleTrackBg)
-                                cornerRadius = dpF(100f)
-                                setStroke(dp(1), outlineStroke)
+                                setColor(sageAccent)
+                                cornerRadius = dpF(16f)
                             }
                         }
                         refreshDurationStyles()

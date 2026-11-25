@@ -106,10 +106,10 @@ data class NavAlertBadges(
 )
 
 /**
- * Monochrome Editorial Floating Tonal Bento Pill Dock:
- * #FAFAF8 Off-White floating frame -> #E7E7E3 Pewter recessed track ->
- * sliding #FFFFFF Elevated active capsule with #111214 crisp ink,
- * matching OutloopSegmentedControl and the tonal bento surface hierarchy.
+ * Bio-Mint & Tonal Bento Floating Bottom Nav:
+ * Pure White (#FFFFFF) 22dp-rounded card with 6dp inner padding,
+ * sliding 16dp #EAECE9 active tab capsule, 18dp outline/filled icons,
+ * and #141514 active vs #8E928E muted ink.
  */
 @Composable
 fun FloatingPillNavBar(
@@ -122,6 +122,9 @@ fun FloatingPillNavBar(
     val haptic = rememberOutloopHaptic()
     val tabs = BottomTab.entries
     val selectedIndex = tabs.indexOf(selectedTab).coerceAtLeast(0)
+    val navShape = RoundedCornerShape(OutloopMetrics.NavCornerRadius)
+    val itemShape = RoundedCornerShape(OutloopMetrics.ButtonCornerRadius)
+    val itemGap = 6.dp
 
     Box(
         modifier = modifier
@@ -130,85 +133,74 @@ fun FloatingPillNavBar(
                 Brush.verticalGradient(
                     colorStops = arrayOf(
                         0f to Color.Transparent,
-                        0.42f to colors.canvas.copy(alpha = 0.88f),
+                        0.42f to colors.canvas.copy(alpha = 0.90f),
                         1f to colors.canvas
                     )
                 )
             )
             .windowInsetsPadding(WindowInsets.navigationBars)
             .padding(
-                start = 24.dp,
-                end = 24.dp,
+                start = OutloopMetrics.ScreenHorizontalPadding,
+                end = OutloopMetrics.ScreenHorizontalPadding,
                 top = 6.dp,
                 bottom = OutloopMetrics.DockBottomPadding
             ),
         contentAlignment = Alignment.Center
     ) {
-        // Outer Off-White Bento Frame
         Box(
             modifier = Modifier
-                .widthIn(max = 396.dp)
+                .widthIn(max = 420.dp)
                 .fillMaxWidth()
-                .height(OutloopMetrics.DockHeight)
+                .height(70.dp)
                 .testTag("floating_segmented_nav")
                 .shadow(
-                    elevation = 10.dp,
-                    shape = CircleShape,
+                    elevation = 6.dp,
+                    shape = navShape,
                     ambientColor = colors.dockShadow,
                     spotColor = colors.dockShadow
                 )
-                .clip(CircleShape)
+                .clip(navShape)
                 .background(colors.surfaceCard)
-                .border(1.dp, colors.hairlineBorder, CircleShape)
-                .padding(4.dp)
+                .border(1.dp, colors.hairlineBorder, navShape)
+                .padding(6.dp)
         ) {
-            // Inner Pewter Recessed Track
             BoxWithConstraints(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(CircleShape)
-                    .background(colors.surfaceSubtle)
-                    .padding(3.dp)
+                modifier = Modifier.fillMaxSize()
             ) {
-                val tabWidth = maxWidth / tabs.size
+                val totalGaps = itemGap * (tabs.size - 1)
+                val tabWidth = ((maxWidth - totalGaps) / tabs.size).coerceAtLeast(1.dp)
                 val indicatorOffset by animateDpAsState(
-                    targetValue = tabWidth * selectedIndex,
+                    targetValue = (tabWidth + itemGap) * selectedIndex,
                     animationSpec = spring(
-                        dampingRatio = 0.82f,
+                        dampingRatio = 0.84f,
                         stiffness = Spring.StiffnessMediumLow
                     ),
                     label = "navSlidingPillOffset"
                 )
 
-                // Elevated White Sliding Capsule
+                // Active tab #EAECE9 capsule
                 Box(
                     modifier = Modifier
                         .offset(x = indicatorOffset)
                         .width(tabWidth)
                         .fillMaxHeight()
-                        .shadow(
-                            elevation = 3.dp,
-                            shape = CircleShape,
-                            ambientColor = colors.dockShadow,
-                            spotColor = colors.dockShadow
-                        )
-                        .clip(CircleShape)
-                        .background(colors.surfaceElevated)
-                        .border(0.75.dp, colors.hairlineBorder, CircleShape)
+                        .clip(itemShape)
+                        .background(colors.surfaceSubtle)
                 )
 
                 Row(
                     modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(itemGap),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     tabs.forEach { tab ->
                         val isSelected = tab == selectedTab
                         val tint by animateColorAsState(
-                            targetValue = if (isSelected) colors.ink else colors.secondaryInk,
+                            targetValue = if (isSelected) colors.ink else colors.mutedInk,
                             label = "navTint"
                         )
                         val iconScale by animateFloatAsState(
-                            targetValue = if (isSelected) 1.05f else 0.96f,
+                            targetValue = if (isSelected) 1.04f else 0.98f,
                             animationSpec = spring(
                                 dampingRatio = 0.74f,
                                 stiffness = Spring.StiffnessMedium
@@ -226,8 +218,8 @@ fun FloatingPillNavBar(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .outloopPressScale(interactionSource, pressedScale = 0.95f)
-                                .clip(CircleShape)
+                                .outloopPressScale(interactionSource, pressedScale = 0.96f)
+                                .clip(itemShape)
                                 .clickable(
                                     role = Role.Tab,
                                     interactionSource = interactionSource,
@@ -240,7 +232,8 @@ fun FloatingPillNavBar(
                                     selected = isSelected
                                     contentDescription = tab.label
                                 }
-                                .testTag(tab.testTag),
+                                .testTag(tab.testTag)
+                                .padding(horizontal = 4.dp, vertical = 6.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
@@ -251,10 +244,10 @@ fun FloatingPillNavBar(
                                 }
                             ) {
                                 Icon(
-                                    imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
+                                    imageVector = tab.unselectedIcon,
                                     contentDescription = null,
                                     tint = tint,
-                                    modifier = Modifier.size(19.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
                                 if (showDot) {
                                     Box(
@@ -266,18 +259,18 @@ fun FloatingPillNavBar(
                                             .background(colors.destructive)
                                             .border(
                                                 width = 1.5.dp,
-                                                color = if (isSelected) colors.surfaceElevated else colors.surfaceSubtle,
+                                                color = if (isSelected) colors.surfaceSubtle else colors.surfaceCard,
                                                 shape = CircleShape
                                             )
                                     )
                                 }
                             }
-                            Spacer(modifier = Modifier.height(1.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = tab.label,
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    letterSpacing = 0.15.sp
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
                                 ),
                                 color = tint,
                                 maxLines = 1,
@@ -300,6 +293,8 @@ fun OutloopSideRail(
 ) {
     val colors = OutloopTheme.colors
     val haptic = rememberOutloopHaptic()
+    val railShape = RoundedCornerShape(OutloopMetrics.NavCornerRadius)
+    val itemShape = RoundedCornerShape(OutloopMetrics.ButtonCornerRadius)
     Box(
         modifier = modifier
             .fillMaxHeight()
@@ -313,17 +308,18 @@ fun OutloopSideRail(
                 .testTag("side_rail")
                 .shadow(
                     elevation = 6.dp,
-                    shape = RoundedCornerShape(26.dp),
+                    shape = railShape,
                     ambientColor = colors.dockShadow,
                     spotColor = colors.dockShadow
                 )
-                .clip(RoundedCornerShape(26.dp))
+                .clip(railShape)
                 .background(colors.surfaceCard)
-                .border(1.dp, colors.hairlineBorder, RoundedCornerShape(26.dp))
-                .padding(horizontal = 6.dp, vertical = 12.dp),
+                .border(1.dp, colors.hairlineBorder, railShape)
+                .padding(6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            Spacer(modifier = Modifier.height(4.dp))
             OutloopMark(size = 20.dp, color = colors.heroDark)
             HorizontalDivider(
                 modifier = Modifier.width(28.dp),
@@ -331,27 +327,22 @@ fun OutloopSideRail(
                 color = colors.hairlineBorder
             )
 
-            // Recessed Pewter Well holding the tab pills
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(colors.surfaceSubtle)
-                    .padding(4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 BottomTab.entries.forEach { tab ->
                     val isSelected = tab == selectedTab
                     val pillBg by animateColorAsState(
-                        targetValue = if (isSelected) colors.surfaceElevated else Color.Transparent,
+                        targetValue = if (isSelected) colors.surfaceSubtle else Color.Transparent,
                         label = "railPillBg"
                     )
                     val tint by animateColorAsState(
-                        targetValue = if (isSelected) colors.ink else colors.secondaryInk,
+                        targetValue = if (isSelected) colors.ink else colors.mutedInk,
                         label = "railTabTint"
                     )
                     val iconScale by animateFloatAsState(
-                        targetValue = if (isSelected) 1.05f else 0.96f,
+                        targetValue = if (isSelected) 1.04f else 0.98f,
                         animationSpec = spring(dampingRatio = 0.74f, stiffness = Spring.StiffnessMedium),
                         label = "railIconScale"
                     )
@@ -365,29 +356,10 @@ fun OutloopSideRail(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 52.dp)
-                            .outloopPressScale(interactionSource, pressedScale = 0.95f)
-                            .then(
-                                if (isSelected) {
-                                    Modifier.shadow(
-                                        elevation = 2.dp,
-                                        shape = RoundedCornerShape(16.dp),
-                                        ambientColor = colors.dockShadow,
-                                        spotColor = colors.dockShadow
-                                    )
-                                } else {
-                                    Modifier
-                                }
-                            )
-                            .clip(RoundedCornerShape(16.dp))
+                            .heightIn(min = 54.dp)
+                            .outloopPressScale(interactionSource, pressedScale = 0.96f)
+                            .clip(itemShape)
                             .background(pillBg)
-                            .then(
-                                if (isSelected) {
-                                    Modifier.border(0.75.dp, colors.hairlineBorder, RoundedCornerShape(16.dp))
-                                } else {
-                                    Modifier
-                                }
-                            )
                             .clickable(
                                 role = Role.Tab,
                                 interactionSource = interactionSource,
@@ -401,12 +373,12 @@ fun OutloopSideRail(
                                 contentDescription = tab.label
                             }
                             .testTag(tab.testTag)
-                            .padding(vertical = 6.dp),
+                            .padding(vertical = 8.dp, horizontal = 4.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Box(
                                 modifier = Modifier.graphicsLayer {
@@ -415,10 +387,10 @@ fun OutloopSideRail(
                                 }
                             ) {
                                 Icon(
-                                    imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
+                                    imageVector = tab.unselectedIcon,
                                     contentDescription = null,
                                     tint = tint,
-                                    modifier = Modifier.size(19.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
                                 if (showDot) {
                                     Box(
@@ -430,7 +402,7 @@ fun OutloopSideRail(
                                             .background(colors.destructive)
                                             .border(
                                                 width = 1.5.dp,
-                                                color = if (isSelected) colors.surfaceElevated else colors.surfaceSubtle,
+                                                color = if (isSelected) colors.surfaceSubtle else colors.surfaceCard,
                                                 shape = CircleShape
                                             )
                                     )
@@ -439,8 +411,8 @@ fun OutloopSideRail(
                             Text(
                                 text = tab.label,
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    letterSpacing = 0.15.sp
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
                                 ),
                                 color = tint,
                                 maxLines = 1,

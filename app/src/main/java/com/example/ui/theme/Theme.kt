@@ -19,28 +19,30 @@ val LocalHapticsEnabled = staticCompositionLocalOf { true }
  * Shared Light Tonal Bento spacing, corner radii, and component tokens.
  */
 object OutloopMetrics {
-    val ScreenHorizontalPadding = 16.dp
+    val ScreenHorizontalPadding = 20.dp
     val ScreenTopPadding = 12.dp
     val TopBarTopPadding = 10.dp
     val TopBarStartPadding = 10.dp
-    val SectionSpacing = 12.dp
+    val SectionSpacing = 14.dp
     val ItemSpacing = 8.dp
     val BentoGap = 10.dp
-    val CardCornerRadius = 24.dp
-    val HeroCornerRadius = 26.dp
-    val SubCardCornerRadius = 18.dp
+    val CardCornerRadius = 22.dp
+    val HeroCornerRadius = 22.dp
+    val SubCardCornerRadius = 16.dp
     val WellCornerRadius = 16.dp
     val SheetCornerRadius = 28.dp
-    val CardPadding = PaddingValues(18.dp)
-    val CompactCardPadding = PaddingValues(14.dp)
+    val ButtonCornerRadius = 16.dp
+    val NavCornerRadius = 22.dp
+    val CardPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp)
+    val CompactCardPadding = PaddingValues(16.dp)
     val WellPadding = PaddingValues(14.dp)
-    val ListRowPaddingHorizontal = 16.dp
-    val ListRowPaddingVertical = 10.dp
+    val ListRowPaddingHorizontal = 18.dp
+    val ListRowPaddingVertical = 12.dp
     val RowMinHeight = 56.dp
     val NavRowMinHeight = 52.dp
-    val ButtonMinHeight = 50.dp
-    val AppBadgeSize = 42.dp
-    val AppBadgeCornerRadius = 14.dp
+    val ButtonMinHeight = 52.dp
+    val AppBadgeSize = 36.dp
+    val AppBadgeCornerRadius = 12.dp
     val AppDetailBadgeSize = 48.dp
     val AppDetailBadgeCornerRadius = 14.dp
     val IconBadgeSize = 36.dp
@@ -63,10 +65,10 @@ object OutloopTheme {
 }
 
 private val OutloopShapes = Shapes(
-    extraSmall = RoundedCornerShape(10.dp),
-    small = RoundedCornerShape(14.dp),
-    medium = RoundedCornerShape(18.dp),
-    large = RoundedCornerShape(24.dp),
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(22.dp),
     extraLarge = RoundedCornerShape(28.dp)
 )
 

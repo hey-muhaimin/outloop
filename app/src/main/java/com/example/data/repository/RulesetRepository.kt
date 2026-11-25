@@ -369,7 +369,7 @@ class RulesetRepository(
 
     private suspend fun applyPayloadToDatabase(payload: RemoteRulesetPayload) {
         val existingByPkg = dao.getAllRulesSnapshot().associateBy { it.packageName }
-        val updated = payload.apps.map { remote ->
+        val templates = payload.apps.map { remote ->
             val prev = existingByPkg[remote.packageName]
             TargetAppRuleEntity(
                 packageName = remote.packageName,
@@ -378,6 +378,7 @@ class RulesetRepository(
                 enabled = prev?.enabled ?: true,
                 interventionMode = prev?.interventionMode ?: InterventionMode.OVERLAY,
                 cooldownMs = prev?.cooldownMs ?: 800,
+                dailyLimitMinutes = prev?.dailyLimitMinutes ?: 0,
                 homeTabLabel = remote.homeTabLabel.ifBlank { "Home" },
                 viewIdsRaw = remote.viewIds.joinToString("|"),
                 tabFallbackLabel = remote.tabContentDescription,
@@ -389,7 +390,7 @@ class RulesetRepository(
                 isOutdated = false
             )
         }
-        dao.upsertRules(updated)
+        dao.mergeRemoteRulesPreservingUserSettings(templates)
     }
 
     companion object {

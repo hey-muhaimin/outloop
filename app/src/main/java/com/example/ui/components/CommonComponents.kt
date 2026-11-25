@@ -196,13 +196,13 @@ fun OutloopTabHeader(
     val colors = OutloopTheme.colors
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         if (!eyebrow.isNullOrBlank()) {
             Text(
-                text = eyebrow,
+                text = eyebrow.uppercase(),
                 style = MaterialTheme.typography.labelMedium,
-                color = colors.secondaryInk
+                color = colors.mutedInk
             )
         }
         Row(
@@ -525,6 +525,12 @@ fun OutloopTonalCard(
 
     val cardModifier = modifier
         .then(if (onClick != null) Modifier.outloopPressScale(interactionSource, 0.985f) else Modifier)
+        .shadow(
+            elevation = if (elevated) 4.dp else 2.dp,
+            shape = shape,
+            ambientColor = colors.dockShadow,
+            spotColor = colors.dockShadow
+        )
         .clip(shape)
         .background(fill)
         .border(1.dp, stroke, shape)
@@ -616,6 +622,51 @@ fun OutloopStatusBannerCard(
 }
 
 @Composable
+fun OutloopMintButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    containerColor: Color? = null,
+    contentColor: Color? = null
+) {
+    val colors = OutloopTheme.colors
+    val haptic = rememberOutloopHaptic()
+    val interactionSource = remember { MutableInteractionSource() }
+    val bg = containerColor ?: colors.sageAccent
+    val fg = contentColor ?: colors.ink
+    Button(
+        onClick = {
+            haptic()
+            onClick()
+        },
+        enabled = enabled,
+        interactionSource = interactionSource,
+        shape = RoundedCornerShape(OutloopMetrics.ButtonCornerRadius),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = bg,
+            contentColor = fg,
+            disabledContainerColor = bg.copy(alpha = 0.50f),
+            disabledContentColor = fg.copy(alpha = 0.65f)
+        ),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+        modifier = modifier
+            .outloopPressScale(interactionSource)
+            .fillMaxWidth()
+            .heightIn(min = OutloopMetrics.ButtonMinHeight)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            ),
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
 fun OutloopPrimaryButton(
     text: String,
     onClick: () -> Unit,
@@ -634,7 +685,7 @@ fun OutloopPrimaryButton(
         },
         enabled = enabled,
         interactionSource = interactionSource,
-        shape = CircleShape,
+        shape = RoundedCornerShape(OutloopMetrics.ButtonCornerRadius),
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor ?: colors.heroDark,
             contentColor = contentColor ?: colors.onPrimaryTint,
@@ -645,11 +696,14 @@ fun OutloopPrimaryButton(
         modifier = modifier
             .outloopPressScale(interactionSource)
             .fillMaxWidth()
-            .heightIn(min = 52.dp)
+            .heightIn(min = OutloopMetrics.ButtonMinHeight)
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold
+            ),
             textAlign = TextAlign.Center
         )
     }
@@ -673,7 +727,7 @@ fun OutloopSecondaryButton(
         },
         enabled = enabled,
         interactionSource = interactionSource,
-        shape = CircleShape,
+        shape = RoundedCornerShape(OutloopMetrics.ButtonCornerRadius),
         border = BorderStroke(1.dp, colors.hairlineBorder),
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor ?: colors.surfaceCard,
@@ -683,11 +737,14 @@ fun OutloopSecondaryButton(
         modifier = modifier
             .outloopPressScale(interactionSource)
             .fillMaxWidth()
-            .heightIn(min = 52.dp)
+            .heightIn(min = OutloopMetrics.ButtonMinHeight)
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold
+            ),
             textAlign = TextAlign.Center
         )
     }
@@ -779,15 +836,19 @@ fun OutloopSwitch(
         targetValue = if (checked) colors.switchOn else colors.switchOff,
         label = "switchTrack"
     )
+    val thumbColor by animateColorAsState(
+        targetValue = if (checked) colors.sageAccent else Color.White,
+        label = "switchThumbColor"
+    )
     val thumbOffset by animateDpAsState(
-        targetValue = if (checked) 24.dp else 4.dp,
+        targetValue = if (checked) 18.dp else 3.dp,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "switchThumb"
     )
 
     Box(
         modifier = modifier
-            .size(width = 54.dp, height = 48.dp)
+            .size(width = 48.dp, height = 48.dp)
             .semantics(mergeDescendants = true) {
                 this.contentDescription = contentDescription
                 this.stateDescription = if (checked) "On" else "Off"
@@ -806,17 +867,17 @@ fun OutloopSwitch(
     ) {
         Box(
             modifier = Modifier
-                .size(width = 52.dp, height = 31.dp)
-                .clip(CircleShape)
+                .size(width = 44.dp, height = 26.dp)
+                .clip(RoundedCornerShape(99.dp))
                 .background(if (enabled) trackColor else colors.switchOff.copy(alpha = 0.55f))
         ) {
             Box(
                 modifier = Modifier
-                    .offset(x = thumbOffset, y = 3.5.dp)
-                    .size(24.dp)
+                    .offset(x = thumbOffset, y = 3.dp)
+                    .size(20.dp)
                     .shadow(1.dp, CircleShape)
                     .clip(CircleShape)
-                    .background(Color.White)
+                    .background(if (enabled) thumbColor else Color.White.copy(alpha = 0.72f))
             )
         }
     }
@@ -974,14 +1035,14 @@ fun OutloopSectionHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 4.dp),
+            .padding(horizontal = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelMedium,
-            color = colors.secondaryInk
+            color = colors.mutedInk
         )
         if (trailing != null) {
             trailing()
@@ -1587,23 +1648,26 @@ fun OutloopPauseGuardDialog(
                         },
                         enabled = canPause,
                         interactionSource = pauseInteraction,
-                        shape = CircleShape,
-                        border = BorderStroke(1.dp, colors.hairlineBorder),
+                        shape = RoundedCornerShape(OutloopMetrics.ButtonCornerRadius),
+                        border = if (canPause) null else BorderStroke(1.dp, colors.hairlineBorder),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (canPause) colors.surfaceSubtle else colors.surfaceCard,
+                            containerColor = if (canPause) colors.sageAccent else colors.surfaceSubtle,
                             contentColor = colors.ink,
-                            disabledContainerColor = colors.surfaceCard,
+                            disabledContainerColor = colors.surfaceSubtle,
                             disabledContentColor = colors.secondaryInk
                         ),
                         modifier = Modifier
                             .outloopPressScale(pauseInteraction)
                             .fillMaxWidth()
-                            .heightIn(min = 52.dp)
+                            .heightIn(min = OutloopMetrics.ButtonMinHeight)
                             .testTag("pause_guard_confirm_button")
                     ) {
                         Text(
                             text = if (secondsLeft > 0) "Pause in $secondsLeft s" else "Pause for $selectedMinutes min",
-                            style = MaterialTheme.typography.titleMedium
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         )
                     }
                 }

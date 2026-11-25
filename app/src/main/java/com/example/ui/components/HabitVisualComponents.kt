@@ -78,11 +78,11 @@ data class ChartColumnData(
 )
 
 /**
- * Monochrome Editorial Home summary bento card:
- * Top row: circular Graphite arc around today's count + reclaimed-time estimate.
- * Middle 2-up nested bento wells: daily intention/target + streak.
- * Measured feed-time well: today's tracked feed duration vs global feed budget.
- * Bottom inset well: 7-day M-S rhythm strip.
+ * Bio-Mint & Tonal Bento Dark Hero Guard Card (#121312):
+ * Top row: mint/peach status tag + mode badge.
+ * Middle: bold white loops-stopped metric + clickable reclaimed time estimate + OutloopMark.
+ * 4-color progress segment bars (teal, yellow, peach, mint).
+ * Nested dark wells for daily target, streak, and measured feed budget progress.
  */
 @Composable
 fun OutloopHomeProgressCard(
@@ -94,6 +94,10 @@ fun OutloopHomeProgressCard(
     todayMeasuredFeedSeconds: Long = 0L,
     globalFeedBudgetMinutes: Int = AppPreferences.DEFAULT_GLOBAL_FEED_BUDGET_MINUTES,
     isGlobalFeedBudgetReached: Boolean = false,
+    activeAppsCount: Int = 0,
+    statusTagText: String = "\u25CF Outloop Active",
+    modeBadgeText: String = "Pause Overlay",
+    isStatusWarning: Boolean = false,
     onReclaimedInfoClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -103,30 +107,64 @@ fun OutloopHomeProgressCard(
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "homeProgressCount"
     )
-    val targetFraction = when {
-        count <= 0 -> 0f
-        dailyBudgetCuts > 0 -> (count.toFloat() / dailyBudgetCuts.toFloat()).coerceIn(0.08f, 1f)
-        else -> (count.toFloat() / 5.5f).coerceIn(0.18f, 0.88f)
-    }
-    val animatedFraction by animateFloatAsState(
-        targetValue = targetFraction,
-        animationSpec = tween(durationMillis = 450),
-        label = "homeProgressSweep"
-    )
+    val heroShape = RoundedCornerShape(OutloopMetrics.HeroCornerRadius)
+    val wellShape = RoundedCornerShape(OutloopMetrics.WellCornerRadius)
+    val loopsWord = if (animatedCount == 1) "loop stopped" else "loops stopped"
 
-    OutloopTonalCard(
-        cornerRadius = OutloopMetrics.CardCornerRadius,
-        contentPadding = PaddingValues(18.dp),
-        modifier = modifier.fillMaxWidth()
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 8.dp,
+                shape = heroShape,
+                ambientColor = colors.dockShadow,
+                spotColor = colors.dockShadow
+            )
+            .clip(heroShape)
+            .background(colors.heroDark)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        // Top status tag & mode badge
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Text(
+                text = statusTagText.uppercase(),
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontSize = 10.5.sp,
+                    letterSpacing = 0.8.sp
+                ),
+                color = if (isStatusWarning) colors.peachTile else colors.sageAccent
+            )
             Box(
                 modifier = Modifier
-                    .size(OutloopMetrics.HeroRingSize)
+                    .clip(CircleShape)
+                    .background(colors.heroChipBg)
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = modeBadgeText,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = Color.White
+                )
+            }
+        }
+
+        // Bold Hero KPI + Mark
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
                     .semantics(mergeDescendants = true) {
                         contentDescription = if (count == 1) {
                             "1 feed interrupted today"
@@ -134,68 +172,30 @@ fun OutloopHomeProgressCard(
                             "$count feeds interrupted today"
                         }
                     },
-                contentAlignment = Alignment.Center
-            ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val strokePx = 8.5.dp.toPx()
-                    val inset = strokePx / 2f + 2.dp.toPx()
-                    val diameter = (size.minDimension - inset * 2f).coerceAtLeast(1f)
-                    drawArc(
-                        color = colors.surfaceSubtle,
-                        startAngle = 0f,
-                        sweepAngle = 360f,
-                        useCenter = false,
-                        topLeft = Offset(inset, inset),
-                        size = Size(diameter, diameter),
-                        style = Stroke(width = strokePx, cap = StrokeCap.Round)
-                    )
-                    if (animatedFraction > 0.01f) {
-                        drawArc(
-                            color = colors.heroDark,
-                            startAngle = -90f,
-                            sweepAngle = 360f * animatedFraction,
-                            useCenter = false,
-                            topLeft = Offset(inset, inset),
-                            size = Size(diameter, diameter),
-                            style = Stroke(width = strokePx, cap = StrokeCap.Round)
-                        )
-                    }
-                }
-                Text(
-                    text = animatedCount.toString(),
-                    style = MaterialTheme.typography.headlineLarge.copy(
-                        fontSize = 28.sp,
-                        lineHeight = 32.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFeatureSettings = "tnum"
-                    ),
-                    color = colors.ink
-                )
-            }
-
-            Column(
-                modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = if (count == 1) {
-                        "feed interrupted\ntoday"
-                    } else {
-                        "feeds interrupted\ntoday"
-                    },
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontSize = 21.sp,
-                        lineHeight = 25.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = colors.ink
-                )
-                Text(
-                    text = "~$reclaimedText est. time reclaimed",
-                    style = MaterialTheme.typography.bodyMedium.copy(
+                    text = "$animatedCount $loopsWord",
+                    style = MaterialTheme.typography.headlineLarge.copy(
+                        fontSize = 31.sp,
+                        lineHeight = 35.sp,
+                        fontWeight = FontWeight.Bold,
                         fontFeatureSettings = "tnum"
                     ),
-                    color = colors.secondaryInk,
+                    color = Color.White
+                )
+                val guardingPrefix = if (activeAppsCount > 0) {
+                    "Guarding $activeAppsCount app${if (activeAppsCount == 1) "" else "s"} \u00B7 "
+                } else {
+                    ""
+                }
+                Text(
+                    text = "${guardingPrefix}~$reclaimedText reclaimed",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 12.sp,
+                        fontFeatureSettings = "tnum"
+                    ),
+                    color = colors.heroMutedInk,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .clickable(onClick = onReclaimedInfoClick)
@@ -203,11 +203,45 @@ fun OutloopHomeProgressCard(
                         .testTag("home_reclaimed_estimate_text")
                 )
             }
+
+            Spacer(modifier = Modifier.size(12.dp))
+            OutloopMark(
+                size = 46.dp,
+                color = if (isStatusWarning) colors.peachTile else colors.sageAccent,
+                strokeWidth = 6.dp
+            )
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        // 4-color Bio-Mint segment progress bars from home.html
+        val segmentColors = listOf(
+            colors.tealTile,
+            colors.yellowTile,
+            colors.peachTile,
+            colors.sageAccent
+        )
+        val activeSegments = when {
+            count <= 0 -> 1
+            dailyBudgetCuts > 0 -> ((count.toFloat() / dailyBudgetCuts.toFloat()) * 4f).toInt().coerceIn(1, 4)
+            else -> count.coerceIn(1, 4)
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            segmentColors.forEachIndexed { index, segColor ->
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(5.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (index < activeSegments) segColor else colors.heroTrack
+                        )
+                )
+            }
+        }
 
-        // 2-up nested bento metric row: Daily target + Streak
+        // Compact 2-up dark bento wells: Daily target + Streak
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -221,28 +255,59 @@ fun OutloopHomeProgressCard(
                 targetMet -> "Daily target reached ($dailyBudgetCuts)"
                 else -> "$count of $dailyBudgetCuts daily target"
             }
-            OutloopMetricCell(
-                value = targetValue,
-                label = targetLabel,
-                containerColor = if (targetMet) colors.okBg else colors.canvas,
-                valueColor = if (targetMet) colors.okText else colors.ink,
-                labelColor = if (targetMet) colors.okText else colors.secondaryInk,
+            Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-            )
+                    .clip(wellShape)
+                    .background(if (targetMet) colors.sageAccent.copy(alpha = 0.16f) else colors.heroChipBg)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = targetValue,
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontSize = 18.sp,
+                        fontFeatureSettings = "tnum"
+                    ),
+                    color = if (targetMet) colors.sageAccent else Color.White,
+                    maxLines = 1
+                )
+                Text(
+                    text = targetLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.heroMutedInk
+                )
+            }
 
             val streakValue = if (streakDays == 1) "1 day" else "$streakDays days"
-            OutloopMetricCell(
-                value = streakValue,
-                label = "current streak",
-                containerColor = colors.canvas,
+            Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-            )
+                    .clip(wellShape)
+                    .background(colors.heroChipBg)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = streakValue,
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontSize = 18.sp,
+                        fontFeatureSettings = "tnum"
+                    ),
+                    color = Color.White,
+                    maxLines = 1
+                )
+                Text(
+                    text = "current streak",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.heroMutedInk
+                )
+            }
         }
 
+        // Measured Feed Time + Global Feed Budget progress bar
         val measuredCompact = InterventionRepository.formatDurationCompact(todayMeasuredFeedSeconds)
         val hasGlobalBudget = globalFeedBudgetMinutes > 0
         val globalBudgetSeconds = (globalFeedBudgetMinutes * 60L).coerceAtLeast(1L)
@@ -262,12 +327,14 @@ fun OutloopHomeProgressCard(
             else -> "Time in feeds today"
         }
 
-        Spacer(modifier = Modifier.height(OutloopMetrics.BentoGap))
-        OutloopInsetWell(
-            containerColor = if (isGlobalFeedBudgetReached) colors.warnBg else colors.canvas,
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .clip(wellShape)
+                .background(
+                    if (isGlobalFeedBudgetReached) colors.peachTile.copy(alpha = 0.16f) else colors.heroChipBg
+                )
+                .padding(horizontal = 14.dp, vertical = 11.dp)
                 .testTag("home_measured_feed_time")
         ) {
             Row(
@@ -275,20 +342,19 @@ fun OutloopHomeProgressCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = measuredSubtitleText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (isGlobalFeedBudgetReached) colors.warnText else colors.secondaryInk
-                    )
-                }
+                Text(
+                    text = measuredSubtitleText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isGlobalFeedBudgetReached) colors.peachTile else colors.heroMutedInk,
+                    modifier = Modifier.weight(1f)
+                )
                 Text(
                     text = measuredValueText,
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         fontFeatureSettings = "tnum"
                     ),
-                    color = if (isGlobalFeedBudgetReached) colors.warnText else colors.ink
+                    color = if (isGlobalFeedBudgetReached) colors.peachTile else Color.White
                 )
             }
             if (hasGlobalBudget) {
@@ -296,9 +362,9 @@ fun OutloopHomeProgressCard(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(4.dp)
+                        .height(5.dp)
                         .clip(CircleShape)
-                        .background(colors.surfaceSubtle)
+                        .background(colors.heroTrack)
                 ) {
                     if (todayMeasuredFeedSeconds > 0L) {
                         Box(
@@ -306,7 +372,7 @@ fun OutloopHomeProgressCard(
                                 .fillMaxWidth(measuredBudgetProgress.coerceAtLeast(0.04f))
                                 .fillMaxHeight()
                                 .clip(CircleShape)
-                                .background(if (isGlobalFeedBudgetReached) colors.warnText else colors.heroDark)
+                                .background(if (isGlobalFeedBudgetReached) colors.peachTile else colors.sageAccent)
                         )
                     }
                 }
@@ -314,13 +380,10 @@ fun OutloopHomeProgressCard(
         }
 
         if (dayBars.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(OutloopMetrics.BentoGap))
-            OutloopInsetWell(
-                containerColor = colors.canvas,
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
-            ) {
-                OutloopDailyRhythmStrip(dayBars = dayBars)
-            }
+            OutloopDailyRhythmStrip(
+                dayBars = dayBars,
+                onDarkHero = true
+            )
         }
     }
 }
@@ -408,7 +471,7 @@ fun OutloopInsightsLightChartCard(
                         label = "lightChartBar_$idx"
                     )
                     val barColor by animateColorAsState(
-                        targetValue = if (isSelected) colors.heroDark else Color(0xFFC5C6C8),
+                        targetValue = if (isSelected) colors.heroDark else colors.tealTile.copy(alpha = 0.55f),
                         animationSpec = tween(180),
                         label = "lightChartBarColor_$idx"
                     )
@@ -456,7 +519,8 @@ fun OutloopInsightsLightChartCard(
 @Composable
 fun OutloopDailyRhythmStrip(
     dayBars: List<DayBarStat>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onDarkHero: Boolean = false
 ) {
     val colors = OutloopTheme.colors
     Row(
@@ -472,7 +536,7 @@ fun OutloopDailyRhythmStrip(
             }
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
                 modifier = Modifier.semantics(mergeDescendants = true) {
                     contentDescription = accessibilityLabel
                 }
@@ -480,18 +544,30 @@ fun OutloopDailyRhythmStrip(
                 Text(
                     text = day.dayLetter,
                     style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         fontWeight = if (day.isToday) FontWeight.Bold else FontWeight.Medium
                     ),
-                    color = if (day.isToday) colors.ink else colors.secondaryInk
+                    color = when {
+                        onDarkHero && day.isToday -> colors.sageAccent
+                        onDarkHero -> colors.heroMutedInk
+                        day.isToday -> colors.ink
+                        else -> colors.secondaryInk
+                    }
                 )
                 Box(
                     modifier = Modifier
-                        .size(OutloopMetrics.RhythmCircleSize)
+                        .size(if (onDarkHero) 32.dp else OutloopMetrics.RhythmCircleSize)
                         .clip(CircleShape)
-                        .background(if (day.isToday) colors.heroDark else colors.surfaceElevated)
+                        .background(
+                            when {
+                                onDarkHero && day.isToday -> colors.sageAccent
+                                onDarkHero -> colors.heroChipBg
+                                day.isToday -> colors.heroDark
+                                else -> colors.surfaceElevated
+                            }
+                        )
                         .then(
-                            if (day.isToday) {
+                            if (day.isToday || onDarkHero) {
                                 Modifier
                             } else {
                                 Modifier.border(1.dp, colors.hairlineBorder, CircleShape)
@@ -502,11 +578,16 @@ fun OutloopDailyRhythmStrip(
                     Text(
                         text = day.count.toString(),
                         style = MaterialTheme.typography.bodySmall.copy(
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             fontFeatureSettings = "tnum"
                         ),
-                        color = if (day.isToday) colors.onPrimaryTint else colors.ink
+                        color = when {
+                            onDarkHero && day.isToday -> colors.ink
+                            onDarkHero -> Color.White
+                            day.isToday -> colors.onPrimaryTint
+                            else -> colors.ink
+                        }
                     )
                 }
             }
@@ -679,129 +760,115 @@ fun OutloopSimulationOverlay(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Row 1: Nav-dock-style inline Home | Exit bar matching FloatingPillNavBar
-                Box(
+                // Row 1: Bio-Mint 2-row action dock: Home | Exit pills inside #F4F5F3 dock
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(OutloopMetrics.DockHeight)
-                        .shadow(
-                            elevation = 8.dp,
-                            shape = CircleShape,
-                            ambientColor = colors.dockShadow,
-                            spotColor = colors.dockShadow
-                        )
-                        .clip(CircleShape)
-                        .background(colors.surfaceCard)
-                        .border(1.dp, colors.hairlineBorder, CircleShape)
-                        .padding(4.dp)
+                        .height(62.dp)
+                        .clip(RoundedCornerShape(OutloopMetrics.CardCornerRadius))
+                        .background(colors.canvas)
+                        .border(1.dp, colors.hairlineBorder, RoundedCornerShape(OutloopMetrics.CardCornerRadius))
+                        .padding(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
+                    val homeInteraction = remember { MutableInteractionSource() }
+                    val dockBtnShape = RoundedCornerShape(OutloopMetrics.ButtonCornerRadius)
+                    Column(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape)
-                            .background(colors.surfaceSubtle)
-                            .padding(3.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .outloopPressScale(homeInteraction, pressedScale = 0.96f)
+                            .shadow(
+                                elevation = 2.dp,
+                                shape = dockBtnShape,
+                                ambientColor = colors.dockShadow,
+                                spotColor = colors.dockShadow
+                            )
+                            .clip(dockBtnShape)
+                            .background(colors.surfaceElevated)
+                            .border(0.75.dp, colors.hairlineBorder, dockBtnShape)
+                            .clickable(
+                                role = Role.Button,
+                                interactionSource = homeInteraction,
+                                indication = LocalIndication.current
+                            ) {
+                                haptic()
+                                onActionFeedback("Preview: returned to $appName Home ($primaryActionLabel).")
+                                onDismiss()
+                            }
+                            .semantics {
+                                contentDescription = "Return to Home in $appName"
+                            }
+                            .testTag("sim_home_button"),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
                     ) {
-                        val homeInteraction = remember { MutableInteractionSource() }
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .outloopPressScale(homeInteraction, pressedScale = 0.96f)
-                                .shadow(
-                                    elevation = 2.dp,
-                                    shape = CircleShape,
-                                    ambientColor = colors.dockShadow,
-                                    spotColor = colors.dockShadow
-                                )
-                                .clip(CircleShape)
-                                .background(colors.surfaceElevated)
-                                .border(0.75.dp, colors.hairlineBorder, CircleShape)
-                                .clickable(
-                                    role = Role.Button,
-                                    interactionSource = homeInteraction,
-                                    indication = LocalIndication.current
-                                ) {
-                                    haptic()
-                                    onActionFeedback("Preview: returned to $appName Home ($primaryActionLabel).")
-                                    onDismiss()
-                                }
-                                .semantics {
-                                    contentDescription = "Return to Home in $appName"
-                                }
-                                .testTag("sim_home_button"),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Home,
-                                contentDescription = null,
-                                tint = colors.ink,
-                                modifier = Modifier.size(19.dp)
-                            )
-                            Spacer(modifier = Modifier.height(1.dp))
-                            Text(
-                                text = "Home",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 0.15.sp
-                                ),
-                                color = colors.ink,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Rounded.Home,
+                            contentDescription = null,
+                            tint = colors.ink,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Home",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = colors.ink,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
 
-                        val exitInteraction = remember { MutableInteractionSource() }
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .outloopPressScale(exitInteraction, pressedScale = 0.96f)
-                                .clip(CircleShape)
-                                .clickable(
-                                    role = Role.Button,
-                                    interactionSource = exitInteraction,
-                                    indication = LocalIndication.current
-                                ) {
-                                    haptic()
-                                    onActionFeedback("Preview: minimized $appName ($secondaryActionLabel).")
-                                    onDismiss()
-                                }
-                                .semantics {
-                                    contentDescription = "Exit and minimize $appName"
-                                }
-                                .testTag("sim_exit_button"),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ExitToApp,
-                                contentDescription = null,
-                                tint = colors.ink,
-                                modifier = Modifier.size(19.dp)
-                            )
-                            Spacer(modifier = Modifier.height(1.dp))
-                            Text(
-                                text = "Exit",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 0.15.sp
-                                ),
-                                color = colors.ink,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                    val exitInteraction = remember { MutableInteractionSource() }
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .outloopPressScale(exitInteraction, pressedScale = 0.96f)
+                            .clip(dockBtnShape)
+                            .background(colors.surfaceSubtle)
+                            .clickable(
+                                role = Role.Button,
+                                interactionSource = exitInteraction,
+                                indication = LocalIndication.current
+                            ) {
+                                haptic()
+                                onActionFeedback("Preview: minimized $appName ($secondaryActionLabel).")
+                                onDismiss()
+                            }
+                            .semantics {
+                                contentDescription = "Exit and minimize $appName"
+                            }
+                            .testTag("sim_exit_button"),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ExitToApp,
+                            contentDescription = null,
+                            tint = colors.ink,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Exit",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = colors.ink,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(OutloopMetrics.BentoGap))
 
-                // Row 2: Full-width Pause button
-                OutloopPrimaryButton(
+                // Row 2: Full-width Mint Pause button
+                OutloopMintButton(
                     text = if (limitReached) "Extend limit \u00B7 15 min" else "Pause for 15 min",
                     onClick = {
                         onActionFeedback("Preview: paused for 15 minutes.")
