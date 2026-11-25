@@ -403,6 +403,7 @@ fun OutloopSubScreenScaffold(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     title: String? = null,
+    trailing: (@Composable RowScope.() -> Unit)? = null,
     bottomBar: (@Composable ColumnScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -445,6 +446,10 @@ fun OutloopSubScreenScaffold(
                             style = MaterialTheme.typography.titleLarge,
                             color = colors.ink
                         )
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    if (trailing != null) {
+                        trailing()
                     }
                 }
                 HorizontalDivider(thickness = 1.dp, color = dividerColor)
@@ -1127,6 +1132,56 @@ fun OutloopAppMonogramBadge(
                 color = colors.onPrimaryTint
             )
         }
+    }
+}
+
+@Composable
+fun outloopPastelBadgeSpec(packageName: String, displayName: String): Pair<String, Color> {
+    val colors = OutloopTheme.colors
+    return when (packageName) {
+        "com.google.android.youtube" -> "YT" to colors.peachTile
+        "com.instagram.android" -> "IG" to colors.yellowTile
+        "com.zhiliaoapp.musically" -> "TT" to colors.skyTile
+        "com.facebook.katana" -> "FB" to colors.mintTile
+        "com.snapchat.android" -> "SC" to colors.yellowTile
+        "com.twitter.android" -> "X" to colors.surfaceSubtle
+        "com.reddit.frontpage" -> "RD" to colors.surfaceSubtle
+        else -> {
+            val letters = displayName.trim()
+                .split(Regex("\\s+"))
+                .filter { it.isNotEmpty() }
+                .take(2)
+                .joinToString("") { it.first().uppercaseChar().toString() }
+                .ifEmpty { "AP" }
+            letters to colors.surfaceSubtle
+        }
+    }
+}
+
+@Composable
+fun OutloopAppPastelBadge(
+    packageName: String,
+    displayName: String,
+    modifier: Modifier = Modifier,
+    size: Dp = 36.dp,
+    cornerRadius: Dp = 12.dp
+) {
+    val colors = OutloopTheme.colors
+    val (badgeText, badgeBg) = outloopPastelBadgeSpec(packageName, displayName)
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(RoundedCornerShape(cornerRadius))
+            .background(badgeBg),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = badgeText,
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontWeight = FontWeight.ExtraBold
+            ),
+            color = colors.ink
+        )
     }
 }
 

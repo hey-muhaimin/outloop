@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.activity.compose.BackHandler
 import com.example.service.ProtectionHealthHelper
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.rounded.CheckCircleOutline
@@ -22,7 +24,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -39,9 +43,11 @@ import com.example.ui.components.OutloopSecondaryButton
 import com.example.ui.components.OutloopSectionHeader
 import com.example.ui.components.OutloopStaggeredEntrance
 import com.example.ui.components.OutloopStatusBannerCard
+import com.example.ui.components.OutloopStatusPill
 import com.example.ui.components.OutloopSubScreenScaffold
 import com.example.ui.components.OutloopSwitch
 import com.example.ui.components.OutloopTonalCard
+import com.example.ui.components.PillTone
 import com.example.ui.components.StatusBannerTone
 import com.example.ui.theme.OutloopMetrics
 import com.example.ui.theme.OutloopTheme
@@ -63,8 +69,10 @@ fun DiagnosticsScreen(
     val colors = OutloopTheme.colors
     val nowMs = uiState.currentTimeMs
 
+    val isServiceHealthy = uiState.isAccessibilityEnabled && uiState.isServiceConnected
+
     val accessibilityStatusLabel = when {
-        uiState.isAccessibilityEnabled && uiState.isServiceConnected -> "Connected"
+        isServiceHealthy -> "Connected"
         uiState.isAccessibilityEnabled -> "Enabled, waiting for binding"
         else -> "Not enabled"
     }
@@ -106,18 +114,22 @@ fun DiagnosticsScreen(
 
     OutloopSubScreenScaffold(
         onBack = onBack,
+        trailing = {
+            OutloopStatusPill(
+                text = if (isServiceHealthy) "Healthy" else "Needs attention",
+                tone = if (isServiceHealthy) PillTone.ACTIVE_DOT else PillTone.WARNING
+            )
+        },
         bottomBar = {
             OutloopPrimaryButton(
                 text = "Check again",
                 onClick = {
                     onRefreshHealth()
                     val msg = when {
-                        uiState.isAccessibilityEnabled && uiState.isServiceConnected ->
-                            "Service connected."
+                        isServiceHealthy -> "Service connected."
                         uiState.isAccessibilityEnabled ->
                             "Accessibility enabled, waiting for Android binding."
-                        else ->
-                            "Still waiting for Accessibility permission."
+                        else -> "Still waiting for Accessibility permission."
                     }
                     onShowToast(msg)
                 }
@@ -132,7 +144,12 @@ fun DiagnosticsScreen(
         OutloopStaggeredEntrance(index = 0) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = "Diagnostics",
+                    text = "SELECTORMATCHER \u00B7 TELEMETRY",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.mutedInk
+                )
+                Text(
+                    text = "Rule Health",
                     style = MaterialTheme.typography.displayLarge,
                     color = colors.ink
                 )
@@ -145,7 +162,7 @@ fun DiagnosticsScreen(
         }
 
         OutloopStaggeredEntrance(index = 1) {
-            if (uiState.isAccessibilityEnabled && uiState.isServiceConnected) {
+            if (isServiceHealthy) {
                 OutloopStatusBannerCard(
                     tone = StatusBannerTone.SUCCESS,
                     icon = Icons.Rounded.CheckCircleOutline,
@@ -231,8 +248,60 @@ fun DiagnosticsScreen(
             }
         }
 
+        // Sanitized LiveNodeSnapshot terminal card (zero-PII / redacted on-device)
+        OutloopStaggeredEntrance(index = 4) {
+            Column(verticalArrangement = Arrangement.spacedBy(OutloopMetrics.ItemSpacing)) {
+                OutloopSectionHeader(text = "LiveNodeSnapshot (Sanitized)")
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(OutloopMetrics.CardCornerRadius))
+                        .background(colors.heroDark)
+                        .padding(16.dp)
+                        .testTag("diagnostics_live_snapshot_box"),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = "monitor: ${uiState.foregroundAppSummary}",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.5.sp,
+                        lineHeight = 17.sp,
+                        color = colors.sageAccent
+                    )
+                    Text(
+                        text = "matchedDetection: ${uiState.lastDetectionSummary}",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.5.sp,
+                        lineHeight = 17.sp,
+                        color = colors.onPrimaryTint
+                    )
+                    Text(
+                        text = "actionTaken: ${uiState.lastInterventionOutcomeSummary}",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.5.sp,
+                        lineHeight = 17.sp,
+                        color = colors.onPrimaryTint
+                    )
+                    Text(
+                        text = "ruleset: ${uiState.preferences.rulesetVersion} · status: $protectionLabel",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.5.sp,
+                        lineHeight = 17.sp,
+                        color = colors.onPrimaryTint
+                    )
+                    Text(
+                        text = "textContent: [REDACTED_ON_DEVICE]",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.5.sp,
+                        lineHeight = 17.sp,
+                        color = colors.heroMutedInk
+                    )
+                }
+            }
+        }
+
         if (!uiState.isBatteryOptimizationIgnored) {
-            OutloopStaggeredEntrance(index = 2) {
+            OutloopStaggeredEntrance(index = 5) {
                 OutloopSecondaryButton(
                     text = "Open app battery settings",
                     onClick = { ProtectionHealthHelper.openBatterySettings(context) }
@@ -240,7 +309,7 @@ fun DiagnosticsScreen(
             }
         }
 
-        OutloopStaggeredEntrance(index = 3) {
+        OutloopStaggeredEntrance(index = 6) {
             Column(verticalArrangement = Arrangement.spacedBy(OutloopMetrics.ItemSpacing)) {
                 OutloopSectionHeader(text = "Feed rules & logging")
                 OutloopTonalCard(

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Outloop v7.0 — Prototype Hub</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <style>
+    .hub-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-card);
+      padding: 16px 18px;
+      box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .hub-link {
+      text-decoration: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: var(--bg-screen);
+      color: var(--text-primary);
+      font-size: 13.5px;
+      font-weight: 700;
+      transition: transform 0.12s ease, background 0.15s ease;
+    }
+    .hub-link:hover {
+      background: var(--bg-card-subtle);
+      transform: translateX(2px);
+    }
+    .hub-tag {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 99px;
+      background: var(--accent-mint-card);
+      color: var(--text-primary);
+    }
+    .hub-tag.dark {
+      background: var(--bg-hero-dark);
+      color: var(--accent-mint);
+    }
+  </style>
+</head>
+<body>
+  <div class="device-frame">
+    <div class="screen-main">
+      <header>
+        <p class="eyebrow">Bio-Mint &amp; Tonal Bento</p>
+        <h1 class="page-title">Outloop UI Suite</h1>
+      </header>
+
+      <section class="hub-card">
+        <div class="section-label" style="margin-bottom:2px;">Core Application</div>
+        <a href="home.html" class="hub-link">
+          <span>1. Home Dashboard</span>
+          <span class="hub-tag dark">Primary</span>
+        </a>
+        <a href="insights.html" class="hub-link">
+          <span>2. Loop Insights (Bento)</span>
+          <span class="hub-tag">Analytics</span>
+        </a>
+        <a href="settings.html" class="hub-link">
+          <span>3. Settings &amp; Guardrails</span>
+          <span class="hub-tag">Config</span>
+        </a>
+        <a href="overlay.html" class="hub-link">
+          <span>4. Pause Overlay Scrim</span>
+          <span class="hub-tag dark">System UI</span>
+        </a>
+      </section>
+
+      <section class="hub-card">
+        <div class="section-label" style="margin-bottom:2px;">Secondary &amp; Setup Flows</div>
+        <a href="onboarding.html" class="hub-link">
+          <span>5. Onboarding Flow (6 Steps)</span>
+          <span class="hub-tag">Setup</span>
+        </a>
+        <a href="manage-apps.html" class="hub-link">
+          <span>6. Manage Guarded Apps</span>
+          <span class="hub-tag">Rules</span>
+        </a>
+        <a href="app-detail.html" class="hub-link">
+          <span>7. App Rule Detail</span>
+          <span class="hub-tag">Per-App</span>
+        </a>
+        <a href="privacy.html" class="hub-link">
+          <span>8. Privacy &amp; Accessibility Disclosure</span>
+          <span class="hub-tag">Play Policy</span>
+        </a>
+        <a href="diagnostics.html" class="hub-link">
+          <span>9. Rule Health &amp; Diagnostics</span>
+          <span class="hub-tag">Dev Panel</span>
+        </a>
+      </section>
+    </div>
+
+    <a href="home.html" class="btn-mint" style="display:grid; place-items:center; text-decoration:none;">
+      Launch App Prototype
+    </a>
+  </div>
+</body>
+</html>

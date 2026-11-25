@@ -533,7 +533,9 @@ fun OutloopNavigationHost(
                                             onSaveCustomRule = onSaveCustomRule,
                                             onDeleteCustomRule = onDeleteCustomRule,
                                             onShowToast = { msg -> uiToastMessage = msg },
-                                            hasScannedInstalledApps = uiState.hasScannedInstalledApps
+                                            hasScannedInstalledApps = uiState.hasScannedInstalledApps,
+                                            rulesetVersion = uiState.preferences.rulesetVersion,
+                                            onAppClick = { pkg -> navController.navigate(Routes.appDetail(pkg)) }
                                         )
                                     }
                                 }

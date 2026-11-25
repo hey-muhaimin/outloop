@@ -1,18 +1,13 @@
 package com.example.ui.screens
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccessibilityNew
 import androidx.compose.material.icons.outlined.GridView
@@ -22,20 +17,23 @@ import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.example.ui.components.OutloopIconBadge
 import com.example.ui.components.OutloopInsetWell
+import com.example.ui.components.OutloopMintButton
 import com.example.ui.components.OutloopStaggeredEntrance
+import com.example.ui.components.OutloopStatusPill
 import com.example.ui.components.OutloopSubScreenScaffold
 import com.example.ui.components.OutloopTonalCard
+import com.example.ui.components.PillTone
 import com.example.ui.theme.OutloopMetrics
 import com.example.ui.theme.OutloopTheme
 
@@ -46,11 +44,31 @@ fun PrivacyScreen(
     BackHandler(onBack = onBack)
     val colors = OutloopTheme.colors
 
-    OutloopSubScreenScaffold(onBack = onBack) {
+    OutloopSubScreenScaffold(
+        onBack = onBack,
+        trailing = {
+            OutloopStatusPill(
+                text = "Google Play Policy",
+                tone = PillTone.NEUTRAL
+            )
+        },
+        bottomBar = {
+            OutloopMintButton(
+                text = "Done",
+                onClick = onBack,
+                modifier = Modifier.testTag("privacy_done_button")
+            )
+        }
+    ) {
         OutloopStaggeredEntrance(index = 0) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = "Privacy",
+                    text = "PROMINENT DISCLOSURE",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.mutedInk
+                )
+                Text(
+                    text = "Privacy & Data",
                     style = MaterialTheme.typography.displayLarge,
                     color = colors.ink
                 )
@@ -65,6 +83,7 @@ fun PrivacyScreen(
         OutloopStaggeredEntrance(index = 1) {
             OutloopTonalCard(
                 cornerRadius = OutloopMetrics.CardCornerRadius,
+                containerColor = colors.mintTile,
                 contentPadding = PaddingValues(18.dp)
             ) {
                 Row(
@@ -74,9 +93,15 @@ fun PrivacyScreen(
                     OutloopIconBadge(
                         icon = Icons.Outlined.Lock,
                         containerColor = colors.heroDark,
-                        tint = colors.onPrimaryTint
+                        tint = colors.sageAccent
                     )
                     Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "ZERO DATA COLLECTION GUARANTEE",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = colors.ink.copy(alpha = 0.72f)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "Everything stays on your phone",
                             style = MaterialTheme.typography.titleMedium,
@@ -86,7 +111,7 @@ fun PrivacyScreen(
                         Text(
                             text = "No accounts, no analytics servers, and no personal content leaves this device.",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = colors.secondaryInk
+                            color = colors.ink.copy(alpha = 0.80f)
                         )
                     }
                 }
@@ -96,20 +121,25 @@ fun PrivacyScreen(
         OutloopStaggeredEntrance(index = 2) {
             PrivacyDetailCard(
                 icon = Icons.Outlined.AccessibilityNew,
+                tag = "ACCESSIBILITYSERVICE API",
+                tagColor = colors.tealTile,
                 title = "Why accessibility access",
-                body = "Android only lets an app recognise what\u2019s on screen through its Accessibility Service. Outloop uses it to tell when a Shorts, Reels or For You feed is open."
+                body = "Android only lets an app recognise what\u2019s on screen through its Accessibility Service. Outloop uses it strictly inside apps you choose to tell when a Shorts, Reels, or For You feed opens."
             )
         }
         OutloopStaggeredEntrance(index = 3) {
             PrivacyDetailCard(
                 icon = Icons.Outlined.Visibility,
+                tag = "VIEW IDS ONLY",
                 title = "What it inspects",
-                body = "Technical screen labels in the apps you choose. It doesn\u2019t read your messages, passwords or videos."
+                body = "Technical screen labels in the apps you choose. No keystrokes, messages, passwords, or videos are ever read."
             )
         }
         OutloopStaggeredEntrance(index = 4) {
             PrivacyDetailCard(
                 icon = Icons.Outlined.PhoneAndroid,
+                tag = "ON-DEVICE ENGINE",
+                tagColor = colors.tealTile,
                 title = "What stays on your phone",
                 body = "Feed detection and your daily counts stay strictly on this device."
             )
@@ -117,13 +147,15 @@ fun PrivacyScreen(
         OutloopStaggeredEntrance(index = 5) {
             PrivacyDetailCard(
                 icon = Icons.Outlined.GridView,
+                tag = "LOCAL ROOM SQLITE",
                 title = "What is stored",
-                body = "Your app choices, preferences and local interruption counts. Troubleshooting logs remain off unless you turn them on in Diagnostics."
+                body = "Your app choices, preferences, and local interruption counts. Troubleshooting logs remain off unless you turn them on in Diagnostics."
             )
         }
         OutloopStaggeredEntrance(index = 6) {
             PrivacyDetailCard(
                 icon = Icons.Outlined.NotificationsNone,
+                tag = "SPECIAL-USE FGS",
                 title = "Persistent protection status",
                 body = "While Guard is connected, Outloop runs an Android special-use foreground service so background protection isn\u2019t silently stopped. It shows a quiet status notification with quick Pause 15 min and Resume controls."
             )
@@ -131,13 +163,15 @@ fun PrivacyScreen(
         OutloopStaggeredEntrance(index = 7) {
             PrivacyDetailCard(
                 icon = Icons.Outlined.Info,
+                tag = "READ-ONLY ETAG SYNC",
                 title = "Optional rule checks",
-                body = "When Auto-update feed rules is enabled in Diagnostics, Outloop performs read-only HTTPS checks for updated public feed selector definitions. Zero personal data, screen content, or usage stats are uploaded, and you can turn this off anytime."
+                body = "When Auto-update feed rules is enabled in Diagnostics, Outloop performs unauthenticated read-only HTTPS checks for updated public feed selector definitions. Zero personal data, screen content, or usage stats are uploaded."
             )
         }
         OutloopStaggeredEntrance(index = 8) {
             PrivacyDetailCard(
                 icon = Icons.Outlined.Tune,
+                tag = "YOUR CONTROL",
                 title = "How to turn it off",
                 body = "Android Settings \u203A Accessibility \u203A Outloop, at any time."
             )
@@ -161,8 +195,10 @@ fun PrivacyScreen(
 @Composable
 private fun PrivacyDetailCard(
     icon: ImageVector,
+    tag: String,
     title: String,
-    body: String
+    body: String,
+    tagColor: Color? = null
 ) {
     val colors = OutloopTheme.colors
     OutloopTonalCard(
@@ -170,11 +206,18 @@ private fun PrivacyDetailCard(
         contentPadding = PaddingValues(18.dp)
     ) {
         Row(
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.Top
         ) {
             OutloopIconBadge(icon = icon)
             Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = tag,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = tagColor ?: colors.mutedInk
+                )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
@@ -190,3 +233,4 @@ private fun PrivacyDetailCard(
         }
     }
 }
+

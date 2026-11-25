@@ -81,10 +81,11 @@ import com.example.data.local.TargetAppRuleEntity
 import com.example.service.AccessibilityStatusHelper
 import com.example.ui.components.AccessibilityOnboardingCarousel
 import com.example.ui.components.ONBOARDING_CAROUSEL_PAGE_COUNT
-import com.example.ui.components.OutloopAppMonogramBadge
+import com.example.ui.components.OutloopAppPastelBadge
 import com.example.ui.components.OutloopBackButton
 import com.example.ui.components.OutloopHairlineDivider
 import com.example.ui.components.OutloopInsetWell
+import com.example.ui.components.OutloopMintButton
 import com.example.ui.components.OutloopModalSheet
 import com.example.ui.components.OutloopPrimaryButton
 import com.example.ui.components.OutloopRoundedCheckbox
@@ -317,6 +318,11 @@ fun OnboardingScreen(
                                 OutloopStaggeredEntrance(index = 0) {
                                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Text(
+                                            text = "STEP 2 OF 4 \u00B7 TARGET FEEDS",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = colors.mutedInk
+                                        )
+                                        Text(
                                             text = "Pick the apps to\nguard",
                                             style = MaterialTheme.typography.displayLarge.copy(
                                                 fontSize = 31.sp,
@@ -372,10 +378,9 @@ fun OnboardingScreen(
                                                         verticalAlignment = Alignment.CenterVertically,
                                                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                                                     ) {
-                                                        OutloopAppMonogramBadge(
-                                                            appName = rule.displayName,
+                                                        OutloopAppPastelBadge(
                                                             packageName = rule.packageName,
-                                                            preferDarkMonogram = true
+                                                            displayName = rule.displayName
                                                         )
                                                         Column(modifier = Modifier.weight(1f)) {
                                                             Text(
@@ -438,9 +443,9 @@ fun OnboardingScreen(
                                                     verticalAlignment = Alignment.CenterVertically,
                                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                                 ) {
-                                                    OutloopAppMonogramBadge(
-                                                        appName = rule.displayName,
-                                                        preferDarkMonogram = true
+                                                    OutloopAppPastelBadge(
+                                                        packageName = rule.packageName,
+                                                        displayName = rule.displayName
                                                     )
                                                     Column(modifier = Modifier.weight(1f)) {
                                                         Text(
@@ -465,6 +470,11 @@ fun OnboardingScreen(
                                 OutloopStaggeredEntrance(index = 0) {
                                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Text(
+                                            text = "STEP 3 OF 4 \u00B7 SYSTEM PERMISSION",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = colors.mutedInk
+                                        )
+                                        Text(
                                             text = "Let Outloop spot\nfeeds",
                                             style = MaterialTheme.typography.displayLarge.copy(
                                                 fontSize = 31.sp,
@@ -481,6 +491,31 @@ fun OnboardingScreen(
                                 }
 
                                 OutloopStaggeredEntrance(index = 1) {
+                                    val permBannerBg = if (isAccessibilityEnabled) colors.mintTile else colors.yellowTile
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(permBannerBg)
+                                            .border(1.dp, colors.hairlineBorder, RoundedCornerShape(16.dp))
+                                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Accessibility Service",
+                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = colors.ink
+                                        )
+                                        Text(
+                                            text = if (isAccessibilityEnabled) "Enabled \u2713" else "Needs Permission",
+                                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                            color = colors.ink
+                                        )
+                                    }
+                                }
+
+                                OutloopStaggeredEntrance(index = 2) {
                                     OutloopTonalCard(
                                         cornerRadius = OutloopMetrics.CardCornerRadius,
                                         contentPadding = PaddingValues(18.dp)
@@ -627,16 +662,12 @@ fun OnboardingScreen(
                                     it.enabled && (it.packageName in installedPackages || !it.isBuiltIn)
                                 }
                                 OutloopStaggeredEntrance(index = 0) {
-                                    OutloopStatusBannerCard(
-                                        tone = StatusBannerTone.SUCCESS,
-                                        icon = Icons.Rounded.Check,
-                                        title = "Protection active",
-                                        body = "Accessibility access is connected and ready to pause short-form feeds."
-                                    )
-                                }
-
-                                OutloopStaggeredEntrance(index = 1) {
                                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text(
+                                            text = "STEP 4 OF 4 \u00B7 ALL SET",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = colors.mutedInk
+                                        )
                                         Text(
                                             text = "You\u2019re all set",
                                             style = MaterialTheme.typography.displayLarge.copy(
@@ -649,6 +680,36 @@ fun OnboardingScreen(
                                             text = "Guard is on for $selectedCount app${if (selectedCount == 1) "" else "s"}. Feeds are paused, and your useful tools stay open.",
                                             style = MaterialTheme.typography.bodyLarge,
                                             color = colors.secondaryInk
+                                        )
+                                    }
+                                }
+
+                                OutloopStaggeredEntrance(index = 1) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(OutloopMetrics.CardCornerRadius))
+                                            .background(colors.heroDark)
+                                            .padding(horizontal = 20.dp, vertical = 20.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = "\u25CF PROTECTION ARMED",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = colors.sageAccent
+                                        )
+                                        Text(
+                                            text = "$selectedCount app${if (selectedCount == 1) "" else "s"} guarded",
+                                            style = MaterialTheme.typography.headlineLarge.copy(
+                                                fontSize = 26.sp,
+                                                fontWeight = FontWeight.Bold
+                                            ),
+                                            color = colors.onPrimaryTint
+                                        )
+                                        Text(
+                                            text = "Schedule: $quietHoursSummary \u00B7 Pause break ${preferredPauseMinutes}m",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = colors.heroMutedInk
                                         )
                                     }
                                 }
@@ -819,7 +880,7 @@ fun OnboardingScreen(
                             }
 
                             OnboardingStep.READY -> {
-                                OutloopPrimaryButton(
+                                OutloopMintButton(
                                     text = "Go to Home",
                                     onClick = onCompleteOnboarding,
                                     modifier = Modifier.testTag("onboarding_finish")

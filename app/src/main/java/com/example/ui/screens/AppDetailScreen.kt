@@ -50,7 +50,6 @@ import androidx.compose.ui.unit.dp
 import com.example.data.local.TargetAppRuleEntity
 import com.example.data.model.InterventionMode
 import com.example.data.repository.InterventionRepository
-import com.example.ui.components.OutloopAppMonogramBadge
 import com.example.ui.components.OutloopHairlineDivider
 import com.example.ui.components.OutloopInsetWell
 import com.example.ui.components.OutloopModalSheet
@@ -61,7 +60,9 @@ import com.example.ui.components.OutloopSectionHeader
 import com.example.ui.components.OutloopSimulationOverlay
 import com.example.ui.components.OutloopStaggeredEntrance
 import com.example.ui.components.OutloopSubScreenScaffold
+import com.example.ui.components.OutloopSwitch
 import com.example.ui.components.OutloopTonalCard
+import com.example.ui.components.outloopPastelBadgeSpec
 import com.example.ui.components.rememberOutloopHaptic
 import com.example.ui.theme.OutloopMetrics
 import com.example.ui.theme.OutloopTheme
@@ -126,9 +127,19 @@ fun AppDetailScreen(
     )
     val isLimitReached = hasLimit && todayUsageSeconds >= rule.dailyLimitSeconds
     val isNearLimit = hasLimit && rawProgress >= 0.85f
+    val (_, heroTileBg) = outloopPastelBadgeSpec(rule.packageName, rule.displayName)
+    val resolvedHeroBg = if (heroTileBg == colors.surfaceSubtle) colors.surfaceElevated else heroTileBg
 
     OutloopSubScreenScaffold(
         onBack = onBack,
+        trailing = {
+            Text(
+                text = rule.packageName,
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                color = colors.mutedInk,
+                maxLines = 1
+            )
+        },
         bottomBar = {
             OutloopPrimaryButton(
                 text = "Preview overlay",
@@ -137,76 +148,47 @@ fun AppDetailScreen(
             )
         }
     ) {
-        // Dark Forest Hero Bento Header
+        // Pastel Hero Bento Header
         OutloopStaggeredEntrance(index = 0) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(OutloopMetrics.HeroCornerRadius))
-                    .background(colors.heroDark)
+                    .clip(RoundedCornerShape(OutloopMetrics.CardCornerRadius))
+                    .background(resolvedHeroBg)
+                    .border(1.dp, colors.hairlineBorder, RoundedCornerShape(OutloopMetrics.CardCornerRadius))
                     .padding(horizontal = 20.dp, vertical = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(colors.heroChipBg)
-                        .padding(4.dp)
-                ) {
-                    OutloopAppMonogramBadge(
-                        appName = rule.displayName,
-                        packageName = rule.packageName,
-                        size = 48.dp,
-                        cornerRadius = 12.dp,
-                        preferDarkMonogram = true
-                    )
-                }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = rule.displayName,
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = colors.onPrimaryTint
+                        text = if (rule.isBuiltIn) "GUARDED APP" else "CUSTOM GUARD",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = colors.ink.copy(alpha = 0.65f)
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
+                        text = rule.displayName,
+                        style = MaterialTheme.typography.displayLarge,
+                        color = colors.ink
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
                         text = "${rule.feedLabel} \u00B7 ${if (rule.enabled) "Guarded" else "Off"}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.onPrimaryTint.copy(alpha = 0.78f)
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = colors.ink.copy(alpha = 0.78f)
                     )
                 }
-                Box(
-                    modifier = Modifier
-                        .heightIn(min = 48.dp)
-                        .semantics(mergeDescendants = true) {
-                            this.contentDescription = "Guard ${rule.displayName}"
-                            this.stateDescription = if (rule.enabled) "On" else "Off"
-                        }
-                        .clickable(role = Role.Switch) {
-                            haptic()
-                            onToggleEnabled(!rule.enabled)
-                        }
-                        .testTag("detail_protect_switch"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(if (rule.enabled) colors.okBg else colors.heroChipBg)
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (rule.enabled) "On" else "Off",
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-                            color = if (rule.enabled) colors.okText else colors.onPrimaryTint
-                        )
-                    }
-                }
+                OutloopSwitch(
+                    checked = rule.enabled,
+                    onCheckedChange = onToggleEnabled,
+                    contentDescription = "Guard ${rule.displayName}",
+                    modifier = Modifier.testTag("detail_protect_switch")
+                )
             }
         }
 
-        // 2-up Feed & Utility bento row
+        // 2-up Allowed vs Intercepted Zone Grid
         OutloopStaggeredEntrance(index = 1) {
             Row(
                 modifier = Modifier
@@ -216,40 +198,53 @@ fun AppDetailScreen(
             ) {
                 OutloopTonalCard(
                     cornerRadius = OutloopMetrics.CardCornerRadius,
+                    containerColor = colors.mintTile,
                     contentPadding = PaddingValues(16.dp),
                     modifier = Modifier
-                        .weight(0.44f)
+                        .weight(1f)
                         .fillMaxHeight()
                 ) {
                     Text(
-                        text = "Watched feed",
+                        text = "ALLOWED OPEN",
                         style = MaterialTheme.typography.labelMedium,
-                        color = colors.secondaryInk
+                        color = colors.ink.copy(alpha = 0.72f)
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = rule.feedLabel,
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        text = usefulSurfaceHint(rule),
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = colors.ink
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Plays uninterrupted.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.ink.copy(alpha = 0.76f)
                     )
                 }
                 OutloopTonalCard(
                     cornerRadius = OutloopMetrics.CardCornerRadius,
                     contentPadding = PaddingValues(16.dp),
                     modifier = Modifier
-                        .weight(0.56f)
+                        .weight(1f)
                         .fillMaxHeight()
                 ) {
                     Text(
-                        text = "Stays open",
+                        text = "INTERCEPTED",
                         style = MaterialTheme.typography.labelMedium,
-                        color = colors.secondaryInk
+                        color = colors.coralTile
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = usefulSurfaceHint(rule),
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                        text = rule.feedLabel,
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = colors.ink
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "${rule.interventionMode.shortLabel} on feed open.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.secondaryInk
                     )
                 }
             }

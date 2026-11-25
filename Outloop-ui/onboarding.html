@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Outloop — Onboarding</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <style>
+    .step-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .step-dots {
+      display: flex;
+      gap: 6px;
+    }
+    .dot {
+      width: 18px;
+      height: 5px;
+      border-radius: 99px;
+      background: var(--bg-card-subtle);
+      transition: all 0.2s ease;
+    }
+    .dot.active {
+      width: 30px;
+      background: var(--bg-hero-dark);
+    }
+    .skip-link {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+
+    .step-panel { display: none; flex-direction: column; gap: 16px; }
+    .step-panel.active { display: flex; }
+
+    .hero-illustration {
+      background: var(--bg-hero-dark);
+      color: var(--text-on-dark);
+      border-radius: var(--radius-card);
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .pastel-tag {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 6px 11px;
+      border-radius: 99px;
+      color: var(--text-primary);
+    }
+
+    .info-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-card);
+      padding: 18px;
+      box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .check-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(20, 21, 20, 0.06);
+    }
+    .check-row:last-child { border-bottom: none; }
+
+    .perm-status {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--accent-mint-card);
+      padding: 14px 16px;
+      border-radius: 16px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .perm-status.pending {
+      background: var(--accent-yellow);
+    }
+
+    .nav-actions {
+      display: grid;
+      grid-template-columns: 0.45fr 1fr;
+      gap: 10px;
+    }
+    .btn-back {
+      height: 52px;
+      border: none;
+      border-radius: var(--radius-btn);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      box-shadow: var(--shadow-card);
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="device-frame">
+    <div class="screen-main">
+      <div class="step-header">
+        <div class="step-dots" id="stepDots">
+          <div class="dot active"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+        </div>
+        <a href="home.html" class="skip-link">Skip</a>
+      </div>
+
+      <!-- STEP 1: Welcome -->
+      <div class="step-panel active" data-step="0">
+        <header>
+          <p class="eyebrow">Step 1 of 6 · Welcome</p>
+          <h1 class="page-title">Keep the useful app. Cut the endless loop.</h1>
+        </header>
+        <div class="hero-illustration">
+          <span style="font-size:11px; font-weight:700; color:var(--accent-mint); text-transform:uppercase; letter-spacing:0.08em;">Sub-App Feed Surgeon</span>
+          <div style="font-size:22px; font-weight:700; line-height:1.25;">Block Shorts &amp; Reels without blocking Search or DMs.</div>
+          <div class="pill-row">
+            <span class="pastel-tag" style="background:var(--accent-peach);">YouTube Shorts</span>
+            <span class="pastel-tag" style="background:var(--accent-mint-card);">IG Reels</span>
+            <span class="pastel-tag" style="background:var(--accent-yellow);">TikTok</span>
+            <span class="pastel-tag" style="background:var(--accent-sky);">FB Reels</span>
+          </div>
+        </div>
+        <div class="info-card">
+          <div style="font-size:14px; font-weight:700;">Designed for intentional use</div>
+          <p style="font-size:12.5px; color:var(--text-secondary); line-height:1.45;">
+            Unlike blunt app blockers, Outloop only steps in when a short-form vertical feed opens—leaving your subscriptions, messages, and search completely open.
+          </p>
+        </div>
+      </div>
+
+      <!-- STEP 2: Privacy & Consent -->
+      <div class="step-panel" data-step="1">
+        <header>
+          <p class="eyebrow">Step 2 of 6 · Privacy First</p>
+          <h1 class="page-title">100% on-device. Zero screen reading.</h1>
+        </header>
+        <div class="info-card">
+          <div class="check-row">
+            <div>
+              <div style="font-size:13.5px; font-weight:700;">View IDs &amp; Package Names Only</div>
+              <div style="font-size:11.5px; color:var(--text-muted);">Never reads messages, passwords, or video titles.</div>
+            </div>
+            <span class="pastel-tag" style="background:var(--accent-mint-card);">Verified</span>
+          </div>
+          <div class="check-row">
+            <div>
+              <div style="font-size:13.5px; font-weight:700;">Local Room SQLite Storage</div>
+              <div style="font-size:11.5px; color:var(--text-muted);">No cloud accounts, no trackers, no telemetry uploads.</div>
+            </div>
+            <span class="pastel-tag" style="background:var(--accent-sky);">Offline</span>
+          </div>
+        </div>
+        <label class="info-card" style="flex-direction:row; align-items:center; justify-content:space-between; cursor:pointer;">
+          <span style="font-size:13px; font-weight:700;">I understand how Accessibility is used</span>
+          <div class="toggle-switch on" id="consentToggle" onclick="this.classList.toggle('on')"></div>
+        </label>
+      </div>
+
+      <!-- STEP 3: Choose Apps -->
+      <div class="step-panel" data-step="2">
+        <header>
+          <p class="eyebrow">Step 3 of 6 · Target Feeds</p>
+          <h1 class="page-title">Choose feeds to guard</h1>
+        </header>
+        <div class="info-card">
+          <div class="check-row">
+            <div>
+              <div style="font-size:14px; font-weight:700;">YouTube Shorts</div>
+              <div style="font-size:11px; color:var(--text-muted);">15m daily budget · Home &amp; Search open</div>
+            </div>
+            <div class="toggle-switch on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="check-row">
+            <div>
+              <div style="font-size:14px; font-weight:700;">Instagram Reels</div>
+              <div style="font-size:11px; color:var(--text-muted);">15m daily budget · DMs &amp; Feed open</div>
+            </div>
+            <div class="toggle-switch on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="check-row">
+            <div>
+              <div style="font-size:14px; font-weight:700;">TikTok For You</div>
+              <div style="font-size:11px; color:var(--text-muted);">10m daily budget · Pause overlay on launch</div>
+            </div>
+            <div class="toggle-switch on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="check-row">
+            <div>
+              <div style="font-size:14px; font-weight:700;">Facebook Reels</div>
+              <div style="font-size:11px; color:var(--text-muted);">15m daily budget · Groups &amp; Feed open</div>
+            </div>
+            <div class="toggle-switch on" onclick="this.classList.toggle('on')"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 4: How It Steps In -->
+      <div class="step-panel" data-step="3">
+        <header>
+          <p class="eyebrow">Step 4 of 6 · Intervention</p>
+          <h1 class="page-title">How Outloop steps in</h1>
+        </header>
+        <div class="info-card" style="background:var(--accent-mint-card);">
+          <div style="font-size:14px; font-weight:700;">Pause Overlay (Recommended)</div>
+          <p style="font-size:12px; color:var(--text-primary); opacity:0.8; line-height:1.4;">
+            Dims the feed with a calm breathing gauge and gives you a 1-tap button to jump back to the app’s Home tab.
+          </p>
+        </div>
+        <div class="info-card">
+          <div style="font-size:14px; font-weight:700;">Auto Home Tab Redirect</div>
+          <p style="font-size:12px; color:var(--text-secondary); line-height:1.4;">
+            Immediately taps the host app’s Home tab whenever a Shorts or Reels container appears.
+          </p>
+        </div>
+      </div>
+
+      <!-- STEP 5: Allow Access -->
+      <div class="step-panel" data-step="4">
+        <header>
+          <p class="eyebrow">Step 5 of 6 · System Permission</p>
+          <h1 class="page-title">Enable FeedSurgeon Service</h1>
+        </header>
+        <div class="perm-status pending" id="permBanner">
+          <span>Accessibility Service</span>
+          <span id="permLabel">Needs Permission</span>
+        </div>
+        <div class="info-card">
+          <div style="font-size:13.5px; font-weight:700;">Quick 2-tap Android setup</div>
+          <p style="font-size:12px; color:var(--text-secondary); line-height:1.45;">
+            1. Tap <strong>Grant Accessibility Access</strong> below.<br/>
+            2. Select <strong>Installed apps → Outloop</strong> and switch it ON.
+          </p>
+          <button class="btn-dark" onclick="simulateGrant()">Grant Accessibility Access</button>
+        </div>
+      </div>
+
+      <!-- STEP 6: Ready -->
+      <div class="step-panel" data-step="5">
+        <header>
+          <p class="eyebrow">Step 6 of 6 · All Set</p>
+          <h1 class="page-title">Your loop guard is live</h1>
+        </header>
+        <div class="hero-illustration">
+          <span style="font-size:11px; font-weight:700; color:var(--accent-mint);">● PROTECTION ARMED</span>
+          <div style="font-size:28px; font-weight:700;">4 feeds guarded</div>
+          <div style="font-size:12px; color:var(--text-on-dark-muted);">Quiet hours active 10:00 PM – 7:00 AM · Strict Mode ready</div>
+        </div>
+        <div class="info-card">
+          <div style="font-size:13px; font-weight:700;">Try it right now</div>
+          <p style="font-size:12px; color:var(--text-secondary); line-height:1.4;">
+            Open YouTube and tap Shorts—Outloop will step in automatically without closing your search session.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <button class="btn-back" id="backBtn" onclick="changeStep(-1)" style="visibility:hidden;">Back</button>
+      <button class="btn-mint" id="nextBtn" onclick="changeStep(1)">Continue</button>
+    </div>
+  </div>
+
+  <script>
+    let currentStep = 0;
+    const panels = document.querySelectorAll('.step-panel');
+    const dots = document.querySelectorAll('.dot');
+
+    function renderStep() {
+      panels.forEach((p, i) => p.classList.toggle('active', i === currentStep));
+      dots.forEach((d, i) => d.classList.toggle('active', i <= currentStep));
+      document.getElementById('backBtn').style.visibility = currentStep === 0 ? 'hidden' : 'visible';
+      document.getElementById('nextBtn').textContent = currentStep === panels.length - 1 ? 'Open Dashboard' : 'Continue';
+    }
+
+    function changeStep(delta) {
+      if (currentStep + delta >= panels.length) {
+        window.location.href = 'home.html';
+        return;
+      }
+      currentStep = Math.max(0, currentStep + delta);
+      renderStep();
+    }
+
+    function simulateGrant() {
+      const banner = document.getElementById('permBanner');
+      banner.classList.remove('pending');
+      document.getElementById('permLabel').textContent = 'Enabled ✓';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,888 @@
+To complete the **Outloop** prototype suite in the exact **Bio-Mint & Tonal Bento** design system (`tokens.css`), here are the remaining screens from your Android project (`OnboardingScreen.kt` 6-step flow, `ManageAppsScreen.kt`, `AppDetailScreen.kt`, `PrivacyScreen.kt`, and `DiagnosticsScreen.kt`), plus a unified index launcher (`index.html`) so every view links together seamlessly.
+
+Save each block below into your `Outloop-ui/` folder alongside your existing `tokens.css`, `home.html`, `insights.html`, `settings.html`, and `overlay.html`.
+
+---
+
+### 1. `index.html` (Prototype Hub & Flow Navigator)
+
+A quick launcher to jump between all screens in the Outloop v7.0 design system.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Outloop v7.0 — Prototype Hub</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <style>
+    .hub-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-card);
+      padding: 16px 18px;
+      box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .hub-link {
+      text-decoration: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: var(--bg-screen);
+      color: var(--text-primary);
+      font-size: 13.5px;
+      font-weight: 700;
+      transition: transform 0.12s ease, background 0.15s ease;
+    }
+    .hub-link:hover {
+      background: var(--bg-card-subtle);
+      transform: translateX(2px);
+    }
+    .hub-tag {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 99px;
+      background: var(--accent-mint-card);
+      color: var(--text-primary);
+    }
+    .hub-tag.dark {
+      background: var(--bg-hero-dark);
+      color: var(--accent-mint);
+    }
+  </style>
+</head>
+<body>
+  <div class="device-frame">
+    <div class="screen-main">
+      <header>
+        <p class="eyebrow">Bio-Mint &amp; Tonal Bento</p>
+        <h1 class="page-title">Outloop UI Suite</h1>
+      </header>
+
+      <section class="hub-card">
+        <div class="section-label" style="margin-bottom:2px;">Core Application</div>
+        <a href="home.html" class="hub-link">
+          <span>1. Home Dashboard</span>
+          <span class="hub-tag dark">Primary</span>
+        </a>
+        <a href="insights.html" class="hub-link">
+          <span>2. Loop Insights (Bento)</span>
+          <span class="hub-tag">Analytics</span>
+        </a>
+        <a href="settings.html" class="hub-link">
+          <span>3. Settings &amp; Guardrails</span>
+          <span class="hub-tag">Config</span>
+        </a>
+        <a href="overlay.html" class="hub-link">
+          <span>4. Pause Overlay Scrim</span>
+          <span class="hub-tag dark">System UI</span>
+        </a>
+      </section>
+
+      <section class="hub-card">
+        <div class="section-label" style="margin-bottom:2px;">Secondary &amp; Setup Flows</div>
+        <a href="onboarding.html" class="hub-link">
+          <span>5. Onboarding Flow (6 Steps)</span>
+          <span class="hub-tag">Setup</span>
+        </a>
+        <a href="manage-apps.html" class="hub-link">
+          <span>6. Manage Guarded Apps</span>
+          <span class="hub-tag">Rules</span>
+        </a>
+        <a href="app-detail.html" class="hub-link">
+          <span>7. App Rule Detail</span>
+          <span class="hub-tag">Per-App</span>
+        </a>
+        <a href="privacy.html" class="hub-link">
+          <span>8. Privacy &amp; Accessibility Disclosure</span>
+          <span class="hub-tag">Play Policy</span>
+        </a>
+        <a href="diagnostics.html" class="hub-link">
+          <span>9. Rule Health &amp; Diagnostics</span>
+          <span class="hub-tag">Dev Panel</span>
+        </a>
+      </section>
+    </div>
+
+    <a href="home.html" class="btn-mint" style="display:grid; place-items:center; text-decoration:none;">
+      Launch App Prototype
+    </a>
+  </div>
+</body>
+</html>
+
+```
+
+---
+
+### 2. `onboarding.html` (6-Step Onboarding Carousel)
+
+Covers the full onboarding sequence from your `OnboardingScreen.kt` and `public/assets/aistudio/` flow (`1_Welcome`, `2_Privacy_and_consent`, `3_Choose_apps`, `4_How_it_steps_in`, `5_Allow_access`, `6_Ready`).
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Outloop — Onboarding</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <style>
+    .step-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .step-dots {
+      display: flex;
+      gap: 6px;
+    }
+    .dot {
+      width: 18px;
+      height: 5px;
+      border-radius: 99px;
+      background: var(--bg-card-subtle);
+      transition: all 0.2s ease;
+    }
+    .dot.active {
+      width: 30px;
+      background: var(--bg-hero-dark);
+    }
+    .skip-link {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+
+    .step-panel { display: none; flex-direction: column; gap: 16px; }
+    .step-panel.active { display: flex; }
+
+    .hero-illustration {
+      background: var(--bg-hero-dark);
+      color: var(--text-on-dark);
+      border-radius: var(--radius-card);
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .pastel-tag {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 6px 11px;
+      border-radius: 99px;
+      color: var(--text-primary);
+    }
+
+    .info-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-card);
+      padding: 18px;
+      box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .check-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(20, 21, 20, 0.06);
+    }
+    .check-row:last-child { border-bottom: none; }
+
+    .perm-status {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--accent-mint-card);
+      padding: 14px 16px;
+      border-radius: 16px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .perm-status.pending {
+      background: var(--accent-yellow);
+    }
+
+    .nav-actions {
+      display: grid;
+      grid-template-columns: 0.45fr 1fr;
+      gap: 10px;
+    }
+    .btn-back {
+      height: 52px;
+      border: none;
+      border-radius: var(--radius-btn);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      box-shadow: var(--shadow-card);
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="device-frame">
+    <div class="screen-main">
+      <div class="step-header">
+        <div class="step-dots" id="stepDots">
+          <div class="dot active"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+        </div>
+        <a href="home.html" class="skip-link">Skip</a>
+      </div>
+
+      <!-- STEP 1: Welcome -->
+      <div class="step-panel active" data-step="0">
+        <header>
+          <p class="eyebrow">Step 1 of 6 · Welcome</p>
+          <h1 class="page-title">Keep the useful app. Cut the endless loop.</h1>
+        </header>
+        <div class="hero-illustration">
+          <span style="font-size:11px; font-weight:700; color:var(--accent-mint); text-transform:uppercase; letter-spacing:0.08em;">Sub-App Feed Surgeon</span>
+          <div style="font-size:22px; font-weight:700; line-height:1.25;">Block Shorts &amp; Reels without blocking Search or DMs.</div>
+          <div class="pill-row">
+            <span class="pastel-tag" style="background:var(--accent-peach);">YouTube Shorts</span>
+            <span class="pastel-tag" style="background:var(--accent-mint-card);">IG Reels</span>
+            <span class="pastel-tag" style="background:var(--accent-yellow);">TikTok</span>
+            <span class="pastel-tag" style="background:var(--accent-sky);">FB Reels</span>
+          </div>
+        </div>
+        <div class="info-card">
+          <div style="font-size:14px; font-weight:700;">Designed for intentional use</div>
+          <p style="font-size:12.5px; color:var(--text-secondary); line-height:1.45;">
+            Unlike blunt app blockers, Outloop only steps in when a short-form vertical feed opens—leaving your subscriptions, messages, and search completely open.
+          </p>
+        </div>
+      </div>
+
+      <!-- STEP 2: Privacy & Consent -->
+      <div class="step-panel" data-step="1">
+        <header>
+          <p class="eyebrow">Step 2 of 6 · Privacy First</p>
+          <h1 class="page-title">100% on-device. Zero screen reading.</h1>
+        </header>
+        <div class="info-card">
+          <div class="check-row">
+            <div>
+              <div style="font-size:13.5px; font-weight:700;">View IDs &amp; Package Names Only</div>
+              <div style="font-size:11.5px; color:var(--text-muted);">Never reads messages, passwords, or video titles.</div>
+            </div>
+            <span class="pastel-tag" style="background:var(--accent-mint-card);">Verified</span>
+          </div>
+          <div class="check-row">
+            <div>
+              <div style="font-size:13.5px; font-weight:700;">Local Room SQLite Storage</div>
+              <div style="font-size:11.5px; color:var(--text-muted);">No cloud accounts, no trackers, no telemetry uploads.</div>
+            </div>
+            <span class="pastel-tag" style="background:var(--accent-sky);">Offline</span>
+          </div>
+        </div>
+        <label class="info-card" style="flex-direction:row; align-items:center; justify-content:space-between; cursor:pointer;">
+          <span style="font-size:13px; font-weight:700;">I understand how Accessibility is used</span>
+          <div class="toggle-switch on" id="consentToggle" onclick="this.classList.toggle('on')"></div>
+        </label>
+      </div>
+
+      <!-- STEP 3: Choose Apps -->
+      <div class="step-panel" data-step="2">
+        <header>
+          <p class="eyebrow">Step 3 of 6 · Target Feeds</p>
+          <h1 class="page-title">Choose feeds to guard</h1>
+        </header>
+        <div class="info-card">
+          <div class="check-row">
+            <div>
+              <div style="font-size:14px; font-weight:700;">YouTube Shorts</div>
+              <div style="font-size:11px; color:var(--text-muted);">15m daily budget · Home &amp; Search open</div>
+            </div>
+            <div class="toggle-switch on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="check-row">
+            <div>
+              <div style="font-size:14px; font-weight:700;">Instagram Reels</div>
+              <div style="font-size:11px; color:var(--text-muted);">15m daily budget · DMs &amp; Feed open</div>
+            </div>
+            <div class="toggle-switch on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="check-row">
+            <div>
+              <div style="font-size:14px; font-weight:700;">TikTok For You</div>
+              <div style="font-size:11px; color:var(--text-muted);">10m daily budget · Pause overlay on launch</div>
+            </div>
+            <div class="toggle-switch on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="check-row">
+            <div>
+              <div style="font-size:14px; font-weight:700;">Facebook Reels</div>
+              <div style="font-size:11px; color:var(--text-muted);">15m daily budget · Groups &amp; Feed open</div>
+            </div>
+            <div class="toggle-switch on" onclick="this.classList.toggle('on')"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 4: How It Steps In -->
+      <div class="step-panel" data-step="3">
+        <header>
+          <p class="eyebrow">Step 4 of 6 · Intervention</p>
+          <h1 class="page-title">How Outloop steps in</h1>
+        </header>
+        <div class="info-card" style="background:var(--accent-mint-card);">
+          <div style="font-size:14px; font-weight:700;">Pause Overlay (Recommended)</div>
+          <p style="font-size:12px; color:var(--text-primary); opacity:0.8; line-height:1.4;">
+            Dims the feed with a calm breathing gauge and gives you a 1-tap button to jump back to the app’s Home tab.
+          </p>
+        </div>
+        <div class="info-card">
+          <div style="font-size:14px; font-weight:700;">Auto Home Tab Redirect</div>
+          <p style="font-size:12px; color:var(--text-secondary); line-height:1.4;">
+            Immediately taps the host app’s Home tab whenever a Shorts or Reels container appears.
+          </p>
+        </div>
+      </div>
+
+      <!-- STEP 5: Allow Access -->
+      <div class="step-panel" data-step="4">
+        <header>
+          <p class="eyebrow">Step 5 of 6 · System Permission</p>
+          <h1 class="page-title">Enable FeedSurgeon Service</h1>
+        </header>
+        <div class="perm-status pending" id="permBanner">
+          <span>Accessibility Service</span>
+          <span id="permLabel">Needs Permission</span>
+        </div>
+        <div class="info-card">
+          <div style="font-size:13.5px; font-weight:700;">Quick 2-tap Android setup</div>
+          <p style="font-size:12px; color:var(--text-secondary); line-height:1.45;">
+            1. Tap <strong>Grant Accessibility Access</strong> below.<br/>
+            2. Select <strong>Installed apps → Outloop</strong> and switch it ON.
+          </p>
+          <button class="btn-dark" onclick="simulateGrant()">Grant Accessibility Access</button>
+        </div>
+      </div>
+
+      <!-- STEP 6: Ready -->
+      <div class="step-panel" data-step="5">
+        <header>
+          <p class="eyebrow">Step 6 of 6 · All Set</p>
+          <h1 class="page-title">Your loop guard is live</h1>
+        </header>
+        <div class="hero-illustration">
+          <span style="font-size:11px; font-weight:700; color:var(--accent-mint);">● PROTECTION ARMED</span>
+          <div style="font-size:28px; font-weight:700;">4 feeds guarded</div>
+          <div style="font-size:12px; color:var(--text-on-dark-muted);">Quiet hours active 10:00 PM – 7:00 AM · Strict Mode ready</div>
+        </div>
+        <div class="info-card">
+          <div style="font-size:13px; font-weight:700;">Try it right now</div>
+          <p style="font-size:12px; color:var(--text-secondary); line-height:1.4;">
+            Open YouTube and tap Shorts—Outloop will step in automatically without closing your search session.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <button class="btn-back" id="backBtn" onclick="changeStep(-1)" style="visibility:hidden;">Back</button>
+      <button class="btn-mint" id="nextBtn" onclick="changeStep(1)">Continue</button>
+    </div>
+  </div>
+
+  <script>
+    let currentStep = 0;
+    const panels = document.querySelectorAll('.step-panel');
+    const dots = document.querySelectorAll('.dot');
+
+    function renderStep() {
+      panels.forEach((p, i) => p.classList.toggle('active', i === currentStep));
+      dots.forEach((d, i) => d.classList.toggle('active', i <= currentStep));
+      document.getElementById('backBtn').style.visibility = currentStep === 0 ? 'hidden' : 'visible';
+      document.getElementById('nextBtn').textContent = currentStep === panels.length - 1 ? 'Open Dashboard' : 'Continue';
+    }
+
+    function changeStep(delta) {
+      if (currentStep + delta >= panels.length) {
+        window.location.href = 'home.html';
+        return;
+      }
+      currentStep = Math.max(0, currentStep + delta);
+      renderStep();
+    }
+
+    function simulateGrant() {
+      const banner = document.getElementById('permBanner');
+      banner.classList.remove('pending');
+      document.getElementById('permLabel').textContent = 'Enabled ✓';
+    }
+  </script>
+</body>
+</html>
+
+```
+
+---
+
+### 3. `manage-apps.html` (`ManageAppsScreen.kt`)
+
+Full app selection list with search filter, active rules badge, and quick navigation to individual app rules.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Outloop — Manage Guarded Apps</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <style>
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .back-pill {
+      text-decoration: none;
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 8px 14px;
+      border-radius: 99px;
+      box-shadow: var(--shadow-card);
+    }
+    .search-box {
+      width: 100%;
+      height: 46px;
+      border: none;
+      border-radius: 15px;
+      background: var(--bg-card);
+      padding: 0 16px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      box-shadow: var(--shadow-card);
+      outline: none;
+    }
+    .app-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-card);
+      padding: 6px 16px;
+      box-shadow: var(--shadow-card);
+    }
+    .manage-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 0;
+      border-bottom: 1px solid rgba(20, 21, 20, 0.06);
+    }
+    .manage-row:last-child { border-bottom: none; }
+    .app-link {
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+    }
+    .badge-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 800;
+      display: grid;
+      place-items: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="device-frame">
+    <div class="screen-main">
+      <div class="top-bar">
+        <a href="home.html" class="back-pill">← Home</a>
+        <span style="font-size:11px; font-weight:700; color:var(--text-muted);">6 Supported Apps</span>
+      </div>
+
+      <header>
+        <p class="eyebrow">Ruleset v2026.11</p>
+        <h1 class="page-title">Manage Apps</h1>
+      </header>
+
+      <input type="text" class="search-box" placeholder="Filter installed apps…" oninput="filterApps(this.value)" />
+
+      <section class="app-card" id="appsContainer">
+        <div class="manage-row" data-name="youtube shorts">
+          <a href="app-detail.html" class="app-link">
+            <div class="badge-icon" style="background:var(--accent-peach);">YT</div>
+            <div>
+              <div style="font-size:14px; font-weight:700;">YouTube</div>
+              <div style="font-size:11px; color:var(--text-muted);">Shorts Shelf &amp; Reel Player · 15m/day</div>
+            </div>
+          </a>
+          <div class="toggle-switch on" onclick="this.classList.toggle('on')"></div>
+        </div>
+
+        <div class="manage-row" data-name="instagram reels">
+          <a href="app-detail.html" class="app-link">
+            <div class="badge-icon" style="background:var(--accent-mint-card);">IG</div>
+            <div>
+              <div style="font-size:14px; font-weight:700;">Instagram</div>
+              <div style="font-size:11px; color:var(--text-muted);">Reels Tab &amp; Clips Viewer · 15m/day</div>
+            </div>
+          </a>
+          <div class="toggle-switch on" onclick="this.classList.toggle('on')"></div>
+        </div>
+
+        <div class="manage-row" data-name="tiktok">
+          <a href="app-detail.html" class="app-link">
+            <div class="badge-icon" style="background:var(--accent-yellow);">TT</div>
+            <div>
+              <div style="font-size:14px; font-weight:700;">TikTok</div>
+              <div style="font-size:11px; color:var(--text-muted);">For You Feed · 10m/day</div>
+            </div>
+          </a>
+          <div class="toggle-switch on" onclick="this.classList.toggle('on')"></div>
+        </div>
+
+        <div class="manage-row" data-name="facebook reels">
+          <a href="app-detail.html" class="app-link">
+            <div class="badge-icon" style="background:var(--accent-sky);">FB</div>
+            <div>
+              <div style="font-size:14px; font-weight:700;">Facebook</div>
+              <div style="font-size:11px; color:var(--text-muted);">Reels &amp; Watch Short Video · 15m/day</div>
+            </div>
+          </a>
+          <div class="toggle-switch on" onclick="this.classList.toggle('on')"></div>
+        </div>
+
+        <div class="manage-row" data-name="x twitter">
+          <a href="app-detail.html" class="app-link">
+            <div class="badge-icon" style="background:var(--bg-card-subtle);">X</div>
+            <div>
+              <div style="font-size:14px; font-weight:700;">X (Twitter)</div>
+              <div style="font-size:11px; color:var(--text-muted);">Immersive Media Player · 20m/day</div>
+            </div>
+          </a>
+          <div class="toggle-switch on" onclick="this.classList.toggle('on')"></div>
+        </div>
+
+        <div class="manage-row" data-name="snapchat spotlight">
+          <a href="app-detail.html" class="app-link">
+            <div class="badge-icon" style="background:var(--accent-yellow);">SC</div>
+            <div>
+              <div style="font-size:14px; font-weight:700;">Snapchat</div>
+              <div style="font-size:11px; color:var(--text-muted);">Spotlight Feed · Off</div>
+            </div>
+          </a>
+          <div class="toggle-switch" onclick="this.classList.toggle('on')"></div>
+        </div>
+      </section>
+    </div>
+
+    <a href="home.html" class="btn-mint" style="display:grid; place-items:center; text-decoration:none;">
+      Save &amp; Return
+    </a>
+  </div>
+
+  <script>
+    function filterApps(q) {
+      const term = q.toLowerCase();
+      document.querySelectorAll('.manage-row').forEach(row => {
+        row.style.display = row.dataset.name.includes(term) ? 'flex' : 'none';
+      });
+    }
+  </script>
+</body>
+</html>
+
+```
+
+---
+
+### 4. `app-detail.html` (`AppDetailScreen.kt`)
+
+Per-app budget slider, intervention mode override, and allowed vs. blocked surface breakdown.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Outloop — App Rule Detail</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <style>
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .back-pill {
+      text-decoration: none;
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 8px 14px;
+      border-radius: 99px;
+      box-shadow: var(--shadow-card);
+    }
+    .hero-app {
+      background: var(--accent-peach);
+      border-radius: var(--radius-card);
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .budget-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-card);
+      padding: 18px 20px;
+      box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .budget-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--bg-hero-dark);
+      cursor: pointer;
+    }
+    .zone-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .zone-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-card);
+      padding: 15px;
+      box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="device-frame">
+    <div class="screen-main">
+      <div class="top-bar">
+        <a href="manage-apps.html" class="back-pill">← Apps</a>
+        <span style="font-size:11px; font-weight:700; color:var(--text-muted);">com.google.android.youtube</span>
+      </div>
+
+      <section class="hero-app">
+        <div>
+          <span style="font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; opacity:0.7;">Guarded App</span>
+          <h1 class="page-title" style="margin-top:2px;">YouTube Shorts</h1>
+          <div style="font-size:12px; font-weight:600; opacity:0.8; margin-top:4px;">38 loops stopped this week</div>
+        </div>
+        <div class="toggle-switch on" onclick="this.classList.toggle('on')"></div>
+      </section>
+
+      <section class="budget-card">
+        <div class="budget-header">
+          <span class="section-label" style="margin:0;">Daily Short-Form Budget</span>
+          <span style="font-size:20px; font-weight:800;" id="budgetVal">15 min</span>
+        </div>
+        <input type="range" min="0" max="45" step="5" value="15" oninput="document.getElementById('budgetVal').textContent = this.value === '0' ? 'Instant Block' : this.value + ' min'" />
+        <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted);">
+          <span>0m (Strict)</span>
+          <span>12m used today</span>
+          <span>45m</span>
+        </div>
+      </section>
+
+      <section class="zone-grid">
+        <div class="zone-card" style="background:var(--accent-mint-card);">
+          <span style="font-size:10px; font-weight:800; text-transform:uppercase;">Allowed Open</span>
+          <div style="font-size:14px; font-weight:700;">Home, Search &amp; Subscriptions</div>
+          <div style="font-size:11px; opacity:0.8;">Long-form videos play uninterrupted.</div>
+        </div>
+        <div class="zone-card">
+          <span style="font-size:10px; font-weight:800; text-transform:uppercase; color:var(--accent-coral);">Intercepted</span>
+          <div style="font-size:14px; font-weight:700;">Shorts Tab &amp; Reel Player</div>
+          <div style="font-size:11px; color:var(--text-secondary);">Triggers Pause Overlay on scroll.</div>
+        </div>
+      </section>
+    </div>
+
+    <a href="overlay.html" class="btn-dark" style="display:grid; place-items:center; text-decoration:none;">
+      Preview YouTube Pause Overlay
+    </a>
+  </div>
+</body>
+</html>
+
+```
+
+---
+
+### 5. `privacy.html` & `diagnostics.html` (`PrivacyScreen.kt` & `DiagnosticsScreen.kt`)
+
+#### `privacy.html`
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Outloop — Privacy &amp; Accessibility</title>
+  <link rel="stylesheet" href="tokens.css" />
+</head>
+<body>
+  <div class="device-frame">
+    <div class="screen-main">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <a href="settings.html" style="text-decoration:none; background:var(--bg-card); color:var(--text-primary); font-size:12px; font-weight:700; padding:8px 14px; border-radius:99px; box-shadow:var(--shadow-card);">← Settings</a>
+        <span style="font-size:11px; font-weight:700; color:var(--text-muted);">Google Play Policy</span>
+      </div>
+
+      <header>
+        <p class="eyebrow">Prominent Disclosure</p>
+        <h1 class="page-title">Privacy &amp; Data</h1>
+      </header>
+
+      <section class="surface-card" style="display:flex; flex-direction:column; gap:10px;">
+        <span style="font-size:11px; font-weight:800; color:var(--accent-teal); text-transform:uppercase;">Why AccessibilityService is Used</span>
+        <p style="font-size:13px; line-height:1.5; color:var(--text-secondary);">
+          Outloop uses Android’s <strong>AccessibilityService API</strong> strictly to inspect structural view IDs (such as <code>reel_viewer_root</code>) inside apps you explicitly choose, allowing it to pause short-form video feeds while keeping search and messaging usable.
+        </p>
+      </section>
+
+      <section class="surface-card" style="display:flex; flex-direction:column; gap:10px;">
+        <span style="font-size:11px; font-weight:800; color:var(--text-primary); text-transform:uppercase;">Zero Data Collection Guarantee</span>
+        <p style="font-size:12.5px; line-height:1.5; color:var(--text-secondary);">
+          • No keystrokes, passwords, or DM text are ever read.<br/>
+          • All intervention counts stay in local Room SQLite.<br/>
+          • Network access is restricted to read-only ETag checks for <code>ruleset.json</code>.
+        </p>
+      </section>
+    </div>
+
+    <a href="settings.html" class="btn-mint" style="display:grid; place-items:center; text-decoration:none;">
+      Done
+    </a>
+  </div>
+</body>
+</html>
+
+```
+
+#### `diagnostics.html`
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Outloop — Rule Health &amp; Diagnostics</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <style>
+    .mono-box {
+      background: var(--bg-hero-dark);
+      color: var(--text-on-dark);
+      border-radius: var(--radius-card);
+      padding: 16px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11.5px;
+      line-height: 1.55;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .diag-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 11px 0;
+      border-bottom: 1px solid rgba(20, 21, 20, 0.06);
+      font-size: 13px;
+    }
+    .diag-row:last-child { border-bottom: none; }
+  </style>
+</head>
+<body>
+  <div class="device-frame">
+    <div class="screen-main">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <a href="settings.html" style="text-decoration:none; background:var(--bg-card); color:var(--text-primary); font-size:12px; font-weight:700; padding:8px 14px; border-radius:99px; box-shadow:var(--shadow-card);">← Settings</a>
+        <span style="font-size:11px; font-weight:700; color:var(--accent-teal);">● Healthy</span>
+      </div>
+
+      <header>
+        <p class="eyebrow">SelectorMatcher · Telemetry</p>
+        <h1 class="page-title">Rule Health</h1>
+      </header>
+
+      <section class="surface-card" style="padding:6px 18px;">
+        <div class="diag-row">
+          <span style="color:var(--text-secondary);">Accessibility Binder</span>
+          <strong style="color:var(--text-primary);">Connected (14ms)</strong>
+        </div>
+        <div class="diag-row">
+          <span style="color:var(--text-secondary);">Active Ruleset ETag</span>
+          <strong>"v7.0-2026.11"</strong>
+        </div>
+        <div class="diag-row">
+          <span style="color:var(--text-secondary);">Last Selector Match</span>
+          <strong>yt:reel_player_page</strong>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-label">LiveNodeSnapshot (Sanitized)</div>
+        <div class="mono-box">
+          <div style="color:var(--accent-mint);">pkg: com.google.android.youtube</div>
+          <div>rootClass: FrameLayout</div>
+          <div>matchedRule: youtube_shorts_player</div>
+          <div>actionTaken: SHOW_PAUSE_OVERLAY</div>
+          <div style="color:var(--text-on-dark-muted);">textContent: [REDACTED_ON_DEVICE]</div>
+        </div>
+      </section>
+    </div>
+
+    <button class="btn-dark" onclick="this.textContent='Ruleset Verified ✓'">
+      Verify Selector Ruleset
+    </button>
+  </div>
+</body>
+</html>
+
+```
+
+---
+
+### Next Step: Syncing Everything into Your Android App
+
+Once you drop these HTML files into `Outloop-ui/`, you now have a complete visual reference for every screen in `app/src/main/java/com/example/ui/screens/`. You can point your local coding agent directly to `Outloop-ui/` (including the new `onboarding.html`, `manage-apps.html`, `app-detail.html`, `privacy.html`, and `diagnostics.html`) so it translates all screens—not just the main 3 tabs—into Jetpack Compose consistently.

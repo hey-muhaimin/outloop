@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Outloop — Rule Health &amp; Diagnostics</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <style>
+    .mono-box {
+      background: var(--bg-hero-dark);
+      color: var(--text-on-dark);
+      border-radius: var(--radius-card);
+      padding: 16px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11.5px;
+      line-height: 1.55;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .diag-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 11px 0;
+      border-bottom: 1px solid rgba(20, 21, 20, 0.06);
+      font-size: 13px;
+    }
+    .diag-row:last-child { border-bottom: none; }
+  </style>
+</head>
+<body>
+  <div class="device-frame">
+    <div class="screen-main">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <a href="settings.html" style="text-decoration:none; background:var(--bg-card); color:var(--text-primary); font-size:12px; font-weight:700; padding:8px 14px; border-radius:99px; box-shadow:var(--shadow-card);">← Settings</a>
+        <span style="font-size:11px; font-weight:700; color:var(--accent-teal);">● Healthy</span>
+      </div>
+
+      <header>
+        <p class="eyebrow">SelectorMatcher · Telemetry</p>
+        <h1 class="page-title">Rule Health</h1>
+      </header>
+
+      <section class="surface-card" style="padding:6px 18px;">
+        <div class="diag-row">
+          <span style="color:var(--text-secondary);">Accessibility Binder</span>
+          <strong style="color:var(--text-primary);">Connected (14ms)</strong>
+        </div>
+        <div class="diag-row">
+          <span style="color:var(--text-secondary);">Active Ruleset ETag</span>
+          <strong>"v7.0-2026.11"</strong>
+        </div>
+        <div class="diag-row">
+          <span style="color:var(--text-secondary);">Last Selector Match</span>
+          <strong>yt:reel_player_page</strong>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-label">LiveNodeSnapshot (Sanitized)</div>
+        <div class="mono-box">
+          <div style="color:var(--accent-mint);">pkg: com.google.android.youtube</div>
+          <div>rootClass: FrameLayout</div>
+          <div>matchedRule: youtube_shorts_player</div>
+          <div>actionTaken: SHOW_PAUSE_OVERLAY</div>
+          <div style="color:var(--text-on-dark-muted);">textContent: [REDACTED_ON_DEVICE]</div>
+        </div>
+      </section>
+    </div>
+
+    <button class="btn-dark" onclick="this.textContent='Ruleset Verified ✓'">
+      Verify Selector Ruleset
+    </button>
+  </div>
+</body>
+</html>

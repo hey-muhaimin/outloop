@@ -1338,6 +1338,68 @@ class FeedSurgeonUiRobolectricTest {
         composeRule.waitForIdle()
         assertTrue(finishedReplay)
     }
+
+    @Test
+    fun `manage apps screen filters apps by search query and opens detail on row click`() {
+        val rules = FeedSurgeonDatabase.defaultBuiltInRules()
+        val installed = setOf("com.google.android.youtube", "com.instagram.android")
+        var clickedPkg = ""
+
+        composeRule.setContent {
+            FeedSurgeonTheme {
+                ManageAppsScreen(
+                    rules = rules,
+                    installedPackages = installed,
+                    onToggleApp = { _, _ -> },
+                    onBack = {},
+                    rulesetVersion = "v2026.11.21",
+                    onAppClick = { pkg -> clickedPkg = pkg }
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("RULESET V2026.11.21").assertIsDisplayed()
+        composeRule.onNodeWithTag("manage_apps_search_input").performTextInput("insta")
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("manage_app_row_com.google.android.youtube").assertDoesNotExist()
+        composeRule.onNodeWithTag("manage_app_row_com.instagram.android").performClick()
+        assertEquals("com.instagram.android", clickedPkg)
+    }
+
+    @Test
+    fun `diagnostics screen renders sanitized LiveNodeSnapshot box with redacted marker`() {
+        composeRule.setContent {
+            FeedSurgeonTheme {
+                DiagnosticsScreen(
+                    uiState = MainUiState(
+                        isInitialLoading = false,
+                        preferences = AppPreferences(rulesetVersion = "v2026.11.21"),
+                        isAccessibilityEnabled = true,
+                        isServiceConnected = true,
+                        protectionStatus = ProtectionStatus.OPERATIONAL,
+                        activeInstalledCount = 2,
+                        foregroundAppSummary = "com.google.android.youtube",
+                        lastDetectionSummary = "YouTube Shorts",
+                        lastInterventionOutcomeSummary = "SHOW_PAUSE_OVERLAY"
+                    ),
+                    onRefreshHealth = {},
+                    onCheckRulesNow = {},
+                    onSetAutoUpdateRules = {},
+                    onSetEventCaptureEnabled = {},
+                    onShareEventLog = {},
+                    onClearEventLog = {},
+                    onShowToast = {},
+                    onBack = {}
+                )
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("diagnostics_live_snapshot_box").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("textContent: [REDACTED_ON_DEVICE]").assertIsDisplayed()
+    }
 }
 
 
