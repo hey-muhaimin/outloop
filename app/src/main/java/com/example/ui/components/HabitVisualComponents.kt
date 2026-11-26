@@ -66,6 +66,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.data.local.AppPreferences
 import com.example.data.repository.InterventionRepository
+import com.example.ui.AppBreakdownStat
 import com.example.ui.DayBarStat
 import com.example.ui.theme.OutloopMetrics
 import com.example.ui.theme.OutloopTheme
@@ -880,3 +881,145 @@ fun OutloopSimulationOverlay(
         }
     }
 }
+
+/**
+ * Daily summary card displaying how many times the AccessibilityService triggered a 'pause'
+ * on supported social media apps based on current Room database logs, using D3-style Canvas graphing
+ * with Bio-Mint accent (#9DE8B2).
+ */
+@Composable
+fun OutloopAccessibilityPauseSummaryCard(
+    byAppBreakdown: List<AppBreakdownStat>,
+    modifier: Modifier = Modifier
+) {
+    val colors = OutloopTheme.colors
+    val totalPauses = byAppBreakdown.sumOf { it.count }
+
+    OutloopTonalCard(
+        cornerRadius = OutloopMetrics.CardCornerRadius,
+        contentPadding = PaddingValues(18.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "Accessibility Pause Triggers",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = colors.ink
+                    )
+                    Text(
+                        text = "$totalPauses total pauses logged by AccessibilityService",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.secondaryInk
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(100.dp))
+                        .background(colors.sageAccent.copy(alpha = 0.25f))
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Live Sync",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = colors.ink
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // D3-style Canvas graphing of pause triggers per app
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(110.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(colors.surfaceSubtle)
+                    .padding(12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (byAppBreakdown.isEmpty()) {
+                    Text(
+                        text = "No accessibility pause events logged yet.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.mutedInk
+                    )
+                } else {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val maxCount = byAppBreakdown.maxOfOrNull { it.count }?.coerceAtLeast(1) ?: 1
+                        val barWidth = (size.width / (byAppBreakdown.size * 2f)).coerceIn(12.dp.toPx(), 36.dp.toPx())
+                        val spacing = (size.width - (barWidth * byAppBreakdown.size)) / (byAppBreakdown.size + 1).coerceAtLeast(1)
+                        val chartHeight = size.height - 16.dp.toPx()
+
+                        byAppBreakdown.forEachIndexed { idx, stat ->
+                            val fraction = (stat.count.toFloat() / maxCount.toFloat()).coerceIn(0.1f, 1f)
+                            val barHeight = chartHeight * fraction
+                            val left = spacing + idx * (barWidth + spacing)
+                            val top = size.height - barHeight - 4.dp.toPx()
+
+                            drawRoundRect(
+                                color = colors.surfaceCard,
+                                topLeft = Offset(left, 4.dp.toPx()),
+                                size = Size(barWidth, chartHeight),
+                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx())
+                            )
+                            drawRoundRect(
+                                color = colors.sageAccent,
+                                topLeft = Offset(left, top),
+                                size = Size(barWidth, barHeight),
+                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx())
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (byAppBreakdown.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    byAppBreakdown.take(3).forEach { stat ->
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(colors.surfaceSubtle)
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.sageAccent)
+                            )
+                            Text(
+                                text = "${stat.displayName}: ${stat.count}",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    fontFeatureSettings = "tnum"
+                                ),
+                                color = colors.ink,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+

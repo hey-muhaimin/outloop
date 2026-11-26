@@ -828,6 +828,90 @@ fun OutloopBackButton(
 }
 
 @Composable
+fun OutloopMintButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    val colors = OutloopTheme.colors
+    val haptic = rememberOutloopHaptic()
+    val interactionSource = remember { MutableInteractionSource() }
+    Button(
+        onClick = {
+            haptic()
+            onClick()
+        },
+        enabled = enabled,
+        interactionSource = interactionSource,
+        shape = RoundedCornerShape(OutloopMetrics.ButtonCornerRadius),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = colors.sageAccent,
+            contentColor = Color(0xFF141514),
+            disabledContainerColor = colors.sageAccent.copy(alpha = 0.5f),
+            disabledContentColor = Color(0xFF141514).copy(alpha = 0.5f)
+        ),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+        modifier = modifier
+            .outloopPressScale(interactionSource)
+            .fillMaxWidth()
+            .height(52.dp)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            ),
+            color = Color(0xFF141514),
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+fun OutloopDarkButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    val colors = OutloopTheme.colors
+    val haptic = rememberOutloopHaptic()
+    val interactionSource = remember { MutableInteractionSource() }
+    Button(
+        onClick = {
+            haptic()
+            onClick()
+        },
+        enabled = enabled,
+        interactionSource = interactionSource,
+        shape = RoundedCornerShape(OutloopMetrics.ButtonCornerRadius),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = colors.heroDark,
+            contentColor = colors.onPrimaryTint,
+            disabledContainerColor = colors.heroDark.copy(alpha = 0.5f),
+            disabledContentColor = colors.onPrimaryTint.copy(alpha = 0.5f)
+        ),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+        modifier = modifier
+            .outloopPressScale(interactionSource)
+            .fillMaxWidth()
+            .height(52.dp)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold
+            ),
+            color = colors.onPrimaryTint,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
 fun OutloopSwitch(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
@@ -838,7 +922,7 @@ fun OutloopSwitch(
     val colors = OutloopTheme.colors
     val haptic = rememberOutloopHaptic()
     val trackColor by animateColorAsState(
-        targetValue = if (checked) colors.switchOn else colors.switchOff,
+        targetValue = if (checked) colors.heroDark else colors.surfaceSubtle,
         label = "switchTrack"
     )
     val thumbColor by animateColorAsState(
@@ -846,7 +930,7 @@ fun OutloopSwitch(
         label = "switchThumbColor"
     )
     val thumbOffset by animateDpAsState(
-        targetValue = if (checked) 18.dp else 3.dp,
+        targetValue = if (checked) 21.dp else 3.dp,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "switchThumb"
     )
@@ -874,13 +958,13 @@ fun OutloopSwitch(
             modifier = Modifier
                 .size(width = 44.dp, height = 26.dp)
                 .clip(RoundedCornerShape(99.dp))
-                .background(if (enabled) trackColor else colors.switchOff.copy(alpha = 0.55f))
+                .background(if (enabled) trackColor else colors.surfaceSubtle.copy(alpha = 0.55f))
         ) {
             Box(
                 modifier = Modifier
                     .offset(x = thumbOffset, y = 3.dp)
                     .size(20.dp)
-                    .shadow(1.dp, CircleShape)
+                    .shadow(1.5.dp, CircleShape)
                     .clip(CircleShape)
                     .background(if (enabled) thumbColor else Color.White.copy(alpha = 0.72f))
             )
@@ -1106,13 +1190,18 @@ fun OutloopAppMonogramBadge(
         }
     }
 
+    val badgeBg = colors.surfaceSubtle
+    val badgeBorder = colors.sageAccent
+    val badgeFg = colors.ink
+
     val letter = appName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "A"
     val shape = RoundedCornerShape(cornerRadius)
     Box(
         modifier = modifier
             .size(size)
             .clip(shape)
-            .background(colors.heroDark),
+            .background(badgeBg)
+            .border(1.5.dp, badgeBorder, shape),
         contentAlignment = Alignment.Center
     ) {
         if (appIcon != null) {
@@ -1129,7 +1218,7 @@ fun OutloopAppMonogramBadge(
                 text = letter,
                 fontSize = (size.value * 0.40f).sp,
                 fontWeight = FontWeight.Bold,
-                color = colors.onPrimaryTint
+                color = badgeFg
             )
         }
     }

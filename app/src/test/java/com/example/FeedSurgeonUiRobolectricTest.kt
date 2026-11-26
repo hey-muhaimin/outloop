@@ -50,7 +50,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [36])
 class FeedSurgeonUiRobolectricTest {
 
     @get:Rule
@@ -485,7 +485,7 @@ class FeedSurgeonUiRobolectricTest {
     }
 
     @Test
-    @Config(qualifiers = "w840dp-h600dp")
+    @Config(sdk = [36], qualifiers = "w840dp-h600dp")
     fun `navigation host uses side rail on wide tablet screens and navigates tabs`() {
         val rules = FeedSurgeonDatabase.defaultBuiltInRules()
         composeRule.setContent {
