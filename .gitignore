@@ -23,6 +23,7 @@ debug.keystore
 # Build output
 **/build/
 /build-output/
+/release-output/
 /bundled-apk/
 
 # Local secrets
