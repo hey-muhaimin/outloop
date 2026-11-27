@@ -9,7 +9,7 @@ This file defines mandatory project conventions, architecture boundaries, Google
 - **App Name**: `Outloop` (`app/src/main/res/values/strings.xml` and root `metadata.json` **must stay in sync**).
 - **Application ID**: `com.suprbuild.outloop` (set in `app/build.gradle.kts`). **Do not change `applicationId` unless explicitly requested.**
 - **Internal Namespace**: `com.example` (keep Kotlin source directories and `R` package under `com/example` — never rename `namespace`).
-- **Current Release Version**: `versionCode = 8`, `versionName = "8.0"`.
+- **Current Release Version**: `versionCode = 17`, `versionName = "17.0"`.
 - **Toolchain**: Kotlin, Jetpack Compose, AGP `9.1.1`, Gradle `9.3.1`, JDK 21, `compileSdk = 36` (`minSdk = 24`, `targetSdk = 36`).
 - **Protected Files & Signing Blocks**:
   - **NEVER** modify, delete, or overwrite `debug.keystore` or `debug.keystore.base64`.

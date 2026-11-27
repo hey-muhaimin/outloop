@@ -4,7 +4,7 @@
 - **App Name**: `Outloop`
 - **Application ID (`applicationId`)**: `com.suprbuild.outloop`
 - **Internal Namespace (`namespace`)**: `com.example`
-- **Version**: `7.0` (`versionCode = 7`)
+- **Version**: `17.0` (`versionCode = 17`)
 - **SDK Levels**: `minSdk = 24` · `targetSdk = 36`
 - **Release Track**: Closed Testing → **Production**
 - **Privacy Policy URL**: `https://suprbuild.com/privacy`
@@ -141,11 +141,15 @@ Outloop includes zero third-party analytics, crash reporting, ad networks, authe
 ## 7. Production Rollout Checklist (Closed Testing → Production)
 
 1. Confirm all **Closed Testing** feedback and Pre-Launch Report checks show zero crashes and zero R8 missing-class issues.
-2. Upload/promote the signed `app-release.aab` (`com.suprbuild.outloop`, `versionCode = 7`, `versionName = "7.0"`) in **Production → Create new release**.
-3. Verify **App Content** declarations (Accessibility API + demo video, Foreground Service `specialUse` + demo video, Data Safety, Privacy Policy, Target Audience, IARC Rating) are complete and up to date.
-4. Add release notes ("What's new"):
-   - Refined pause overlay with inline **Home** and **Exit** controls plus a full-width **Pause** button.
+2. Upload/promote the signed `app-release.aab` (`com.suprbuild.outloop`, `versionCode = 17`, `versionName = "17.0"`) in **Production → Create new release** (or **Closed testing → Create new release**).
+3. **Remove Shadowed / Retained Lower Version Codes (CRITICAL)**:
+   - Outloop builds a **single universal bundle** (`minSdk = 24`, `targetSdk = 36`, no ABI/density `splits`, no product flavors).
+   - Under **App bundles** → **New app bundles** and **Previous release → Included**, verify that **only `versionCode = 17`** is present.
+   - Remove every lower version code (`5, 6, 8, 9, 11, 12, 13, 14, 15, 16`) from **New app bundles** (click the three dots / trash **Remove** icon on each) and remove `7 (7.0)` (or any retained bundle) from **Previous release → Included** (or click **Discard release** and start a clean release uploading only `versionCode = 17`).
+4. Verify **App Content** declarations (Accessibility API + demo video, Foreground Service `specialUse` + demo video, Data Safety, Privacy Policy, Target Audience, IARC Rating) are complete and up to date.
+5. Add release notes ("What's new"):
+   - Refined Bio-Mint design across Today, Insights, Settings, and the 2-row pause overlay (**Home**, **Exit**, and **Pause**).
+   - Daily Accessibility pause summary chart in Insights backed by on-device Room logs.
    - Improved **Home** navigation to return directly to the guarded app's Home tab from Shorts or Reels.
    - Updated Privacy and Accessibility disclosures for clearer on-device transparency and Play compliance.
-   - Stability and release build improvements.
-5. Select target countries/regions (and staged rollout percentage if desired) and submit for review.
+6. Select target countries/regions (and staged rollout percentage if desired) and submit for review.

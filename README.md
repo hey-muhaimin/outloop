@@ -5,7 +5,7 @@
 Outloop is an open-source, privacy-first Android digital wellbeing app built with Kotlin and Jetpack Compose. It detects when you enter endless short-form video feeds inside supported apps—such as **YouTube Shorts**, **Instagram Reels**, **Facebook Reels**, **TikTok For You**, **X For You**, **Snapchat Spotlight**, and **Reddit Watch**—and gently intervenes with a pause overlay, a return to the app's own **Home** tab, or a Back navigation step while keeping Search, DMs, Subscriptions, and everyday utilities open.
 
 - **Package ID**: `com.suprbuild.outloop`
-- **Current Version**: `7.0` (`versionCode = 7`)
+- **Current Version**: `17.0` (`versionCode = 17`)
 - **Min / Target SDK**: `24` / `36`
 - **Privacy Policy**: [`https://suprbuild.com/privacy`](https://suprbuild.com/privacy)
 
@@ -23,7 +23,7 @@ Outloop is an open-source, privacy-first Android digital wellbeing app built wit
 
 ---
 
-## Release Notes — `v7.0` (`versionCode = 7`)
+## Release Notes — `v17.0` (`versionCode = 17`)
 
 - **Refined Pause Overlay Modal**: Unified 2-row action dock featuring inline **Home** and **Exit** buttons alongside a full-width **Pause** button for consistent ergonomics and visual hierarchy.
 - **In-App Home Tab Navigation**: Tapping **Home** on the pause overlay navigates back to the currently guarded app's own Home/Feed tab (e.g., YouTube Home or Facebook News Feed) from Shorts or Reels instead of leaving the app for Outloop.

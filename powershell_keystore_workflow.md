@@ -5,7 +5,7 @@ This guide walks through generating your permanent Google Play upload keystore o
 > **Important Security Rules**
 > - **Never commit** `*.jks`, `*.keystore`, or `.env` files containing passwords to Git (all are ignored in `.gitignore`).
 > - **Store a redundant offline backup** of your upload keystore and both passwords in a secure password manager. If you lose the upload key and Play App Signing is enabled, you must request an upload key reset via Google Play Support.
-> - **Confirm `applicationId` first**: `app/build.gradle.kts` is configured as `com.suprbuild.outloop` (`versionCode = 7`, `versionName = "7.0"`).
+> - **Confirm `applicationId` first**: `app/build.gradle.kts` is configured as `com.suprbuild.outloop` (`versionCode = 17`, `versionName = "17.0"`).
 
 ---
 
@@ -147,7 +147,7 @@ Confirm **`Verifies`** is `true` and the SHA-256 digest matches your `keytool -l
 & (Join-Path $BuildTools.FullName "aapt2.exe") dump badging .\app\build\outputs\apk\release\app-release.apk | Select-String -Pattern "package:|application-label:|uses-permission:|sdkVersion|targetSdkVersion"
 ```
 Confirm:
-- `package: name='com.suprbuild.outloop' versionCode='7' versionName='7.0'`
+- `package: name='com.suprbuild.outloop' versionCode='17' versionName='17.0'`
 - `application-label:'Outloop'`
 
 ---
